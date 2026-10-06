@@ -1,30 +1,124 @@
+<div align="center">
+
+<img src="./assets/nyvorel.svg" alt="Nyvorel" width="150" />
+
 # Nyvorel Shell
 
-Nyvorel is a custom desktop shell built around **Hyprland** and **Quickshell**.
-It began as a derivative of `end-4/dots-hyprland` / Illogical Impulse and has
-since been extensively redesigned with its own identity, modules, workflows,
-services, UX, lifecycle management, and tooling.
+### A cohesive Hyprland + Quickshell desktop environment for Arch Linux.
 
-**Current release target: v0.1.0**
+**Fluid shell UI · integrated desktop workflows · recoverable installation · portable source**
 
-> Nyvorel is an independent community project. It is not affiliated with or
-> endorsed by third-party projects and services represented by inherited
-> interface assets.
+[![Release](https://img.shields.io/github/v/release/harkoussomar/nyvorel?style=flat-square&label=release)](https://github.com/harkoussomar/nyvorel/releases/latest)
+[![License](https://img.shields.io/github/license/harkoussomar/nyvorel?style=flat-square)](./LICENSE)
+[![Stars](https://img.shields.io/github/stars/harkoussomar/nyvorel?style=flat-square)](https://github.com/harkoussomar/nyvorel/stargazers)
+![Arch Linux](https://img.shields.io/badge/Arch_Linux-target-1793D1?style=flat-square&logo=archlinux&logoColor=white)
+![Hyprland](https://img.shields.io/badge/Hyprland-compositor-58E1FF?style=flat-square)
+![Quickshell](https://img.shields.io/badge/Quickshell-shell-7AA2F7?style=flat-square)
 
-## What is included
+[**Install**](#quick-start) ·
+[**Explore**](#the-nyvorel-experience) ·
+[**Architecture**](#how-it-fits-together) ·
+[**Documentation**](#documentation) ·
+[**Release v0.1.0**](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.0)
 
-- Quickshell-based Nyvorel desktop shell and modules.
-- Hyprland configuration and shell integration.
-- systemd user units for shell lifecycle and style synchronization.
-- Nyvorel helper commands.
-- Fish and Kitty integrations.
-- Operations Center, backup/recovery, Arch Remote, project launcher, appearance,
-  media, notification, session, and utility workflows.
-- Portable public-source templates using the `@HOME@` install-time token.
+</div>
 
-## Requirements
+---
 
-Nyvorel v0.1.0 targets an **Arch Linux + Hyprland + Quickshell** environment.
+## What is Nyvorel?
+
+Nyvorel is a desktop shell and workflow layer built around **Hyprland** and
+**Quickshell**.
+
+It is designed as one connected environment rather than a loose collection of
+dotfiles: the shell, session lifecycle, desktop services, appearance,
+application integrations, recovery tooling, and user workflows are meant to
+behave as parts of the same system.
+
+Nyvorel began as a derivative of
+[`end-4/dots-hyprland`](https://github.com/end-4/dots-hyprland) / Illogical
+Impulse and has since been extensively redesigned with its own identity,
+modules, services, UX, lifecycle model, and tooling.
+
+> **Current stable release:** [`v0.1.0`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.0)
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Platform** | Arch Linux |
+| **Compositor** | Hyprland |
+| **Desktop shell** | Quickshell |
+| **Service lifecycle** | systemd user services |
+| **Automation / tooling** | Bash + Python |
+| **Current release** | `v0.1.0` |
+| **License** | GPL-3.0 |
+| **Install model** | Manifest-backed, backup-first, recoverable |
+
+## The Nyvorel experience
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Shell & interaction
+
+- Quickshell-based desktop shell
+- workspace and session surfaces
+- notifications and on-screen display
+- media controls
+- appearance workflows
+- project launcher
+- utility and system surfaces
+
+</td>
+<td width="50%" valign="top">
+
+### System workflows
+
+- Operations Center
+- Backup & Recovery
+- Arch Remote
+- managed Quickshell lifecycle
+- systemd user services
+- desktop-aware helpers
+- recovery-oriented installation
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Integrated appearance
+
+- shared desktop styling workflows
+- terminal theme synchronization
+- Fish and Kitty integration
+- application style synchronization
+- integrations for tools such as btop, Dolphin, Fuzzel, and Zed
+
+</td>
+<td width="50%" valign="top">
+
+### Reliability by design
+
+- portable public source
+- explicit `@HOME@` materialization
+- timestamped installation backups
+- machine-readable install manifests
+- safe uninstall / restore
+- protection for post-install user edits
+
+</td>
+</tr>
+</table>
+
+## Quick start
+
+### 1. Requirements
+
+Nyvorel `v0.1.0` targets an existing **Arch Linux + Hyprland + Quickshell**
+desktop.
 
 Core requirements:
 
@@ -34,104 +128,204 @@ Core requirements:
 - Python 3
 - standard GNU/Linux userland tools
 
-Nyvorel also integrates with tools used by the upstream shell ecosystem and
-with optional applications such as Kitty, Fish, btop, Dolphin, Fuzzel, Zed,
-and related Wayland utilities. Features for applications that are not
-installed may remain unused.
+Some integrations depend on optional applications. Missing optional
+applications do not need to be installed just to inspect or use unrelated
+parts of Nyvorel.
 
-v0.1.0 is a desktop-shell release, not a complete Arch Linux distribution
-bootstrapper. A compatible Wayland/Hyprland environment is expected.
+### 2. Clone
 
-## Installation
+```sh
+git clone https://github.com/harkoussomar/nyvorel.git
+cd nyvorel
+```
 
-Preview the installation plan:
+### 3. Preview before touching your configuration
 
 ```sh
 ./install.sh --dry-run
 ```
 
-Install Nyvorel while backing up existing managed files:
+### 4. Install
 
 ```sh
 ./install.sh --yes
 ```
 
-Install and activate the Nyvorel user services in the current
-Hyprland/Wayland session:
+To install and activate Nyvorel services in the current Hyprland / Wayland
+session:
 
 ```sh
 ./install.sh --yes --activate
 ```
 
-The installer renders all public-source `@HOME@` tokens with the target user's
-actual home path, installs the Nyvorel systemd user units, and records a
-timestamped backup/manifest under `~/.local/state/nyvorel/installations/`.
+> The installer backs up every managed file it replaces and records the
+> installation under `~/.local/state/nyvorel/installations/`.
 
-## Uninstall / recovery
+See [`INSTALL.md`](./INSTALL.md) for the complete installation and recovery
+model.
 
-Restore every pre-install file and remove files created by Nyvorel:
+## Safe recovery is part of the install model
+
+Nyvorel does not treat uninstall as an afterthought.
 
 ```sh
 ./uninstall.sh --yes
 ```
 
-The uninstaller verifies installed-file checksums before changing anything. If
-a managed file was edited after installation it refuses to overwrite that
-change. Explicit `--force-changed` archives those changed files inside the
-installation state before recovery.
+The recovery flow:
 
-Nyvorel runtime/user state under `~/.config/nyvorel` is intentionally retained.
+1. reads the installation manifest;
+2. verifies managed-file checksums;
+3. restores files that existed before installation;
+4. removes files created by Nyvorel;
+5. refuses to overwrite files you edited after installation.
 
-See `INSTALL.md` for the complete install, backup, and recovery model.
+When you explicitly choose forced recovery, changed files are archived first:
 
+```sh
+./uninstall.sh --yes --force-changed
+```
 
-## Source layout
+Runtime/user state under `~/.config/nyvorel` is intentionally retained.
 
-- `quickshell/` — Nyvorel Quickshell source.
-- `hypr/` — Hyprland integration and configuration.
-- `systemd/` — portable systemd user-unit templates.
-- `bin/` — Nyvorel helper executables.
-- `integrations/` — shell/application integrations.
-- `assets/` — Nyvorel project assets.
-- `runtime-config/` — documentation for runtime/user-state boundaries.
-- `LICENSES/` — component and third-party license evidence.
+## How it fits together
 
-## Portability
+```mermaid
+flowchart LR
+    H["Hyprland session"]
+    S["systemd --user"]
+    Q["nyvorel-quickshell.service"]
+    N["Quickshell · nyvorel"]
 
-The public repository contains no maintainer-specific home path.
+    H --> S
+    S --> Q
+    Q --> N
 
-Where an absolute target-user home directory is required, source templates use:
+    N --> UI["Shell surfaces"]
+    N --> OPS["Operations Center"]
+    N --> BR["Backup & Recovery"]
+    N --> AR["Arch Remote"]
+    N --> PL["Project Launcher"]
+
+    S --> SYNC["Style / theme sync"]
+    SYNC --> APPS["Kitty · Fish · btop · Dolphin · Fuzzel · Zed"]
+```
+
+Hyprland starts the Nyvorel session lifecycle, systemd owns long-running user
+services, and Quickshell owns the primary desktop experience.
+
+## Portability model
+
+The public repository never embeds the maintainer's home directory.
+
+Files that need an absolute target-user path use the source token:
 
 ```text
 @HOME@
 ```
 
-The installer replaces that token with the target user's actual home directory.
+For `v0.1.0`, the installer materializes those templates at install time while
+leaving the public source unchanged.
 
-See `PORTABILITY.md` for the source portability model.
+This gives Nyvorel a clean separation between:
 
-## Licensing and provenance
+```text
+public source
+    ↓
+install-time materialization
+    ↓
+user-specific runtime
+```
 
-Nyvorel is distributed under **GPL-3.0** as a substantially modified derivative
-of `end-4/dots-hyprland`.
+Read [`PORTABILITY.md`](./PORTABILITY.md) for the complete model.
 
-Relevant documentation:
+## Repository map
 
-- `LICENSE`
-- `NOTICE.md`
-- `PROVENANCE.md`
-- `THIRD_PARTY_NOTICES.md`
-- `INHERITED_ASSETS.md`
-- `TRADEMARKS.md`
-- `LICENSES/`
+```text
+nyvorel/
+├── quickshell/       # shell, modules, services, UI and workflows
+├── hypr/             # Hyprland integration and configuration
+├── systemd/          # portable user-unit templates
+├── bin/              # Nyvorel helper commands
+├── integrations/     # Fish / Kitty integration
+├── assets/           # Nyvorel project assets
+├── runtime-config/   # runtime-state boundary documentation
+├── LICENSES/         # component / third-party license evidence
+├── install.sh
+└── uninstall.sh
+```
 
-Third-party names, logos, and marks remain the property of their respective
-owners and are not claimed as Nyvorel-owned artwork.
+## Documentation
+
+| Guide | Purpose |
+| --- | --- |
+| [`INSTALL.md`](./INSTALL.md) | installation, activation, backup, uninstall, and recovery |
+| [`PORTABILITY.md`](./PORTABILITY.md) | source portability and `@HOME@` materialization |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | contribution workflow and source boundaries |
+| [`CHANGELOG.md`](./CHANGELOG.md) | public release history |
+| [`PROVENANCE.md`](./PROVENANCE.md) | upstream and source provenance |
+| [`INHERITED_ASSETS.md`](./INHERITED_ASSETS.md) | inherited asset policy |
+| [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) | third-party notices |
+| [`TRADEMARKS.md`](./TRADEMARKS.md) | trademark and affiliation notices |
+
+A dedicated Nyvorel documentation website is planned as the project grows.
+
+## Project direction
+
+`v0.1.0` establishes the public source, release model, portability boundary,
+installer, and recovery lifecycle.
+
+Next focus areas include:
+
+- richer visual showcase and project website;
+- complete user and technical documentation;
+- automated release and installer validation;
+- clean-machine installation testing;
+- Nyvorel diagnostics / doctor workflow;
+- update workflow;
+- packaging and distribution improvements.
 
 ## Contributing
 
-See `CONTRIBUTING.md`.
+Contributions are welcome.
 
-## Version
+Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request,
+especially when adding third-party code or assets.
 
-The canonical source version is stored in `VERSION`.
+## Upstream, licensing & attribution
+
+Nyvorel is distributed under **GPL-3.0** as a substantially modified derivative
+of [`end-4/dots-hyprland`](https://github.com/end-4/dots-hyprland).
+
+Upstream attribution, component licensing, inherited-asset documentation, and
+third-party notices are intentionally preserved.
+
+See:
+
+- [`LICENSE`](./LICENSE)
+- [`NOTICE.md`](./NOTICE.md)
+- [`PROVENANCE.md`](./PROVENANCE.md)
+- [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)
+- [`INHERITED_ASSETS.md`](./INHERITED_ASSETS.md)
+- [`TRADEMARKS.md`](./TRADEMARKS.md)
+- [`LICENSES/`](./LICENSES/)
+
+Third-party names, logos, and marks remain the property of their respective
+owners. Nyvorel is an independent community project and is not affiliated with
+or endorsed by the third parties represented by those assets.
+
+---
+
+<div align="center">
+
+**Nyvorel Shell**
+
+Built around Hyprland. Shaped into its own system.
+
+[Latest release](https://github.com/harkoussomar/nyvorel/releases/latest)
+·
+[Changelog](./CHANGELOG.md)
+·
+[Contributing](./CONTRIBUTING.md)
+
+</div>
