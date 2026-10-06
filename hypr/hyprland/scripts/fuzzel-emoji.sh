@@ -3,7 +3,13 @@ set -euo pipefail
 
 MODE="${1:-type}"
 
-emoji="$(sed '1,/^### DATA ###$/d' "$0" | fuzzel --match-mode fzf --dmenu | cut -d ' ' -f 1 | tr -d '\n')"
+emoji="$(
+    sed -n "/^### DATA ###$/,/^NYVOREL_EMOJI_DATA$/p" "$0" |
+        sed '1d;$d' |
+        fuzzel --match-mode fzf --dmenu |
+        cut -d ' ' -f 1 |
+        tr -d '\n'
+)"
 
 case "$MODE" in
     type)
@@ -21,7 +27,8 @@ case "$MODE" in
         exit 1
         ;;
 esac
-exit
+exit 0
+: <<'NYVOREL_EMOJI_DATA'
 ### DATA ###
 😀 grinning face face smile happy joy :D grin
 😃 grinning face with big eyes face happy joy haha :D :) smile funny
@@ -1886,3 +1893,4 @@ AH↗️HA↘️HA↗️HA↘️ pekora arrows hahaha rabbit
 𝕏  twitter x logo
 👉👈 etou ughhhhhhh shy
 👉👌 put it in imagination perv
+NYVOREL_EMOJI_DATA
