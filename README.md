@@ -23,6 +23,21 @@
 
 </div>
 
+
+<!-- NYVOREL_SHOWCASE_HERO_START -->
+<p align="center">
+  <img
+    src="./assets/showcase/hero-desktop.webp"
+    alt="Nyvorel desktop running on Hyprland"
+    width="100%"
+  />
+</p>
+
+<p align="center">
+  <sub>Nyvorel running as a cohesive Hyprland + Quickshell desktop environment.</sub>
+</p>
+<!-- NYVOREL_SHOWCASE_HERO_END -->
+
 ---
 
 ## What is Nyvorel?
@@ -112,6 +127,34 @@ modules, services, UX, lifecycle model, and tooling.
 </td>
 </tr>
 </table>
+
+
+<!-- NYVOREL_SHOWCASE_GALLERY_START -->
+## Showcase
+
+Real Nyvorel surfaces running on the desktop — no mockups.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+  <img src="./assets/showcase/settings-overview.webp" alt="Nyvorel Settings" width="100%" />
+  <br />
+  <sub><b>Nyvorel Settings</b> — shell behavior, wallpaper, interface and service configuration in one place.</sub>
+</td>
+<td width="50%" valign="top">
+  <img src="./assets/showcase/appearance-studio.webp" alt="Nyvorel Appearance Studio" width="100%" />
+  <br />
+  <sub><b>Appearance Studio</b> — wallpaper-aware palettes, appearance modes and integrated desktop styling.</sub>
+</td>
+</tr>
+</table>
+
+<p align="center">
+  <img src="./assets/showcase/backup-recovery.webp" alt="Nyvorel Backup and Recovery" width="100%" />
+  <br />
+  <sub><b>Backup &amp; Recovery</b> — recovery readiness, backup evidence and restore health as a first-class desktop workflow.</sub>
+</p>
+<!-- NYVOREL_SHOWCASE_GALLERY_END -->
 
 ## Quick start
 
