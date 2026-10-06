@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import colorsys
+import json
+import os
+import re
+from pathlib import Path
+
+HOME = Path.home()
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"
+COLOR_JSON = HOME / ".local/state/quickshell/user/generated/colors.json"
+BTOP_CONFIG = HOME / ".config/btop/btop.conf"
+THEME_DIR = HOME / ".config/btop/themes"
+MARKER = HOME / ".config/btop/.nyvorel-style-managed"
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def valid_hex(value):
+    if not isinstance(value, str):
+        return None
+    m = HEX.match(value.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def style() -> str:
+    forced = os.environ.get("NYVOREL_INTERFACE_STYLE_OVERRIDE", "").strip().lower()
+    if forced in {"fluid", "prism", "inlay", "default"}:
+        return forced
+    try:
+        data = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        value = str((data.get("appearance") or {}).get("interfaceStyle") or "").strip().lower()
+        value = {"glass": "fluid", "mica": "inlay", "solid": "default"}.get(value, value)
+        if value in {"fluid", "prism", "inlay", "default"}:
+            return value
+    except Exception:
+        pass
+    return "default"
+
+
+def load_colors():
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and isinstance(data.get("colors"), dict):
+        data = data["colors"]
+
+    flat = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            hx = valid_hex(v)
+            if hx:
+                flat[norm(k)] = hx
+
+    def pick(*names, fallback=None):
+        for name in names:
+            v = flat.get(norm(name))
+            if v:
+                return v
+        if fallback:
+            return fallback
+        raise KeyError("missing generated color role: " + ", ".join(names))
+
+    background = pick("background", "surface_dim")
+    surface = pick("surface", fallback=background)
+    surface_low = pick("surface_container_low", fallback=surface)
+    surface_high = pick("surface_container_high", "surface_container", fallback=surface)
+    on_surface = pick("on_surface", "on_background")
+    on_variant = pick("on_surface_variant", "outline", fallback=on_surface)
+    primary = pick("primary", fallback=on_surface)
+    secondary = pick("secondary", fallback=primary)
+    tertiary = pick("tertiary", fallback=secondary)
+    error = pick("error", fallback="#ff6b6b")
+    outline = pick("outline", fallback=on_variant)
+    outline_variant = pick("outline_variant", fallback=outline)
+
+    return dict(
+        background=background, surface=surface, surface_low=surface_low,
+        surface_high=surface_high, on_surface=on_surface,
+        on_variant=on_variant, primary=primary, secondary=secondary,
+        tertiary=tertiary, error=error, outline=outline,
+        outline_variant=outline_variant,
+    )
+
+
+def mix(a, b, amount):
+    amount = max(0.0, min(1.0, amount))
+    av = a.lstrip("#")
+    bv = b.lstrip("#")
+    vals = []
+    for i in (0, 2, 4):
+        x = int(av[i:i+2], 16)
+        y = int(bv[i:i+2], 16)
+        vals.append(round(x + (y - x) * amount))
+    return "#" + "".join(f"{v:02x}" for v in vals)
+
+
+def theme_text(name: str, c: dict) -> str:
+    # main_bg stays empty so btop continues respecting the Kitty substrate.
+    if name == "prism":
+        selected_bg = mix(c["surface_high"], c["primary"], 0.18)
+        inactive = mix(c["on_variant"], c["background"], 0.40)
+        box = mix(c["primary"], c["outline"], 0.35)
+        div = mix(c["outline_variant"], c["background"], 0.15)
+        cpu = c["primary"]
+        mem = c["secondary"]
+        net = c["tertiary"]
+        proc = mix(c["primary"], c["tertiary"], 0.50)
+    elif name == "inlay":
+        selected_bg = mix(c["surface_low"], c["primary"], 0.14)
+        inactive = mix(c["on_variant"], c["background"], 0.50)
+        box = c["outline_variant"]
+        div = c["outline_variant"]
+        cpu = c["primary"]
+        mem = c["primary"]
+        net = c["primary"]
+        proc = c["primary"]
+    else:
+        selected_bg = c["surface_high"]
+        inactive = c["on_variant"]
+        box = c["outline_variant"]
+        div = c["outline_variant"]
+        cpu = c["primary"]
+        mem = c["secondary"]
+        net = c["tertiary"]
+        proc = c["outline"]
+
+    lines = [
+        f"# AUTO-GENERATED Nyvorel btop theme: {name}",
+        'theme[main_bg]=""',
+        f'theme[main_fg]="{c["on_surface"]}"',
+        f'theme[title]="{c["on_surface"]}"',
+        f'theme[hi_fg]="{c["primary"]}"',
+        f'theme[selected_bg]="{selected_bg}"',
+        f'theme[selected_fg]="{c["on_surface"]}"',
+        f'theme[inactive_fg]="{inactive}"',
+        f'theme[graph_text]="{c["on_variant"]}"',
+        f'theme[meter_bg]="{c["surface_high"]}"',
+        f'theme[proc_misc]="{c["primary"]}"',
+        f'theme[cpu_box]="{box if name == "inlay" else cpu}"',
+        f'theme[mem_box]="{box if name == "inlay" else mem}"',
+        f'theme[net_box]="{box if name == "inlay" else net}"',
+        f'theme[proc_box]="{box if name == "inlay" else proc}"',
+        f'theme[div_line]="{div}"',
+        f'theme[temp_start]="{c["primary"]}"',
+        f'theme[temp_mid]="{c["tertiary"]}"',
+        f'theme[temp_end]="{c["error"]}"',
+        f'theme[cpu_start]="{cpu}"',
+        f'theme[cpu_mid]="{mix(cpu, c["on_surface"], 0.25)}"',
+        f'theme[cpu_end]="{c["error"]}"',
+        f'theme[free_start]="{c["secondary"]}"',
+        f'theme[free_mid]="{mix(c["secondary"], c["on_surface"], 0.25)}"',
+        f'theme[free_end]="{c["on_surface"]}"',
+        f'theme[cached_start]="{c["tertiary"]}"',
+        f'theme[cached_mid]="{mix(c["tertiary"], c["on_surface"], 0.25)}"',
+        f'theme[cached_end]="{c["on_surface"]}"',
+        f'theme[available_start]="{c["primary"]}"',
+        f'theme[available_mid]="{mix(c["primary"], c["on_surface"], 0.25)}"',
+        f'theme[available_end]="{c["on_surface"]}"',
+        f'theme[used_start]="{c["primary"]}"',
+        f'theme[used_mid]="{c["tertiary"]}"',
+        f'theme[used_end]="{c["error"]}"',
+        f'theme[download_start]="{c["primary"]}"',
+        f'theme[download_mid]="{mix(c["primary"], c["secondary"], 0.50)}"',
+        f'theme[download_end]="{c["secondary"]}"',
+        f'theme[upload_start]="{c["tertiary"]}"',
+        f'theme[upload_mid]="{mix(c["tertiary"], c["primary"], 0.50)}"',
+        f'theme[upload_end]="{c["primary"]}"',
+        f'theme[process_start]="{c["primary"]}"',
+        f'theme[process_mid]="{c["tertiary"]}"',
+        f'theme[process_end]="{c["error"]}"',
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def atomic_write(path: Path, text: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def patch_config(current_style: str):
+    text = BTOP_CONFIG.read_text(encoding="utf-8")
+    if current_style == "fluid":
+        theme = "Default"
+        rounded = "true"
+    elif current_style == "prism":
+        theme = "nyvorel-prism"
+        rounded = "true"
+    elif current_style == "inlay":
+        theme = "nyvorel-inlay"
+        rounded = "false"
+    else:
+        theme = "nyvorel-default"
+        rounded = "true"
+
+    text, n1 = re.subn(
+        r'(?m)^color_theme\s*=\s*"[^"]*"\s*$',
+        f'color_theme = "{theme}"',
+        text,
+        count=1,
+    )
+    text, n2 = re.subn(
+        r'(?m)^rounded_corners\s*=\s*(?:true|false)\s*$',
+        f'rounded_corners = {rounded}',
+        text,
+        count=1,
+    )
+    if n1 != 1 or n2 != 1:
+        raise RuntimeError("could not patch btop color_theme/rounded_corners safely")
+
+    atomic_write(BTOP_CONFIG, text)
+
+
+def main():
+    current = style()
+    c = load_colors()
+    THEME_DIR.mkdir(parents=True, exist_ok=True)
+
+    atomic_write(THEME_DIR / "nyvorel-prism.theme", theme_text("prism", c))
+    atomic_write(THEME_DIR / "nyvorel-inlay.theme", theme_text("inlay", c))
+    atomic_write(THEME_DIR / "nyvorel-default.theme", theme_text("default", c))
+    patch_config(current)
+
+    MARKER.write_text(
+        "Managed by nyvorel-btop-style-sync\n"
+        f"interfaceStyle={current}\n",
+        encoding="utf-8",
+    )
+
+
+if __name__ == "__main__":
+    main()

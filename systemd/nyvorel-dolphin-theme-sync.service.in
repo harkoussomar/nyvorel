@@ -1,0 +1,7 @@
+[Unit]
+Description=Sync Dolphin/Darkly with Nyvorel appearance
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/nyvorel-dolphin-theme-sync

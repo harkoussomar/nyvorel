@@ -1,0 +1,33 @@
+# Runtime/generated
+__pycache__/
+*.py[cod]
+*.log
+*.pid
+*.sock
+.cache/
+state/
+runtime/
+
+# Local/user configuration
+.env
+.env.*
+*.local
+*.secret
+secrets/
+
+# Editor/temp
+*.swp
+*.tmp
+*~
+.DS_Store
+
+# Historical maintainer artifacts
+*.bak
+*.bak-*
+*.backup
+*.backup-*
+*.orig
+*.old
+*-backups/
+.*-backups/
+.removed-*/

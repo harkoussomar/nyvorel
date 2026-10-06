@@ -1,0 +1,1107 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+
+HOME = Path.home()
+
+PALETTE_FILE = (
+    HOME
+    / ".local/state/quickshell/user/generated/colors.json"
+)
+
+EXTENSION_DIR = (
+    HOME
+    / ".vscode/extensions/nyvorel-system-theme-1.0.0"
+)
+
+THEME_DIR = EXTENSION_DIR / "themes"
+THEME_FILE = THEME_DIR / "nyvorel-system.json"
+PACKAGE_FILE = EXTENSION_DIR / "package.json"
+
+
+# ============================================================
+# Helpers
+# ============================================================
+
+def canonical(value: str) -> str:
+    return re.sub(
+        r"[^a-z0-9]",
+        "",
+        value.lower(),
+    )
+
+
+def normalize_hex(value, fallback: str) -> str:
+    if not isinstance(value, str):
+        return fallback
+
+    value = value.strip()
+
+    if re.fullmatch(r"[0-9a-fA-F]{6}", value):
+        return "#" + value.upper()
+
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+        return value.upper()
+
+    if re.fullmatch(r"[0-9a-fA-F]{8}", value):
+        return "#" + value.upper()
+
+    if re.fullmatch(r"#[0-9a-fA-F]{8}", value):
+        return value.upper()
+
+    return fallback
+
+
+def find_role(data, requested: str):
+    requested_key = canonical(requested)
+
+    # --------------------------------------------------------
+    # Direct / recursive role lookup
+    # --------------------------------------------------------
+
+    def search(obj):
+        if not isinstance(obj, dict):
+            return None
+
+        # First check exact role keys at this level.
+        for key, value in obj.items():
+            if canonical(key) == requested_key:
+                if isinstance(value, str):
+                    return value
+
+                if isinstance(value, dict):
+                    # Accommodate slightly different generated formats.
+                    for child_key in (
+                        "hex",
+                        "value",
+                        "default",
+                        "color",
+                    ):
+                        child = value.get(child_key)
+
+                        if isinstance(child, str):
+                            return child
+
+                        if isinstance(child, dict):
+                            for nested_key in (
+                                "hex",
+                                "value",
+                            ):
+                                nested = child.get(nested_key)
+
+                                if isinstance(nested, str):
+                                    return nested
+
+        # Then recurse.
+        for value in obj.values():
+            if isinstance(value, dict):
+                found = search(value)
+
+                if found is not None:
+                    return found
+
+        return None
+
+    return search(data)
+
+
+def alpha(hex_color: str, opacity: int) -> str:
+    """
+    VS Code accepts #RRGGBBAA.
+    opacity is 0..255.
+    """
+
+    base = normalize_hex(
+        hex_color,
+        "#000000",
+    )[:7]
+
+    return f"{base}{opacity:02X}"
+
+
+# ============================================================
+# Load actual Nyvorel palette
+# ============================================================
+
+if not PALETTE_FILE.exists():
+    raise SystemExit(
+        "Nyvorel palette not found:\n"
+        f"{PALETTE_FILE}\n\n"
+        "Change/reapply your wallpaper once so II generates it."
+    )
+
+
+with PALETTE_FILE.open(
+    "r",
+    encoding="utf-8",
+) as file:
+    palette = json.load(file)
+
+
+def c(role: str, fallback: str) -> str:
+    return normalize_hex(
+        find_role(
+            palette,
+            role,
+        ),
+        fallback,
+    )
+
+
+# ============================================================
+# Material 3 roles from the LIVE system theme
+# ============================================================
+
+background = c(
+    "background",
+    "#19120C",
+)
+
+on_background = c(
+    "on_background",
+    "#EEE0D5",
+)
+
+surface = c(
+    "surface",
+    background,
+)
+
+surface_dim = c(
+    "surface_dim",
+    background,
+)
+
+surface_bright = c(
+    "surface_bright",
+    "#3B3128",
+)
+
+surface_lowest = c(
+    "surface_container_lowest",
+    "#130D07",
+)
+
+surface_low = c(
+    "surface_container_low",
+    "#211A14",
+)
+
+surface_container = c(
+    "surface_container",
+    "#261E18",
+)
+
+surface_high = c(
+    "surface_container_high",
+    "#30271F",
+)
+
+surface_highest = c(
+    "surface_container_highest",
+    "#3A3027",
+)
+
+on_surface = c(
+    "on_surface",
+    on_background,
+)
+
+on_surface_variant = c(
+    "on_surface_variant",
+    "#D5C3B5",
+)
+
+outline = c(
+    "outline",
+    "#9E8E80",
+)
+
+outline_variant = c(
+    "outline_variant",
+    "#50453A",
+)
+
+primary = c(
+    "primary",
+    "#FCB974",
+)
+
+on_primary = c(
+    "on_primary",
+    "#472A00",
+)
+
+primary_container = c(
+    "primary_container",
+    "#653E00",
+)
+
+on_primary_container = c(
+    "on_primary_container",
+    "#FFDDB6",
+)
+
+secondary = c(
+    "secondary",
+    "#DDC2A5",
+)
+
+on_secondary = c(
+    "on_secondary",
+    "#3E2D1D",
+)
+
+secondary_container = c(
+    "secondary_container",
+    "#574332",
+)
+
+on_secondary_container = c(
+    "on_secondary_container",
+    "#FADDC1",
+)
+
+tertiary = c(
+    "tertiary",
+    "#BACF9E",
+)
+
+tertiary_container = c(
+    "tertiary_container",
+    "#3C4B2A",
+)
+
+error = c(
+    "error",
+    "#FFB4AB",
+)
+
+error_container = c(
+    "error_container",
+    "#93000A",
+)
+
+on_error = c(
+    "on_error",
+    "#690005",
+)
+
+on_error_container = c(
+    "on_error_container",
+    "#FFDAD6",
+)
+
+
+# ============================================================
+# Terminal colors
+#
+# II also generates terminal colors. Use them when available.
+# ============================================================
+
+term0 = c("term0", surface_lowest)
+term1 = c("term1", error)
+term2 = c("term2", tertiary)
+term3 = c("term3", primary)
+term4 = c("term4", secondary)
+term5 = c("term5", tertiary)
+term6 = c("term6", on_surface_variant)
+term7 = c("term7", on_surface)
+
+term8 = c("term8", outline_variant)
+term9 = c("term9", error)
+term10 = c("term10", tertiary)
+term11 = c("term11", primary)
+term12 = c("term12", secondary)
+term13 = c("term13", tertiary)
+term14 = c("term14", on_surface_variant)
+term15 = c("term15", on_background)
+
+
+# ============================================================
+# VS Code theme
+# ============================================================
+
+colors = {
+    # --------------------------------------------------------
+    # Global
+    # --------------------------------------------------------
+
+    "foreground":
+        on_surface,
+
+    "descriptionForeground":
+        on_surface_variant,
+
+    "focusBorder":
+        alpha(primary, 180),
+
+    "errorForeground":
+        error,
+
+
+    # --------------------------------------------------------
+    # Window
+    # --------------------------------------------------------
+
+    "titleBar.activeBackground":
+        surface_lowest,
+
+    "titleBar.activeForeground":
+        on_surface,
+
+    "titleBar.inactiveBackground":
+        surface_lowest,
+
+    "titleBar.inactiveForeground":
+        alpha(on_surface_variant, 150),
+
+    "titleBar.border":
+        outline_variant,
+
+
+    # --------------------------------------------------------
+    # Activity bar
+    # --------------------------------------------------------
+
+    "activityBar.background":
+        surface_lowest,
+
+    "activityBar.foreground":
+        on_surface,
+
+    "activityBar.inactiveForeground":
+        alpha(on_surface_variant, 150),
+
+    "activityBar.border":
+        outline_variant,
+
+    "activityBar.activeBorder":
+        primary,
+
+    "activityBar.activeBackground":
+        surface_low,
+
+    "activityBarBadge.background":
+        primary,
+
+    "activityBarBadge.foreground":
+        on_primary,
+
+
+    # --------------------------------------------------------
+    # Sidebar
+    # --------------------------------------------------------
+
+    "sideBar.background":
+        surface_low,
+
+    "sideBar.foreground":
+        on_surface_variant,
+
+    "sideBar.border":
+        outline_variant,
+
+    "sideBarTitle.foreground":
+        on_surface,
+
+    "sideBarSectionHeader.background":
+        surface_container,
+
+    "sideBarSectionHeader.foreground":
+        on_surface_variant,
+
+    "sideBarSectionHeader.border":
+        alpha(outline_variant, 100),
+
+
+    # --------------------------------------------------------
+    # Explorer / lists
+    # --------------------------------------------------------
+
+    "list.hoverBackground":
+        surface_container,
+
+    "list.hoverForeground":
+        on_surface,
+
+    "list.activeSelectionBackground":
+        primary_container,
+
+    "list.activeSelectionForeground":
+        on_primary_container,
+
+    "list.inactiveSelectionBackground":
+        surface_high,
+
+    "list.inactiveSelectionForeground":
+        on_surface,
+
+    "list.focusBackground":
+        surface_high,
+
+    "list.focusForeground":
+        on_surface,
+
+    "list.highlightForeground":
+        primary,
+
+    "tree.indentGuidesStroke":
+        outline_variant,
+
+
+    # --------------------------------------------------------
+    # Editor
+    # --------------------------------------------------------
+
+    "editor.background":
+        background,
+
+    "editor.foreground":
+        on_surface,
+
+    "editorCursor.foreground":
+        primary,
+
+    "editorLineNumber.foreground":
+        alpha(on_surface_variant, 105),
+
+    "editorLineNumber.activeForeground":
+        on_surface_variant,
+
+    "editor.lineHighlightBackground":
+        surface_low,
+
+    "editor.selectionBackground":
+        alpha(primary, 75),
+
+    "editor.inactiveSelectionBackground":
+        alpha(primary, 40),
+
+    "editor.selectionHighlightBackground":
+        alpha(primary, 35),
+
+    "editor.wordHighlightBackground":
+        alpha(secondary, 28),
+
+    "editor.wordHighlightStrongBackground":
+        alpha(primary, 38),
+
+    "editorIndentGuide.background1":
+        outline_variant,
+
+    "editorIndentGuide.activeBackground1":
+        outline,
+
+    "editorWhitespace.foreground":
+        alpha(outline_variant, 140),
+
+    "editorBracketMatch.background":
+        alpha(primary, 32),
+
+    "editorBracketMatch.border":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Tabs
+    # --------------------------------------------------------
+
+    "editorGroupHeader.tabsBackground":
+        surface_lowest,
+
+    "editorGroupHeader.tabsBorder":
+        outline_variant,
+
+    "tab.activeBackground":
+        background,
+
+    "tab.activeForeground":
+        on_surface,
+
+    "tab.inactiveBackground":
+        surface_lowest,
+
+    "tab.inactiveForeground":
+        alpha(on_surface_variant, 155),
+
+    "tab.hoverBackground":
+        surface_low,
+
+    "tab.hoverForeground":
+        on_surface,
+
+    "tab.activeBorder":
+        "#00000000",
+
+    "tab.activeBorderTop":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Editor groups
+    # --------------------------------------------------------
+
+    "editorGroup.border":
+        outline_variant,
+
+    "editorGroup.emptyBackground":
+        background,
+
+    "editorPane.background":
+        background,
+
+
+    # --------------------------------------------------------
+    # Bottom panel
+    # --------------------------------------------------------
+
+    "panel.background":
+        surface_low,
+
+    "panel.border":
+        outline_variant,
+
+    "panelTitle.activeForeground":
+        on_surface,
+
+    "panelTitle.inactiveForeground":
+        alpha(on_surface_variant, 155),
+
+    "panelTitle.activeBorder":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Terminal — uses II terminal colors
+    # --------------------------------------------------------
+
+    "terminal.background":
+        background,
+
+    "terminal.foreground":
+        on_surface,
+
+    "terminalCursor.foreground":
+        primary,
+
+    "terminal.selectionBackground":
+        alpha(primary, 75),
+
+    "terminal.ansiBlack":
+        term0,
+
+    "terminal.ansiRed":
+        term1,
+
+    "terminal.ansiGreen":
+        term2,
+
+    "terminal.ansiYellow":
+        term3,
+
+    "terminal.ansiBlue":
+        term4,
+
+    "terminal.ansiMagenta":
+        term5,
+
+    "terminal.ansiCyan":
+        term6,
+
+    "terminal.ansiWhite":
+        term7,
+
+    "terminal.ansiBrightBlack":
+        term8,
+
+    "terminal.ansiBrightRed":
+        term9,
+
+    "terminal.ansiBrightGreen":
+        term10,
+
+    "terminal.ansiBrightYellow":
+        term11,
+
+    "terminal.ansiBrightBlue":
+        term12,
+
+    "terminal.ansiBrightMagenta":
+        term13,
+
+    "terminal.ansiBrightCyan":
+        term14,
+
+    "terminal.ansiBrightWhite":
+        term15,
+
+
+    # --------------------------------------------------------
+    # Status bar
+    # --------------------------------------------------------
+
+    "statusBar.background":
+        surface_lowest,
+
+    "statusBar.foreground":
+        on_surface_variant,
+
+    "statusBar.border":
+        outline_variant,
+
+    "statusBar.noFolderBackground":
+        surface_lowest,
+
+    "statusBar.debuggingBackground":
+        error_container,
+
+    "statusBar.debuggingForeground":
+        on_error_container,
+
+    "statusBarItem.hoverBackground":
+        surface_container,
+
+    "statusBarItem.activeBackground":
+        surface_high,
+
+
+    # --------------------------------------------------------
+    # Inputs
+    # --------------------------------------------------------
+
+    "input.background":
+        surface_container,
+
+    "input.foreground":
+        on_surface,
+
+    "input.border":
+        outline_variant,
+
+    "input.placeholderForeground":
+        alpha(on_surface_variant, 160),
+
+    "inputOption.activeBackground":
+        alpha(primary, 40),
+
+    "inputOption.activeBorder":
+        primary,
+
+    "inputOption.activeForeground":
+        on_surface,
+
+
+    # --------------------------------------------------------
+    # Dropdown
+    # --------------------------------------------------------
+
+    "dropdown.background":
+        surface_container,
+
+    "dropdown.foreground":
+        on_surface,
+
+    "dropdown.border":
+        outline_variant,
+
+
+    # --------------------------------------------------------
+    # Buttons
+    # --------------------------------------------------------
+
+    "button.background":
+        primary,
+
+    "button.foreground":
+        on_primary,
+
+    "button.hoverBackground":
+        c("primary_fixed_dim", primary),
+
+    "button.secondaryBackground":
+        secondary_container,
+
+    "button.secondaryForeground":
+        on_secondary_container,
+
+    "button.secondaryHoverBackground":
+        surface_highest,
+
+
+    # --------------------------------------------------------
+    # Badges
+    # --------------------------------------------------------
+
+    "badge.background":
+        primary_container,
+
+    "badge.foreground":
+        on_primary_container,
+
+    "progressBar.background":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Scrollbars
+    # --------------------------------------------------------
+
+    "scrollbar.shadow":
+        "#00000000",
+
+    "scrollbarSlider.background":
+        alpha(outline, 70),
+
+    "scrollbarSlider.hoverBackground":
+        alpha(outline, 115),
+
+    "scrollbarSlider.activeBackground":
+        alpha(primary, 160),
+
+
+    # --------------------------------------------------------
+    # Quick input
+    # --------------------------------------------------------
+
+    "quickInput.background":
+        surface_container,
+
+    "quickInput.foreground":
+        on_surface,
+
+    "quickInputList.focusBackground":
+        primary_container,
+
+    "quickInputList.focusForeground":
+        on_primary_container,
+
+    "pickerGroup.border":
+        outline_variant,
+
+    "pickerGroup.foreground":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Menus
+    # --------------------------------------------------------
+
+    "menu.background":
+        surface_container,
+
+    "menu.foreground":
+        on_surface,
+
+    "menu.selectionBackground":
+        primary_container,
+
+    "menu.selectionForeground":
+        on_primary_container,
+
+    "menu.border":
+        outline_variant,
+
+    "menu.separatorBackground":
+        outline_variant,
+
+
+    # --------------------------------------------------------
+    # Editor widgets
+    # --------------------------------------------------------
+
+    "editorWidget.background":
+        surface_container,
+
+    "editorWidget.foreground":
+        on_surface,
+
+    "editorWidget.border":
+        outline_variant,
+
+    "editorSuggestWidget.background":
+        surface_container,
+
+    "editorSuggestWidget.foreground":
+        on_surface,
+
+    "editorSuggestWidget.border":
+        outline_variant,
+
+    "editorSuggestWidget.selectedBackground":
+        primary_container,
+
+    "editorSuggestWidget.selectedForeground":
+        on_primary_container,
+
+    "editorSuggestWidget.highlightForeground":
+        primary,
+
+    "editorHoverWidget.background":
+        surface_container,
+
+    "editorHoverWidget.foreground":
+        on_surface,
+
+    "editorHoverWidget.border":
+        outline_variant,
+
+
+    # --------------------------------------------------------
+    # Notifications
+    # --------------------------------------------------------
+
+    "notifications.background":
+        surface_container,
+
+    "notifications.foreground":
+        on_surface,
+
+    "notificationCenter.border":
+        outline_variant,
+
+    "notificationToast.border":
+        primary,
+
+    "notificationsErrorIcon.foreground":
+        error,
+
+    "notificationsWarningIcon.foreground":
+        term3,
+
+    "notificationsInfoIcon.foreground":
+        primary,
+
+
+    # --------------------------------------------------------
+    # Git
+    # --------------------------------------------------------
+
+    "gitDecoration.addedResourceForeground":
+        term2,
+
+    "gitDecoration.modifiedResourceForeground":
+        term3,
+
+    "gitDecoration.deletedResourceForeground":
+        term1,
+
+    "gitDecoration.untrackedResourceForeground":
+        term10,
+
+    "gitDecoration.ignoredResourceForeground":
+        alpha(on_surface_variant, 110),
+
+    "gitDecoration.conflictingResourceForeground":
+        error,
+}
+
+
+# ============================================================
+# Syntax colors based on the SAME generated palette
+# ============================================================
+
+token_colors = [
+    {
+        "scope": [
+            "comment",
+            "punctuation.definition.comment",
+        ],
+        "settings": {
+            "foreground": alpha(
+                on_surface_variant,
+                165,
+            ),
+            "fontStyle": "italic",
+        },
+    },
+
+    {
+        "scope": [
+            "keyword",
+            "storage",
+            "storage.type",
+            "storage.modifier",
+        ],
+        "settings": {
+            "foreground": primary,
+        },
+    },
+
+    {
+        "scope": [
+            "string",
+            "string.quoted",
+        ],
+        "settings": {
+            "foreground": term2,
+        },
+    },
+
+    {
+        "scope": [
+            "constant.numeric",
+            "constant.language",
+        ],
+        "settings": {
+            "foreground": term3,
+        },
+    },
+
+    {
+        "scope": [
+            "entity.name.function",
+            "support.function",
+            "meta.function-call",
+        ],
+        "settings": {
+            "foreground": secondary,
+        },
+    },
+
+    {
+        "scope": [
+            "entity.name.type",
+            "entity.name.class",
+            "support.type",
+        ],
+        "settings": {
+            "foreground": tertiary,
+        },
+    },
+
+    {
+        "scope": [
+            "variable",
+            "variable.other.readwrite",
+        ],
+        "settings": {
+            "foreground": on_surface,
+        },
+    },
+
+    {
+        "scope": [
+            "entity.other.attribute-name",
+            "support.constant.property-value",
+        ],
+        "settings": {
+            "foreground": term11,
+        },
+    },
+]
+
+
+# ============================================================
+# Write local VS Code extension
+# ============================================================
+
+THEME_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+package = {
+    "name":
+        "nyvorel-system-theme",
+
+    "displayName":
+        "Nyvorel System Theme",
+
+    "description":
+        "Generated from the active Nyvorel Material palette.",
+
+    "version":
+        "1.0.0",
+
+    "publisher":
+        "local",
+
+    "engines": {
+        "vscode":
+            "^1.80.0"
+    },
+
+    "categories": [
+        "Themes"
+    ],
+
+    "contributes": {
+        "themes": [
+            {
+                "label":
+                    "Nyvorel System",
+
+                "uiTheme":
+                    "vs-dark",
+
+                "path":
+                    "./themes/nyvorel-system.json",
+            }
+        ]
+    },
+}
+
+
+theme = {
+    "name":
+        "Nyvorel System",
+
+    "type":
+        "dark",
+
+    "semanticHighlighting":
+        True,
+
+    "colors":
+        colors,
+
+    "tokenColors":
+        token_colors,
+}
+
+
+with PACKAGE_FILE.open(
+    "w",
+    encoding="utf-8",
+) as file:
+    json.dump(
+        package,
+        file,
+        indent=4,
+    )
+
+
+with THEME_FILE.open(
+    "w",
+    encoding="utf-8",
+) as file:
+    json.dump(
+        theme,
+        file,
+        indent=4,
+    )
+
+
+print()
+print("Nyvorel → VS Code")
+print("-----------------------------------")
+print(f"Palette : {PALETTE_FILE}")
+print(f"Theme   : {THEME_FILE}")
+print()
+print("Current live roles:")
+print(f"background        {background}")
+print(f"surface           {surface}")
+print(f"surface low       {surface_low}")
+print(f"surface container {surface_container}")
+print(f"primary           {primary}")
+print(f"on surface        {on_surface}")
+print(f"outline           {outline}")
+print()
+print("Theme generated successfully.")

@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/custom/nyvorel-super-scroll.env"
+RUNTIME="${XDG_RUNTIME_DIR:-/tmp}/nyvorel-super-scroll-${UID}"
+LOCK="$RUNTIME/lock"
+LEFT_STATE="$RUNTIME/left"
+RIGHT_STATE="$RUNTIME/right"
+TAP_ELIGIBLE="$RUNTIME/tap-eligible"
+BASELINE="$RUNTIME/scroll-baseline"
+
+# Preserved behavior from the pre-refactor implementation.
+NYVOREL_SUPER_HOLD_MS=250
+NYVOREL_FAST_MOUSE_SCROLL=5
+NYVOREL_FAST_TOUCHPAD_SCROLL=10
+
+if [[ -r "$CONFIG" ]]; then
+    # User-owned configuration. It contains simple shell assignments only.
+    # shellcheck disable=SC1090
+    source "$CONFIG"
+fi
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || {
+        printf 'nyvorel-super-scroll: missing required command: %s\n' "$1" >&2
+        exit 127
+    }
+}
+
+require_command hyprctl
+require_command jq
+require_command awk
+require_command flock
+
+[[ "$NYVOREL_SUPER_HOLD_MS" =~ ^[0-9]+$ ]] \
+    || { echo "nyvorel-super-scroll: NYVOREL_SUPER_HOLD_MS must be an integer" >&2; exit 2; }
+
+valid_factor() {
+    awk -v v="$1" 'BEGIN {
+        if (v ~ /^[0-9]+([.][0-9]+)?$/ && v >= 0 && v <= 100) exit 0;
+        exit 1;
+    }'
+}
+
+valid_factor "$NYVOREL_FAST_MOUSE_SCROLL" \
+    || { echo "nyvorel-super-scroll: invalid NYVOREL_FAST_MOUSE_SCROLL" >&2; exit 2; }
+valid_factor "$NYVOREL_FAST_TOUCHPAD_SCROLL" \
+    || { echo "nyvorel-super-scroll: invalid NYVOREL_FAST_TOUCHPAD_SCROLL" >&2; exit 2; }
+
+mkdir -p "$RUNTIME"
+chmod 700 "$RUNTIME" 2>/dev/null || true
+exec 9>"$LOCK"
+
+lock_state()   { flock -x 9; }
+unlock_state() { flock -u 9; }
+
+state_for_side() {
+    case "${1:-}" in
+        left)  printf '%s\n' "$LEFT_STATE" ;;
+        right) printf '%s\n' "$RIGHT_STATE" ;;
+        *) echo "nyvorel-super-scroll: side must be left or right" >&2; return 2 ;;
+    esac
+}
+
+other_state_for_side() {
+    case "${1:-}" in
+        left)  printf '%s\n' "$RIGHT_STATE" ;;
+        right) printf '%s\n' "$LEFT_STATE" ;;
+        *) return 2 ;;
+    esac
+}
+
+get_factor() {
+    local option="$1"
+    hyprctl getoption "$option" -j 2>/dev/null | jq -er '
+        if .float != null then .float
+        elif .int != null then .int
+        elif .str != null and .str != "" then .str
+        else error("option has no numeric value")
+        end
+    '
+}
+
+apply_scroll() {
+    local mouse="$1"
+    local touchpad="$2"
+
+    hyprctl keyword input:scroll_factor "$mouse" >/dev/null
+    if ! hyprctl keyword input:touchpad:scroll_factor "$touchpad" >/dev/null; then
+        return 1
+    fi
+}
+
+capture_baseline() {
+    [[ -s "$BASELINE" ]] && return 0
+
+    local mouse touchpad tmp
+    mouse="$(get_factor input:scroll_factor)"
+    touchpad="$(get_factor input:touchpad:scroll_factor)"
+    valid_factor "$mouse" || return 1
+    valid_factor "$touchpad" || return 1
+
+    tmp="$BASELINE.tmp.$$"
+    printf '%s %s\n' "$mouse" "$touchpad" > "$tmp"
+    mv -f "$tmp" "$BASELINE"
+}
+
+enable_fast_scroll() {
+    capture_baseline || {
+        echo "nyvorel-super-scroll: failed to capture current scroll baseline" >&2
+        return 1
+    }
+
+    if ! apply_scroll "$NYVOREL_FAST_MOUSE_SCROLL" "$NYVOREL_FAST_TOUCHPAD_SCROLL"; then
+        echo "nyvorel-super-scroll: failed to enable fast scrolling; restoring baseline" >&2
+        restore_scroll || true
+        return 1
+    fi
+}
+
+restore_scroll() {
+    [[ -s "$BASELINE" ]] || return 0
+
+    local mouse touchpad
+    if ! read -r mouse touchpad < "$BASELINE"; then
+        echo "nyvorel-super-scroll: unreadable baseline; leaving it for recovery" >&2
+        return 1
+    fi
+
+    if ! valid_factor "$mouse" || ! valid_factor "$touchpad"; then
+        echo "nyvorel-super-scroll: invalid baseline; leaving it for recovery" >&2
+        return 1
+    fi
+
+    # Remove the snapshot only after both runtime values were restored.
+    if apply_scroll "$mouse" "$touchpad"; then
+        rm -f "$BASELINE"
+    else
+        echo "nyvorel-super-scroll: baseline restore failed; snapshot retained" >&2
+        return 1
+    fi
+}
+
+delay_seconds() {
+    awk -v ms="$NYVOREL_SUPER_HOLD_MS" 'BEGIN { printf "%.3f", ms / 1000 }'
+}
+
+press() {
+    local side="$1"
+    local state other start token delay
+
+    state="$(state_for_side "$side")"
+    other="$(other_state_for_side "$side")"
+    start="$(date +%s%N)"
+    token="${start}-$$-${RANDOM}"
+    delay="$(delay_seconds)"
+
+    lock_state
+
+    # A fresh physical press replaces any stale state for the same side.
+    printf '%s %s\n' "$start" "$token" > "$state"
+
+    # Search/Overview is eligible only for a single, pure Super tap.
+    if [[ ! -f "$other" ]]; then
+        printf '%s %s\n' "$side" "$token" > "$TAP_ELIGIBLE"
+    else
+        rm -f "$TAP_ELIGIBLE"
+    fi
+
+    unlock_state
+
+    # Do not inherit the flock fd into the sleeping child; otherwise the child
+    # could keep the state lock alive for the whole hold delay.
+    (
+        exec 9>&-
+        sleep "$delay"
+        "$0" activate "$side" "$token"
+    ) >/dev/null 2>&1 &
+}
+
+activate() {
+    local side="$1"
+    local expected_token="$2"
+    local state start current_token
+
+    state="$(state_for_side "$side")"
+
+    lock_state
+    if [[ ! -f "$state" ]]; then
+        unlock_state
+        return 0
+    fi
+
+    read -r start current_token < "$state" || {
+        unlock_state
+        return 0
+    }
+
+    if [[ "$current_token" != "$expected_token" ]]; then
+        unlock_state
+        return 0
+    fi
+
+    # Crossing the hold threshold makes this definitively not a tap.
+    rm -f "$TAP_ELIGIBLE"
+    enable_fast_scroll
+    unlock_state
+}
+
+release() {
+    local side="$1"
+    local state other start token now elapsed_ms
+    local eligible_side eligible_token
+    local should_toggle=0
+
+    state="$(state_for_side "$side")"
+    other="$(other_state_for_side "$side")"
+
+    lock_state
+
+    if [[ -f "$state" ]]; then
+        start=""
+        token=""
+        read -r start token < "$state" || true
+
+        eligible_side=""
+        eligible_token=""
+        if [[ -f "$TAP_ELIGIBLE" ]]; then
+            read -r eligible_side eligible_token < "$TAP_ELIGIBLE" || true
+        fi
+
+        if [[ "$start" =~ ^[0-9]+$ \
+              && "$eligible_side" == "$side" \
+              && "$eligible_token" == "$token" \
+              && ! -f "$other" ]]; then
+            now="$(date +%s%N)"
+            elapsed_ms=$(( (now - start) / 1000000 ))
+            if (( elapsed_ms < NYVOREL_SUPER_HOLD_MS )); then
+                should_toggle=1
+            fi
+        fi
+    fi
+
+    # Remove physical hold state first. A delayed activation that wakes after
+    # this point will acquire the lock later, see no matching state, and exit.
+    rm -f "$state"
+
+    if [[ ! -f "$LEFT_STATE" && ! -f "$RIGHT_STATE" ]]; then
+        rm -f "$TAP_ELIGIBLE"
+        restore_scroll || true
+    fi
+
+    unlock_state
+
+    if (( should_toggle )); then
+        hyprctl dispatch global quickshell:searchToggle >/dev/null
+    fi
+}
+
+cancel() {
+    # Any other key/button/scroll activity makes this no longer a pure Super tap.
+    # Keep physical hold state intact so the hold timer can still enable fast mode.
+    lock_state
+    rm -f "$TAP_ELIGIBLE"
+    unlock_state
+}
+
+reset() {
+    lock_state
+    rm -f "$LEFT_STATE" "$RIGHT_STATE" "$TAP_ELIGIBLE"
+    restore_scroll || true
+    unlock_state
+}
+
+reload_reset() {
+    lock_state
+
+    # Hyprland has just reapplied its persistent config. That config is the
+    # authority for NORMAL scrolling, so never restore an older snapshot here.
+    # Simply discard transient state and let the freshly-loaded values stand.
+    rm -f "$LEFT_STATE" "$RIGHT_STATE" "$TAP_ELIGIBLE" "$BASELINE"
+    rm -f "$RUNTIME"/scroll-baseline.tmp.* 2>/dev/null || true
+
+    unlock_state
+}
+
+status() {
+    local mouse touchpad baseline_text="none"
+
+    lock_state
+    mouse="$(get_factor input:scroll_factor 2>/dev/null || echo unavailable)"
+    touchpad="$(get_factor input:touchpad:scroll_factor 2>/dev/null || echo unavailable)"
+    [[ -s "$BASELINE" ]] && baseline_text="$(cat "$BASELINE" 2>/dev/null || echo unreadable)"
+
+    printf 'hold threshold       : %sms\n' "$NYVOREL_SUPER_HOLD_MS"
+    printf 'fast mouse target    : %s\n' "$NYVOREL_FAST_MOUSE_SCROLL"
+    printf 'fast touchpad target : %s\n' "$NYVOREL_FAST_TOUCHPAD_SCROLL"
+    printf 'current mouse        : %s\n' "$mouse"
+    printf 'current touchpad     : %s\n' "$touchpad"
+    printf 'left Super held      : %s\n' "$([[ -f "$LEFT_STATE" ]] && echo yes || echo no)"
+    printf 'right Super held     : %s\n' "$([[ -f "$RIGHT_STATE" ]] && echo yes || echo no)"
+    printf 'tap eligible         : %s\n' "$([[ -f "$TAP_ELIGIBLE" ]] && echo yes || echo no)"
+    printf 'fast mode snapshot   : %s\n' "$baseline_text"
+    unlock_state
+}
+
+case "${1:-}" in
+    press)        press "${2:-}" ;;
+    activate)     activate "${2:-}" "${3:-}" ;;
+    release)      release "${2:-}" ;;
+    cancel)       cancel ;;
+    reset)        reset ;;
+    reload-reset) reload_reset ;;
+    status)       status ;;
+    *)
+        echo "Usage: nyvorel-super-scroll {press SIDE|activate SIDE TOKEN|release SIDE|cancel|reset|reload-reset|status}" >&2
+        exit 2
+        ;;
+esac

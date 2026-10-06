@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+mode="command"
+cwd=""
+
+while (($#)); do
+  case "$1" in
+    --open)
+      mode="open"
+      shift
+      break
+      ;;
+    --cwd)
+      (($# >= 2)) || { echo "nyvorel-app-launch: --cwd requires a value" >&2; exit 2; }
+      cwd="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+(($# > 0)) || { echo "nyvorel-app-launch: missing command/target" >&2; exit 2; }
+
+if [[ -n "$cwd" && -d "$cwd" ]]; then
+  cd -- "$cwd"
+fi
+
+# Start user-facing applications as transient SERVICES, not scopes.
+#
+# Why:
+# - the user manager creates the process in a fresh cgroup directly;
+# - no attempt is made to move the caller out of nyvorel-quickshell.service;
+# - Type=exec makes systemd-run report exec failures;
+# - ExitType=cgroup keeps daemonizing/forking GUI apps owned until their whole
+#   cgroup exits;
+# - app.slice keeps normal applications separate from the shell/session unit.
+opts=(
+  --user
+  --collect
+  --quiet
+  --service-type=exec
+  --slice=app.slice
+  --property=ExitType=cgroup
+  --same-dir
+)
+
+# Preserve the live graphical/session environment explicitly. The user manager
+# already has most of this, but passing the caller values prevents stale
+# DISPLAY/Wayland/session variables.
+for name in \
+  DISPLAY \
+  WAYLAND_DISPLAY \
+  HYPRLAND_INSTANCE_SIGNATURE \
+  XDG_CURRENT_DESKTOP \
+  XDG_SESSION_TYPE \
+  XDG_RUNTIME_DIR \
+  DBUS_SESSION_BUS_ADDRESS \
+  XDG_DATA_DIRS \
+  XDG_CONFIG_HOME \
+  XDG_DATA_HOME \
+  XDG_CACHE_HOME \
+  PATH \
+  LANG \
+  LC_ALL
+do
+  if [[ -v "$name" ]]; then
+    opts+=(--setenv="$name=${!name}")
+  fi
+done
+
+if systemd-run --help 2>&1 | grep -q -- '--expand-environment'; then
+  opts+=(--expand-environment=no)
+fi
+
+if [[ "$mode" == "open" ]]; then
+  command -v xdg-open >/dev/null 2>&1 || {
+    echo "nyvorel-app-launch: xdg-open not found" >&2
+    exit 127
+  }
+  exec systemd-run "${opts[@]}" -- xdg-open "$@"
+fi
+
+exec systemd-run "${opts[@]}" -- "$@"

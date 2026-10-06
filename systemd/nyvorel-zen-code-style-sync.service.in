@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync Zen and VS Code with the Nyvorel interface style
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/nyvorel-zen-code-style-sync

@@ -1,0 +1,5 @@
+[Unit]
+# Theme/palette files can legitimately change several times during one
+# wallpaper/interface-style transition. These oneshot sync jobs are cheap
+# and idempotent, so do not rate-limit their starts.
+StartLimitIntervalSec=0

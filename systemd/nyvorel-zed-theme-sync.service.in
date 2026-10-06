@@ -1,0 +1,6 @@
+[Unit]
+Description=Synchronize Zed with Nyvorel theme and interface style
+
+[Service]
+Type=oneshot
+ExecStart=@HOME@/.local/bin/nyvorel-zed-theme-sync

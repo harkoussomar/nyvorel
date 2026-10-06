@@ -1,0 +1,113 @@
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.services
+import Qt5Compat.GraphicalEffects
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Quickshell.Widgets
+import Quickshell.Services.Pipewire
+
+RadioButton {
+    id: root
+    padding: 4
+    implicitHeight: contentItem.implicitHeight + padding * 2
+    property string description
+    property color activeColor: Appearance?.colors.colPrimary ?? "#685496"
+    property color inactiveColor: Appearance?.m3colors.m3onSurfaceVariant ?? "#45464F"
+
+    PointingHandInteraction {}
+
+    indicator: Item{}
+    
+    contentItem: RowLayout {
+        id: contentItem
+        Layout.fillWidth: true
+        spacing: 12
+        Rectangle {
+            id: radio
+            Layout.fillWidth: false
+            Layout.alignment: Qt.AlignVCenter
+            width: 20
+            height: 20
+            radius: Appearance?.rounding.full
+            border.color: checked ? root.activeColor : root.inactiveColor
+            border.width: 2
+            color: "transparent"
+
+            Behavior on border.color {
+                MotionColorAnim {
+                    type: MotionColorAnim.FastEffects
+                }
+            }
+
+            // Checked indicator
+            Rectangle {
+                anchors.centerIn: parent
+                width: checked ? 10 : 4
+                height: checked ? 10 : 4
+                radius: Appearance?.rounding.full
+                color: Appearance?.colors.colPrimary
+                opacity: checked ? 1 : 0
+
+                Behavior on opacity {
+                    MotionAnim {
+                        type: MotionAnim.FastEffects
+                    }
+                }
+
+                Behavior on width {
+                    MotionAnim {
+                        type: MotionAnim.FastSpatial
+                        duration: 220
+                    }
+                }
+
+                Behavior on height {
+                    MotionAnim {
+                        type: MotionAnim.FastSpatial
+                        duration: 220
+                    }
+                }
+            }
+
+            // Hover
+            Rectangle {
+                anchors.centerIn: parent
+                width: root.hovered ? 40 : 20
+                height: root.hovered ? 40 : 20
+                radius: Appearance?.rounding.full
+                color: Appearance?.m3colors.m3onSurface
+                opacity: root.hovered ? 0.1 : 0
+
+                Behavior on opacity {
+                    MotionAnim {
+                        type: MotionAnim.FastEffects
+                    }
+                }
+
+                Behavior on width {
+                    MotionAnim {
+                        type: MotionAnim.FastEffects
+                        duration: 180
+                    }
+                }
+
+                Behavior on height {
+                    MotionAnim {
+                        type: MotionAnim.FastEffects
+                        duration: 180
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            text: root.description
+            Layout.alignment: Qt.AlignVCenter
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            color: Appearance?.m3colors.m3onSurface
+        }
+    }
+}

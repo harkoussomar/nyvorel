@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+HOME = Path.home().resolve()
+DEV_MINE = HOME / "dev-mine"
+
+
+def is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def repo_root(path: Path) -> Path | None:
+    cur = path
+    while True:
+        if (cur / ".git").exists():
+            return cur
+        if cur == cur.parent:
+            return None
+        cur = cur.parent
+
+
+def compact_tail(parts: tuple[str, ...], keep: int = 2) -> str:
+    if len(parts) <= keep:
+        return "/".join(parts)
+    return ".../" + "/".join(parts[-keep:])
+
+
+def render(path: Path) -> str:
+    try:
+        path = path.resolve()
+    except Exception:
+        pass
+
+    if path == HOME:
+        return "~"
+
+    root = repo_root(path)
+
+    # Personal development tree: keep the meaningful anchor + repo name,
+    # collapse only the organizational folders in the middle.
+    if is_relative_to(path, DEV_MINE):
+        if root is not None and is_relative_to(root, DEV_MINE):
+            repo_name = root.name
+            try:
+                rel = path.relative_to(root)
+                rel_parts = rel.parts
+            except ValueError:
+                rel_parts = ()
+
+            base = f"~/dev-mine/.../{repo_name}"
+            if not rel_parts:
+                return base
+            if len(rel_parts) <= 2:
+                return base + "/" + "/".join(rel_parts)
+            return base + "/.../" + "/".join(rel_parts[-2:])
+
+        rel = path.relative_to(DEV_MINE)
+        if len(rel.parts) <= 2:
+            return "~/dev-mine/" + "/".join(rel.parts)
+        return "~/dev-mine/.../" + "/".join(rel.parts[-2:])
+
+    # Other home paths: preserve the first folder and the most useful tail.
+    if is_relative_to(path, HOME):
+        rel = path.relative_to(HOME)
+        parts = rel.parts
+        if len(parts) <= 4:
+            return "~/" + "/".join(parts)
+        return "~/" + parts[0] + "/.../" + "/".join(parts[-2:])
+
+    # Outside HOME: keep root + a compact tail.
+    parts = path.parts
+    if len(parts) <= 4:
+        return str(path)
+    return "/.../" + "/".join(parts[-3:])
+
+
+try:
+    cwd = Path(os.getcwd())
+    print(render(cwd))
+except Exception:
+    print("~")

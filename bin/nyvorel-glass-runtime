@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HOME = Path.home()
+XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
+CUSTOM_RULES = XDG_CONFIG / "hypr/custom/rules.conf"
+KITTY_CONF = XDG_CONFIG / "kitty/kitty.conf"
+STUDIO_STATE = XDG_CONFIG / "nyvorel/appearance-studio.json"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "appearance-studio"
+LOG = STATE_DIR / "glass-runtime-v2.log"
+
+BEGIN = "# >>> appearance-studio-glass-runtime-v2 >>>"
+END = "# <<< appearance-studio-glass-runtime-v2 <<<"
+GLASS_BLOCK = f"""{BEGIN}
+# Runtime-only Glass overrides. Default removes this entire block.
+#
+# Every visible Quickshell material surface is alpha-shaped in QML. Hyprland
+# must therefore blur only pixels that belong to the rendered surface, never
+# the rectangular native/layer-shell backing buffer around it.
+layerrule = match:namespace ^quickshell:.*$, blur on
+layerrule = match:namespace ^quickshell:.*$, blur_popups on
+layerrule = match:namespace ^quickshell:.*$, xray off
+layerrule = match:namespace ^quickshell:.*$, ignore_alpha 0.12
+
+# Explicit material surfaces use the same mask threshold. Keeping one policy
+# avoids special-case rectangles around popups, launchers, OSDs and media HUDs.
+layerrule = match:namespace ^quickshell:popup$, ignore_alpha 0.12
+layerrule = match:namespace ^quickshell:mediaControls$, ignore_alpha 0.12
+layerrule = match:namespace ^quickshell:onScreenDisplay$, ignore_alpha 0.12
+layerrule = match:namespace ^quickshell:wOnScreenDisplay$, ignore_alpha 0.12
+layerrule = match:namespace ^quickshell:projectLauncher$, blur on
+layerrule = match:namespace ^quickshell:projectLauncher$, blur_popups on
+layerrule = match:namespace ^quickshell:projectLauncher$, xray off
+layerrule = match:namespace ^quickshell:projectLauncher$, ignore_alpha 0.12
+
+# Utility/full-screen helper layers are not material panels. The generic rule
+# above intentionally excludes them here so Glass never creates a screen-sized
+# or invisible blur sheet.
+layerrule = match:namespace ^quickshell:background$, blur off
+layerrule = match:namespace ^quickshell:screenCorners$, blur off
+layerrule = match:namespace ^quickshell:regionSelector$, blur off
+layerrule = match:namespace ^quickshell:screenshot$, blur off
+layerrule = match:namespace ^quickshell:overlay$, blur off
+layerrule = match:namespace ^quickshell:lockWindowPusher$, blur off
+layerrule = match:namespace ^quickshell$, blur off
+
+# Settings is a normal Wayland window rather than a layer-shell surface. Blur is
+# enabled here; the global ignore_opacity switch applied by this helper makes
+# Hyprland respect the transparent pixels around its rounded QML modal.
+windowrule = match:title ^(Nyvorel Settings)$, no_blur off
+windowrule = match:title ^(Nyvorel Settings)$, xray off
+windowrule = match:title ^(Nyvorel Settings)$, rounding 23
+# >>> realistic-glass-optics-v3 >>>
+# Realistic Glass v3.2 — Hyprland 0.56-compatible optical material.
+# GLASS_BLOCK is a Python f-string, so literal Hyprland braces are doubled here.
+decoration {{
+    blur {{
+        enabled = true
+        size = 14
+        passes = 3
+        ignore_opacity = true
+        new_optimizations = true
+        xray = false
+        noise = 0.018
+        contrast = 0.93
+        brightness = 1.06
+        vibrancy = 0.12
+        vibrancy_darkness = 0.04
+        popups = true
+        popups_ignorealpha = 0.08
+    }}
+}}
+# <<< realistic-glass-optics-v3 <<<
+
+{END}"""
+
+KITTY_BEGIN = "# >>> nyvorel-terminal-dynamic-glass >>>"
+KITTY_END = "# <<< nyvorel-terminal-dynamic-glass <<<"
+
+
+def atomic_write(path: Path, text: str, mode: int | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    old_mode = path.stat().st_mode & 0o777 if path.exists() else None
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp, mode if mode is not None else (old_mode or 0o644))
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
+def read_state_targets() -> dict[str, bool]:
+    try:
+        state = json.loads(STUDIO_STATE.read_text(encoding="utf-8"))
+        raw = state.get("targets", {})
+        return {
+            "hyprland": bool(raw.get("hyprland", True)),
+            "terminal": bool(raw.get("terminal", True)),
+        }
+    except Exception:
+        return {"hyprland": True, "terminal": True}
+
+
+def strip_glass_block(text: str) -> tuple[str, bool]:
+    if BEGIN not in text and END not in text:
+        return text, False
+    if text.count(BEGIN) != 1 or text.count(END) != 1:
+        raise RuntimeError("Managed Glass runtime markers are malformed")
+    start = text.index(BEGIN)
+    end = text.index(END, start) + len(END)
+    prefix = text[:start]
+    suffix = text[end:]
+    if prefix.endswith("\n\n"):
+        prefix = prefix[:-1]
+    if suffix.startswith("\n"):
+        suffix = suffix[1:]
+    return prefix + suffix, True
+
+
+def sync_hypr_rules(mode: str, enabled: bool) -> bool:
+    if not CUSTOM_RULES.is_file():
+        raise RuntimeError(f"Missing Hyprland custom rules: {CUSTOM_RULES}")
+    original = CUSTOM_RULES.read_text(encoding="utf-8")
+    base, _ = strip_glass_block(original)
+    want_glass = mode == "glass" and enabled
+    updated = base.rstrip("\n") + "\n\n" + GLASS_BLOCK + "\n" if want_glass else base
+    if updated == original:
+        return False
+    atomic_write(CUSTOM_RULES, updated)
+    return True
+
+
+def patch_kitty_opacity(mode: str, enabled: bool) -> tuple[bool, str]:
+    # glass-runtime-terminal-ownership-v1
+    # Kitty opacity is now owned exclusively by nyvorel-terminal-theme-sync /
+    # nyvorel-dynamic-theme.conf. Glass runtime must never edit kitty.conf.
+    return False, "theme-sync"
+
+
+def _hyprctl(*args: str) -> None:
+    if not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return
+    hyprctl = shutil.which("hyprctl")
+    if not hyprctl:
+        raise RuntimeError("hyprctl is unavailable in an active Hyprland session")
+    proc = subprocess.run([hyprctl, *args], check=False, capture_output=True, text=True, timeout=8)
+    if proc.returncode != 0:
+        details = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(f"hyprctl {' '.join(args)} failed: {details[-600:]}")
+
+
+def reload_hyprland() -> None:
+    _hyprctl("reload")
+
+
+def sync_window_blur_alpha(mode: str, enabled: bool) -> str:
+    # Canonical II Default is ignore_opacity=true. Glass temporarily flips it
+    # so transparent native-window pixels do not receive a rectangular blur.
+    desired = "false" if mode == "glass" and enabled else "true"
+    _hyprctl("keyword", "decoration:blur:ignore_opacity", desired)
+    return desired
+
+
+def kitty_sockets() -> list[Path]:
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    if not runtime.is_dir():
+        return []
+    return sorted(p for p in runtime.glob("nyvorel-kitty-*") if p.exists())
+
+
+def reload_kitty(opacity: str) -> int:
+    # glass-runtime-terminal-ownership-v1
+    # Do not issue set-background-opacity here. The terminal theme sync helper
+    # owns both persisted and live Kitty opacity.
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Appearance Studio isolated Glass runtime")
+    parser.add_argument("mode", choices=("default", "glass"))
+    args = parser.parse_args()
+    targets = read_state_targets()
+    hypr_changed = sync_hypr_rules(args.mode, targets["hyprland"])
+    kitty_changed, opacity = patch_kitty_opacity(args.mode, targets["terminal"])
+    if hypr_changed:
+        reload_hyprland()
+    blur_ignore_opacity = sync_window_blur_alpha(args.mode, targets["hyprland"])
+    kitty_reloaded = reload_kitty(opacity) if targets["terminal"] else 0
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    LOG.write_text("\n".join([
+        f"mode={args.mode}",
+        f"hyprland_target={str(targets['hyprland']).lower()}",
+        f"terminal_target={str(targets['terminal']).lower()}",
+        f"hypr_rules_changed={str(hypr_changed).lower()}",
+        f"blur_ignore_opacity={blur_ignore_opacity}",
+        f"kitty_config_changed={str(kitty_changed).lower()}",
+        f"kitty_opacity={opacity}",
+        f"kitty_instances_reloaded={kitty_reloaded}",
+        "",
+    ]), encoding="utf-8")
+    print(f"glass-runtime-v2: mode={args.mode} hypr={'on' if targets['hyprland'] else 'off'} kitty={opacity} ({kitty_reloaded} live)")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f"nyvorel-glass-runtime: {exc}", file=sys.stderr)
+        raise

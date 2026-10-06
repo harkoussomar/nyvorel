@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Nyvorel colors and interface style for terminal theme changes
+
+[Path]
+PathChanged=@HOME@/.local/state/quickshell/user/generated/colors.json
+PathChanged=@HOME@/.config/nyvorel/config.json
+Unit=nyvorel-terminal-theme-sync.service
+
+[Install]
+WantedBy=default.target

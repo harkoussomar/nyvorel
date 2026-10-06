@@ -1,0 +1,481 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import colorsys
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+COLOR_JSON = HOME / ".local/state/quickshell/user/generated/colors.json"
+KITTY_DIR = HOME / ".config/kitty"
+KITTY_THEME = KITTY_DIR / "nyvorel-dynamic-theme.conf"
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"  # fluid-interface-v1
+STARSHIP = HOME / ".config/starship.toml"
+STARSHIP_TEMPLATE = HOME / ".config/starship.toml.nyvorel-dynamic-template"
+TAB_BAR = KITTY_DIR / "tab_bar.py"
+TAB_TEMPLATE = KITTY_DIR / "tab_bar.py.nyvorel-dynamic-template"
+FISH_THEME = HOME / ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish"
+STATE = HOME / ".local/state/nyvorel"
+LOG = STATE / "terminal-theme-sync.log"
+STARTUP_OVERLAY = STATE / "terminal-startup-overlay.fish"
+BASE_OPACITY = os.environ.get("NYVOREL_TERMINAL_OPACITY", "0.80")
+
+
+def legacy_fluid_mode() -> bool:
+    # Frozen compatibility detector from the original Fluid terminal.
+    # Keep this byte-for-byte equivalent in behavior so Fluid can still be
+    # recognized even if an older config has no explicit interfaceStyle.
+    try:
+        cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        appearance = cfg.get("appearance", {})
+        transparency = appearance.get("transparency", {})
+        radius = appearance.get("geometry", {}).get("radius", {})
+        control = radius.get("control", {})
+        return (
+            transparency.get("enable") is True
+            and transparency.get("automatic") is False
+            and appearance.get("extraBackgroundTint") is False
+            and abs(float(transparency.get("backgroundTransparency", -1)) - 0.40) < 0.001
+            and abs(float(transparency.get("contentTransparency", -1)) - 0.80) < 0.001
+            and int(radius.get("global", -1)) == 8
+            and int(control.get("value", -1)) == 4
+        )
+    except Exception:
+        return False
+
+
+def interface_style() -> str:
+    try:
+        cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        appearance = cfg.get("appearance", {})
+        style = str(appearance.get("interfaceStyle") or "").strip().lower()
+        aliases = {
+            "mica": "inlay",
+            "glass": "fluid",
+            "solid": "default",
+            "minimal": "default",
+        }
+        style = aliases.get(style, style)
+        if style in {"fluid", "prism", "inlay", "default"}:
+            return style
+    except Exception:
+        pass
+
+    # Preserve the old Fluid auto-detection as a fallback.
+    if legacy_fluid_mode():
+        return "fluid"
+    return "default"
+
+
+STYLE = interface_style()
+FLUID_MODE = STYLE == "fluid"
+PRISM_MODE = STYLE == "prism"
+INLAY_MODE = STYLE == "inlay"
+DEFAULT_MODE = STYLE == "default"
+
+# Fluid values are frozen. Other styles intentionally diverge.
+OPACITY = (
+    "0.60" if FLUID_MODE else
+    "0.84" if PRISM_MODE else
+    "1.00" if INLAY_MODE else
+    "0.94"
+)
+TAB_MIN_TABS = "1"
+WINDOW_PADDING = (
+    "14" if FLUID_MODE else
+    "14" if PRISM_MODE else
+    "10" if INLAY_MODE else
+    "12"
+)
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def valid_hex(v) -> str | None:
+    if not isinstance(v, str):
+        return None
+    m = HEX.match(v.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def best_color_scope(data):
+    expected = {
+        "background", "onbackground", "surface", "onsurface", "primary",
+        "onprimary", "secondary", "tertiary", "error", "outline",
+    }
+    candidates = []
+
+    def add(obj, priority):
+        if not isinstance(obj, dict):
+            return
+        keys = {norm(k) for k, v in obj.items() if valid_hex(v)}
+        score = len(keys & expected)
+        candidates.append((score, priority, obj))
+
+    add(data, 100)
+    if isinstance(data, dict):
+        mode = str(data.get("mode") or data.get("theme") or "").lower()
+        dark_flag = data.get("is_dark")
+        preferred = None
+        if dark_flag is True or "dark" in mode:
+            preferred = "dark"
+        elif dark_flag is False or "light" in mode:
+            preferred = "light"
+        for key in ("colors", "current", "scheme", "dark", "light"):
+            obj = data.get(key)
+            bonus = 20 if key == preferred else 0
+            add(obj, 80 + bonus)
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return candidates[0][2] if candidates else data
+
+
+def load_colors():
+    if not COLOR_JSON.exists():
+        raise SystemExit(f"Missing system palette: {COLOR_JSON}")
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    scope = best_color_scope(data)
+    colors = {}
+    for k, v in scope.items():
+        hv = valid_hex(v)
+        if hv:
+            colors[norm(k)] = hv
+
+    def pick(*names, fallback=None):
+        for name in names:
+            v = colors.get(norm(name))
+            if v:
+                return v
+        if fallback:
+            return fallback
+        raise KeyError("Missing color role: " + ", ".join(names))
+
+    background = pick("background")
+    on_background = pick("on_background", "onBackground", "on_surface", fallback=background)
+    surface = pick("surface", "surface_dim", "surfaceDim", fallback=background)
+    surface_low = pick("surface_container_low", "surfaceContainerLow", "surface", fallback=surface)
+    surface_container = pick("surface_container", "surfaceContainer", "surface_variant", "surfaceVariant", fallback=surface_low)
+    surface_high = pick("surface_container_high", "surfaceContainerHigh", "surface_container", fallback=surface_container)
+    on_surface = pick("on_surface", "onSurface", "on_background", fallback=on_background)
+    on_surface_variant = pick("on_surface_variant", "onSurfaceVariant", "outline", fallback=on_surface)
+    primary = pick("primary", fallback=on_surface)
+    on_primary = pick("on_primary", "onPrimary", "background", fallback=background)
+    secondary = pick("secondary", fallback=primary)
+    tertiary = pick("tertiary", fallback=secondary)
+    error = pick("error", fallback=primary)
+    outline = pick("outline", "on_surface_variant", fallback=on_surface_variant)
+    outline_variant = pick("outline_variant", "outlineVariant", "outline", fallback=outline)
+    selection_bg = pick("secondary_container", "secondaryContainer", "primary_container", "primaryContainer", "surface_container_high", fallback=surface_high)
+    selection_fg = pick("on_secondary_container", "onSecondaryContainer", "on_primary_container", "onPrimaryContainer", "on_surface", fallback=on_surface)
+
+    return {
+        "background": background,
+        "on_background": on_background,
+        "surface": surface,
+        "surface_low": surface_low,
+        "surface_container": surface_container,
+        "surface_high": surface_high,
+        "on_surface": on_surface,
+        "on_surface_variant": on_surface_variant,
+        "primary": primary,
+        "on_primary": on_primary,
+        "secondary": secondary,
+        "tertiary": tertiary,
+        "error": error,
+        "outline": outline,
+        "outline_variant": outline_variant,
+        "selection_bg": selection_bg,
+        "selection_fg": selection_fg,
+    }
+
+
+def nohash(v: str) -> str:
+    return v.lstrip("#")
+
+
+def mix_hex(a: str, b: str, amount: float) -> str:
+    amount = max(0.0, min(1.0, amount))
+    av = a.lstrip("#")[:6]
+    bv = b.lstrip("#")[:6]
+    ar, ag, ab = int(av[0:2], 16), int(av[2:4], 16), int(av[4:6], 16)
+    br, bg, bb = int(bv[0:2], 16), int(bv[2:4], 16), int(bv[4:6], 16)
+    vals = [
+        round(ar + (br - ar) * amount),
+        round(ag + (bg - ag) * amount),
+        round(ab + (bb - ab) * amount),
+    ]
+    return "#" + "".join(f"{v:02x}" for v in vals)
+
+
+def adapt_to_accent(base: str, accent: str) -> str:
+    """Match ColorUtils.adaptToAccent(): accent H/S + base lightness."""
+    def rgb(h):
+        h = h.lstrip("#")[:6]
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    br, bg, bb = rgb(base)
+    ar, ag, ab = rgb(accent)
+    _bh, bl, _bs = colorsys.rgb_to_hls(br, bg, bb)
+    ah, _al, a_s = colorsys.rgb_to_hls(ar, ag, ab)
+    rr, rg, rb = colorsys.hls_to_rgb(ah, bl, a_s)
+    return "#" + "".join(f"{round(v * 255):02x}" for v in (rr, rg, rb))
+
+
+def is_dark_color(value: str) -> bool:
+    h = value.lstrip("#")[:6]
+    r, g, b = (int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    _h, lightness, _s = colorsys.rgb_to_hls(r, g, b)
+    return lightness < 0.5
+
+
+def inlay_navbar_surface(c) -> str:
+    """Reproduce the actual Inlay bar substrate: Appearance.colors.colLayer0."""
+    # Active Bar.qml paints its shell with Appearance.colors.colLayer0.
+    # In Inlay/micaMode, colLayer0Base aliases micaLayer0Base:
+    #   mix(background, adaptToAccent(background, primary), .72/.84)
+    # ColorUtils.mix(c1, c2, p) keeps p of c1, so this exposes
+    # 28% accent in dark mode and 16% in light mode.
+    base = c["background"]
+    accented = adapt_to_accent(base, c["primary"])
+    accent_amount = 0.28 if is_dark_color(c["background"]) else 0.16
+    return mix_hex(base, accented, accent_amount)
+
+
+# fluid-refinement-v1.2
+# The Fluid terminal keeps dynamic text/accent colors, but its large substrate
+# is neutral charcoal so wallpaper/application chroma shows through as light
+# rather than dyeing the whole terminal blue/green/red.
+def fluid_terminal_colors(c):
+    if not FLUID_MODE:
+        return c
+
+    out = dict(c)
+    out.update({
+        "background": "#101315",
+        "surface": "#13181b",
+        "surface_low": "#151a1d",
+        "surface_container": "#1b2226",
+        "surface_high": "#232b30",
+        "selection_bg": "#2a3439",
+        "selection_fg": c["on_surface"],
+    })
+    return out
+
+
+def terminal_colors(c):
+    if FLUID_MODE:
+        # Frozen Fluid rendering path.
+        return fluid_terminal_colors(c)
+
+    if PRISM_MODE:
+        # Prism keeps the system hue, but creates a clearer depth ladder so the
+        # tab/status cells read as detached spatial objects.
+        out = dict(c)
+        out["surface_low"] = mix_hex(c["surface_low"], c["primary"], 0.035)
+        out["surface_container"] = mix_hex(c["surface_container"], c["primary"], 0.065)
+        out["surface_high"] = mix_hex(c["surface_high"], c["primary"], 0.085)
+        out["selection_bg"] = mix_hex(out["surface_high"], c["primary"], 0.14)
+        return out
+
+    if INLAY_MODE:
+        # Inlay is fully matte/opaque and deliberately shares its large substrate
+        # with the actual navbar shell. Bar.qml paints that shell with
+        # Appearance.colors.colLayer0, which aliases micaLayer0Base in Inlay.
+        # Reproduce that I0 material exactly so Kitty and the bar are one plane.
+        out = dict(c)
+        bg = inlay_navbar_surface(c)
+        out["background"] = bg
+        out["surface"] = bg
+        out["surface_low"] = mix_hex(bg, c["on_surface"], 0.025)
+        out["surface_container"] = mix_hex(bg, c["on_surface"], 0.055)
+        out["surface_high"] = mix_hex(bg, c["on_surface"], 0.085)
+        out["selection_bg"] = mix_hex(out["surface_container"], c["primary"], 0.16)
+        out["selection_fg"] = c["on_surface"]
+        return out
+
+    # Default is intentionally the clean baseline: the system palette, no
+    # semantic substrate transformation.
+    return c
+
+
+def atomic_write(path: Path, text: str, mode=None):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    if mode is not None:
+        tmp.chmod(mode)
+    tmp.replace(path)
+
+
+def render_template(template: Path, target: Path, c):
+    if not template.exists():
+        return False
+    text = template.read_text(encoding="utf-8")
+    replacements = {
+        "background": c["background"],
+        "surface": c["surface_low"],
+        "surface_container": c["surface_container"],
+        "primary": c["primary"],
+        "on_surface": c["on_surface"],
+        "secondary": c["secondary"],
+        "on_surface_variant": c["on_surface_variant"],
+        "tertiary": c["tertiary"],
+        "error": c["error"],
+        "outline_variant": c["outline_variant"],
+    }
+    for role, value in replacements.items():
+        text = text.replace("{{" + role + "}}", nohash(value))
+    if "{{" in text or "}}" in text:
+        raise RuntimeError(f"Unresolved dynamic-theme token in {template}")
+    atomic_write(target, text)
+    return True
+
+
+def write_kitty(c):
+    # Fluid stays exactly on the old visual contract: no tab-bar substrate,
+    # 0.60 opacity and 14px internal padding.
+    tab_bar_bg = c["surface_low"] if INLAY_MODE else "none"
+    tab_margin = c["surface_low"] if INLAY_MODE else "none"
+
+    text = f"""# AUTO-GENERATED by nyvorel-terminal-theme-sync. DO NOT EDIT.
+# Source: {COLOR_JSON}
+# nyvorel-interface-style: {STYLE}
+background {c['background']}
+foreground {c['on_surface']}
+cursor {c['primary']}
+cursor_text_color {c['on_primary']}
+selection_background {c['selection_bg']}
+selection_foreground {c['selection_fg']}
+url_color {c['primary']}
+active_border_color {c['primary']}
+inactive_border_color {c['outline_variant']}
+bell_border_color {c['error']}
+# terminal-bottom-bar-theme-v3
+tab_bar_background {tab_bar_bg}
+tab_bar_margin_color {tab_margin}
+active_tab_background {c['surface_container']}
+active_tab_foreground {c['on_surface']}
+inactive_tab_background {c['surface_low']}
+inactive_tab_foreground {c['on_surface_variant']}
+background_opacity {OPACITY}
+# interface-style-aware values are included after kitty.conf and persist on reopen.
+tab_bar_min_tabs {TAB_MIN_TABS}
+window_padding_width {WINDOW_PADDING}
+"""
+    atomic_write(KITTY_THEME, text)
+
+
+def write_fish(c):
+    q = lambda v: "'" + v + "'"
+    lines = [
+        "# AUTO-GENERATED by nyvorel-terminal-theme-sync. DO NOT EDIT.",
+        f"# Source: {COLOR_JSON}",
+        f"set -g fish_color_normal {q(c['on_surface'])}",
+        f"set -g fish_color_command {q(c['primary'])}",
+        f"set -g fish_color_keyword {q(c['primary'])}",
+        f"set -g fish_color_quote {q(c['secondary'])}",
+        f"set -g fish_color_redirection {q(c['tertiary'])}",
+        f"set -g fish_color_end {q(c['primary'])}",
+        f"set -g fish_color_error {q(c['error'])}",
+        f"set -g fish_color_param {q(c['on_surface'])}",
+        f"set -g fish_color_comment {q(c['on_surface_variant'])}",
+        f"set -g fish_color_selection {q(c['on_surface'])} '--background={c['surface_high']}'",
+        f"set -g fish_color_search_match {q(c['on_surface'])} '--background={c['surface_container']}'",
+        f"set -g fish_color_operator {q(c['tertiary'])}",
+        f"set -g fish_color_escape {q(c['tertiary'])}",
+        f"set -g fish_color_autosuggestion {q(c['outline'])}",
+        f"set -g fish_color_cwd {q(c['secondary'])}",
+        f"set -g fish_color_cwd_root {q(c['error'])}",
+        f"set -g fish_color_user {q(c['primary'])}",
+        f"set -g fish_color_host {q(c['on_surface_variant'])}",
+        f"set -g fish_color_host_remote {q(c['tertiary'])}",
+        f"set -g fish_color_status {q(c['error'])}",
+        "set -g fish_color_valid_path --underline",
+        f"set -g fish_pager_color_prefix {q(c['primary'])}",
+        f"set -g fish_pager_color_completion {q(c['on_surface'])}",
+        f"set -g fish_pager_color_description {q(c['on_surface_variant'])}",
+        f"set -g fish_pager_color_selected_background '--background={c['surface_container']}'",
+        "",
+    ]
+    atomic_write(FISH_THEME, "\n".join(lines))
+
+
+def write_startup_overlay(c):
+    # Fish's generated terminal/sequences.txt is sourced for every new shell and
+    # can re-apply the palette background after Kitty has loaded our style-aware
+    # config. Keep Fluid byte-for-byte visually unchanged by making its overlay
+    # a no-op. Re-assert only non-Fluid style substrates after those sequences.
+    if FLUID_MODE:
+        text = (
+            "# AUTO-GENERATED by nyvorel-terminal-theme-sync. DO NOT EDIT.\n"
+            "# Fluid startup overlay intentionally empty: Fluid is frozen.\n"
+        )
+    else:
+        bg = c["background"]
+        text = (
+            "# AUTO-GENERATED by nyvorel-terminal-theme-sync. DO NOT EDIT.\n"
+            f"# nyvorel-interface-style: {STYLE}\n"
+            "if status is-interactive\n"
+            f"    printf '\\033]11;{bg}\\033\\\\'\n"
+            "end\n"
+        )
+    atomic_write(STARTUP_OVERLAY, text)
+
+
+def reload_kitty():
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    sockets = sorted(Path(runtime).glob("nyvorel-kitty-*"))
+    successes = 0
+    for sock in sockets:
+        target = "unix:" + str(sock)
+        try:
+            subprocess.run(["kitten", "@", "--to", target, "load-config"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+            subprocess.run(["kitten", "@", "--to", target, "set-colors", "--all", "--configured", str(KITTY_THEME)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+            subprocess.run(["kitten", "@", "--to", target, "set-background-opacity", "--all", OPACITY], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+            successes += 1
+        except Exception:
+            pass
+    return successes
+
+
+def main():
+    STATE.mkdir(parents=True, exist_ok=True)
+    palette = load_colors()
+    c = terminal_colors(palette)
+    write_kitty(c)
+    render_template(STARSHIP_TEMPLATE, STARSHIP, c)
+    render_template(TAB_TEMPLATE, TAB_BAR, c)
+    write_fish(c)
+    write_startup_overlay(c)
+    n = reload_kitty()
+    LOG.write_text(
+        "synced\n"
+        f"source={COLOR_JSON}\n"
+        f"interface_style={STYLE}\n"
+        f"fluid_mode={str(FLUID_MODE).lower()}\n"
+        f"background={c['background']}\n"
+        f"surface={c['surface_low']}\n"
+        f"primary={c['primary']}\n"
+        f"foreground={c['on_surface']}\n"
+        f"kitty_instances_reloaded={n}\n",
+        encoding="utf-8",
+    )
+    print(f"✓ terminal theme synced for {STYLE} ({n} live Kitty instance(s) reloaded)")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"nyvorel-terminal-theme-sync: {e}", file=sys.stderr)
+        raise

@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import platform
+import shutil
+import subprocess
+import sys
+import unicodedata
+from pathlib import Path
+
+HOME = Path.home()
+PALETTE_FILE = HOME / ".local/state/quickshell/user/generated/colors.json"
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"
+
+RESET = "\x1b[0m"
+BOLD = "\x1b[1m"
+
+
+def _hex(v: str | None, role: str) -> str:
+    if isinstance(v, str):
+        s = v.strip().lstrip("#")
+        if len(s) >= 6:
+            s = s[:6]
+            try:
+                int(s, 16)
+                return "#" + s.lower()
+            except ValueError:
+                pass
+    raise RuntimeError(f"Missing or invalid system color role: {role}")
+
+
+def interface_style() -> str:
+    try:
+        cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        style = str(cfg.get("appearance", {}).get("interfaceStyle") or "").strip().lower()
+        style = {"mica": "inlay", "glass": "fluid", "solid": "default", "minimal": "default"}.get(style, style)
+        if style in {"fluid", "prism", "inlay", "default"}:
+            return style
+    except Exception:
+        pass
+    return "default"
+
+
+STYLE = interface_style()
+
+
+def load_palette() -> dict[str, str]:
+    data = json.loads(PALETTE_FILE.read_text(encoding="utf-8"))
+    return {
+        "primary": _hex(data.get("primary"), "primary"),
+        "secondary": _hex(data.get("secondary"), "secondary"),
+        "tertiary": _hex(data.get("tertiary"), "tertiary"),
+        "text": _hex(data.get("on_surface") or data.get("on_background"), "on_surface"),
+        "muted": _hex(data.get("on_surface_variant") or data.get("outline"), "on_surface_variant"),
+        "outline": _hex(data.get("outline_variant") or data.get("outline"), "outline_variant"),
+    }
+
+
+def ansi_fg(h: str) -> str:
+    h = h.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"\x1b[38;2;{r};{g};{b}m"
+
+
+def color(text: str, h: str, *, bold: bool = False) -> str:
+    return (BOLD if bold else "") + ansi_fg(h) + text + RESET
+
+
+def cell_width(text: str) -> int:
+    width = 0
+    for ch in text:
+        cp = ord(ch)
+        if unicodedata.combining(ch):
+            continue
+        # patched Nerd Font private-use glyphs render as single cell in terminal UIs
+        if 0xE000 <= cp <= 0xF8FF or 0xF0000 <= cp <= 0xFFFFD or 0x100000 <= cp <= 0x10FFFD:
+            width += 1
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+def clip_cells(text: str, max_width: int) -> str:
+    if cell_width(text) <= max_width:
+        return text
+    if max_width <= 1:
+        return "…"
+    out = []
+    used = 0
+    for ch in text:
+        w = cell_width(ch)
+        if used + w > max_width - 1:
+            break
+        out.append(ch)
+        used += w
+    return "".join(out) + "…"
+
+
+def run(*args: str, timeout: float = 0.9) -> str:
+    try:
+        p = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return (p.stdout or "").strip()
+    except Exception:
+        return ""
+
+
+def uptime_text() -> str:
+    try:
+        seconds = int(float(Path("/proc/uptime").read_text().split()[0]))
+        days, rem = divmod(seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes = rem // 60
+        if days:
+            day_label = "day" if days == 1 else "days"
+            if minutes:
+                return f"{days} {day_label}, {minutes} minutes"
+            return f"{days} {day_label}"
+        if hours:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+    except Exception:
+        return "—"
+
+
+def cpu_text() -> str:
+    try:
+        threads = sum(
+            1
+            for line in Path("/proc/cpuinfo").read_text().splitlines()
+            if line.startswith("processor")
+        )
+        load = Path("/proc/loadavg").read_text().split()[0]
+        return f"{threads} threads · {load} load"
+    except Exception:
+        return "—"
+
+
+def memory_text() -> str:
+    try:
+        vals = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if ":" in line:
+                k, rest = line.split(":", 1)
+                vals[k] = int(rest.strip().split()[0])
+        total = vals["MemTotal"]
+        available = vals.get("MemAvailable", vals.get("MemFree", 0))
+        used = max(0, total - available)
+        return f"{used / 1048576:.1f}Gi / {total / 1048576:.0f}Gi"
+    except Exception:
+        return "—"
+
+
+def disk_text() -> str:
+    try:
+        usage = shutil.disk_usage(HOME)
+        used = usage.used / 1073741824
+        total = usage.total / 1073741824
+        return f"{used:.0f}Gi / {total:.0f}Gi"
+    except Exception:
+        return "—"
+
+
+def package_count() -> str:
+    try:
+        root = Path("/var/lib/pacman/local")
+        return str(sum(1 for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")))
+    except Exception:
+        return "—"
+
+
+def resolution() -> str:
+    raw = run("hyprctl", "monitors", "-j", timeout=0.7)
+    if not raw:
+        return "—"
+    try:
+        monitors = json.loads(raw)
+        mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
+        if mon:
+            return f"{mon.get('width', '?')}×{mon.get('height', '?')}"
+    except Exception:
+        pass
+    return "—"
+
+
+ARCH_RAW = [
+    "                   -`",
+    "                  .o+`",
+    "                 `ooo/",
+    "                `+oooo:",
+    "               `+oooooo:",
+    "               -+oooooo+:",
+    "             `/:-:++oooo+:",
+    "            `/++++/+++++++:",
+    "           `/++++++++++++++:",
+    "          `/+++ooooooooooooo/`",
+    "         ./ooosssso++osssssso+`",
+    "        .oossssso-````/ossssss+`",
+    "       -osssssso.      :ssssssso.",
+    "      :osssssss/        osssso+++.",
+    "     /ossssssss/        +ssssooo/-",
+    "   `/ossssso+/:-        -:/+osssso+-",
+    "  `+sso+:-`                 `.-/+oso:",
+    " `++:.                           `-/+/",
+    " .`                                 `/",
+]
+
+
+def arch_logo(p: dict[str, str]) -> list[str]:
+    return [color(line, p["primary"], bold=True) for line in ARCH_RAW]
+
+
+def frame_chars() -> dict[str, str]:
+    if STYLE == "inlay":
+        return {"tl": "┌", "tr": "┐", "ml": "├", "mr": "┤", "bl": "└", "br": "┘", "v": "│", "h": "─"}
+    if STYLE == "prism":
+        return {"tl": "╭", "tr": "╮", "ml": "├", "mr": "┤", "bl": "╰", "br": "╯", "v": "│", "h": "━"}
+    if STYLE == "default":
+        return {"tl": "+", "tr": "+", "ml": "+", "mr": "+", "bl": "+", "br": "+", "v": "|", "h": "-"}
+    # Frozen Fluid frame language.
+    return {"tl": "╭", "tr": "╮", "ml": "├", "mr": "┤", "bl": "╰", "br": "╯", "v": "│", "h": "─"}
+
+
+def panel_top(title: str, icon: str, width: int, p: dict[str, str]) -> str:
+    f = frame_chars()
+    inner = width - 2
+    prism_mark = "◈ " if STYLE == "prism" else ""
+    label = f" {prism_mark}{icon} {title} "
+    fill = max(0, inner - cell_width(label))
+    return (
+        color(f["tl"], p["outline"])
+        + color(label, p["primary"], bold=True)
+        + color(f["h"] * fill, p["outline"])
+        + color(f["tr"], p["outline"])
+    )
+
+
+def panel_mid_rule(width: int, p: dict[str, str]) -> str:
+    f = frame_chars()
+    return (
+        color(f["ml"], p["outline"])
+        + color(f["h"] * (width - 2), p["outline"])
+        + color(f["mr"], p["outline"])
+    )
+
+
+def panel_bottom(width: int, p: dict[str, str]) -> str:
+    f = frame_chars()
+    return color(f["bl"] + (f["h"] * (width - 2)) + f["br"], p["outline"])
+
+
+def panel_blank(width: int, p: dict[str, str]) -> str:
+    f = frame_chars()
+    return color(f["v"], p["outline"]) + (" " * (width - 2)) + color(f["v"], p["outline"])
+
+
+def panel_row(icon: str, label: str, value: str, width: int, p: dict[str, str], *, value_role: str = "text") -> str:
+    f = frame_chars()
+    inner = width - 2
+    left = f" {icon} {label}"
+    left_w = cell_width(left)
+    max_value_w = max(1, inner - left_w - 2)
+    value = clip_cells(value, max_value_w)
+    gap = max(1, inner - left_w - cell_width(value))
+    return (
+        color(f["v"], p["outline"])
+        + color(left, p["muted"])
+        + (" " * gap)
+        + color(value, p[value_role], bold=value_role in {"primary", "secondary", "tertiary"})
+        + color(f["v"], p["outline"])
+    )
+
+
+def arch_panel(width: int, p: dict[str, str]) -> list[str]:
+    logo = arch_logo(p)
+    art_width = max(cell_width(line) for line in ARCH_RAW)
+    left_pad = max(0, (width - art_width) // 2)
+
+    # One leading row makes the frameless 19-row logo exactly as tall
+    # as the expanded 20-row System panel.
+    out = [" " * width]
+
+    for raw, line in zip(ARCH_RAW, logo):
+        right_pad = max(0, width - left_pad - cell_width(raw))
+        out.append((" " * left_pad) + line + (" " * right_pad))
+
+    return out
+
+
+def system_rows() -> list[tuple[str, str, str, str]]:
+    host = platform.node().split(".")[0] or "archlinux"
+    return [
+        ("󰌢", "Host", host, "text"),
+        ("󰌽", "Kernel", platform.release(), "text"),
+        ("󰥔", "Uptime", uptime_text(), "text"),
+        ("󰏖", "Packages", package_count(), "text"),
+        ("", "CPU", cpu_text(), "text"),
+        ("󰍛", "Memory", memory_text(), "text"),
+        ("󰋊", "Disk", disk_text(), "text"),
+        ("󰍹", "Display", resolution(), "text"),
+    ]
+
+
+def system_panel(width: int, p: dict[str, str]) -> list[str]:
+    out = [panel_top("System", "󰆍", width, p), panel_mid_rule(width, p), panel_blank(width, p)]
+    for row in system_rows():
+        out.append(panel_row(*row[:3], width, p, value_role=row[3]))
+        out.append(panel_blank(width, p))
+    out.append(panel_bottom(width, p))
+    return out
+
+
+def quick_actions_panel(width: int, p: dict[str, str]) -> list[str]:
+    left_items = [
+        ("󰆍", "Ctrl + R", "history"),
+        ("󰆽", "z", "jump project"),
+        ("󰐊", "dev", "run project"),
+        ("󰊢", "gst", "git status"),
+    ]
+    right_items = [
+        ("󰈔", "ll", "files"),
+        ("󰕒", "c", "clear"),
+        ("󰌑", "Ctrl + L", "clear screen"),
+        ("󰗼", "Ctrl + D", "exit shell"),
+    ]
+
+    out = [
+        panel_top("Quick Actions", "", width, p),
+        panel_mid_rule(width, p),
+    ]
+
+    inner = width - 2
+    columns_width = inner - 1
+    left_col = columns_width // 2
+    right_col = columns_width - left_col
+
+    all_items = left_items + right_items
+    key_width = max(cell_width(key) for _, key, _ in all_items)
+
+    def action_cell(
+        icon: str,
+        key: str,
+        description: str,
+        column_width: int,
+    ) -> str:
+        key_padding = " " * max(0, key_width - cell_width(key))
+        prefix_raw = f" {icon} {key}{key_padding}  "
+        available = max(1, column_width - cell_width(prefix_raw))
+        shown_description = clip_cells(description, available)
+        raw = prefix_raw + shown_description
+
+        rendered = (
+            color(f" {icon} ", p["primary"])
+            + color(key, p["tertiary"], bold=True)
+            + key_padding
+            + "  "
+            + color(shown_description, p["text"])
+        )
+
+        return rendered + (
+            " " * max(0, column_width - cell_width(raw))
+        )
+
+    for left, right in zip(left_items, right_items):
+        row = (
+            color(frame_chars()["v"], p["outline"])
+            + action_cell(*left, left_col)
+            + color(frame_chars()["v"], p["outline"])
+            + action_cell(*right, right_col)
+            + color(frame_chars()["v"], p["outline"])
+        )
+        out.append(row)
+
+    out.append(panel_bottom(width, p))
+    return out
+
+
+def render() -> str:
+    p = load_palette()
+    cols = shutil.get_terminal_size((120, 40)).columns
+
+    arch_w = 42
+    system_w = 42
+    gap = "    " if STYLE == "prism" else (" " if STYLE == "inlay" else "  ")
+    top_total = arch_w + len(gap) + system_w
+    quick_w = top_total
+
+    top_left = arch_panel(arch_w, p)
+    top_right = system_panel(system_w, p)
+    quick = quick_actions_panel(quick_w, p)
+
+    lines = [""]
+
+    if cols >= top_total:
+        height = max(len(top_left), len(top_right))
+        for i in range(height):
+            l = top_left[i] if i < len(top_left) else " " * arch_w
+            r = top_right[i] if i < len(top_right) else " " * system_w
+            lines.append(l + gap + r)
+        lines.append("")
+        lines.extend(quick)
+    else:
+        lines.extend(top_left)
+        lines.append("")
+        lines.extend(top_right)
+        lines.append("")
+        lines.extend(quick)
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    text = render()
+    if "--check" not in sys.argv:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

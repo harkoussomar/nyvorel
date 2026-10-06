@@ -1,0 +1,692 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+COLOR_JSON = Path(os.environ.get("NYVOREL_ZED_COLORS", HOME / ".local/state/quickshell/user/generated/colors.json"))
+NYVOREL_CONFIG = Path(os.environ.get("NYVOREL_ZED_CONFIG", HOME / ".config/nyvorel/config.json"))
+SETTINGS = Path(os.environ.get("NYVOREL_ZED_SETTINGS", HOME / ".config/zed/settings.json"))
+STATE = Path(os.environ.get("NYVOREL_ZED_STATE", HOME / ".local/state/nyvorel"))
+LOG = STATE / "zed-theme-sync.log"
+MARK_BEGIN = "// >>> nyvorel-zed-system-theme-v1 >>>"
+MARK_END = "// <<< nyvorel-zed-system-theme-v1 <<<"
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def valid_hex(v) -> str | None:
+    if not isinstance(v, str):
+        return None
+    m = HEX.match(v.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def best_color_scope(data):
+    expected = {
+        "background", "onbackground", "surface", "onsurface", "primary",
+        "onprimary", "secondary", "tertiary", "error", "outline",
+    }
+    candidates = []
+
+    def add(obj, priority):
+        if not isinstance(obj, dict):
+            return
+        keys = {norm(k) for k, v in obj.items() if valid_hex(v)}
+        score = len(keys & expected)
+        candidates.append((score, priority, obj))
+
+    add(data, 100)
+    if isinstance(data, dict):
+        mode = str(data.get("mode") or data.get("theme") or "").lower()
+        dark_flag = data.get("is_dark")
+        preferred = None
+        if dark_flag is True or "dark" in mode:
+            preferred = "dark"
+        elif dark_flag is False or "light" in mode:
+            preferred = "light"
+        for key in ("colors", "current", "scheme", "dark", "light"):
+            obj = data.get(key)
+            bonus = 20 if key == preferred else 0
+            add(obj, 80 + bonus)
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return candidates[0][2] if candidates else data
+
+
+def load_colors():
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    scope = best_color_scope(data)
+    colors = {}
+    for k, v in scope.items():
+        hv = valid_hex(v)
+        if hv:
+            colors[norm(k)] = hv
+
+    def pick(*names, fallback=None):
+        for name in names:
+            value = colors.get(norm(name))
+            if value:
+                return value
+        if fallback is not None:
+            return fallback
+        raise KeyError("Missing color role: " + ", ".join(names))
+
+    background = pick("background")
+    on_background = pick("on_background", "onBackground", "on_surface", fallback=background)
+    surface = pick("surface", "surface_dim", "surfaceDim", fallback=background)
+    surface_low = pick("surface_container_low", "surfaceContainerLow", "surface", fallback=surface)
+    surface_container = pick("surface_container", "surfaceContainer", "surface_variant", "surfaceVariant", fallback=surface_low)
+    surface_high = pick("surface_container_high", "surfaceContainerHigh", "surface_container", fallback=surface_container)
+    surface_highest = pick("surface_container_highest", "surfaceContainerHighest", "surface_container_high", fallback=surface_high)
+    on_surface = pick("on_surface", "onSurface", "on_background", fallback=on_background)
+    on_surface_variant = pick("on_surface_variant", "onSurfaceVariant", "outline", fallback=on_surface)
+    primary = pick("primary", fallback=on_surface)
+    on_primary = pick("on_primary", "onPrimary", "background", fallback=background)
+    primary_container = pick("primary_container", "primaryContainer", "surface_container", fallback=surface_container)
+    on_primary_container = pick("on_primary_container", "onPrimaryContainer", "on_surface", fallback=on_surface)
+    secondary = pick("secondary", fallback=primary)
+    secondary_container = pick("secondary_container", "secondaryContainer", "surface_container", fallback=surface_container)
+    on_secondary_container = pick("on_secondary_container", "onSecondaryContainer", "on_surface", fallback=on_surface)
+    tertiary = pick("tertiary", fallback=secondary)
+    tertiary_container = pick("tertiary_container", "tertiaryContainer", "surface_container_high", fallback=surface_high)
+    error = pick("error", fallback=primary)
+    error_container = pick("error_container", "errorContainer", fallback=surface_container)
+    on_error_container = pick("on_error_container", "onErrorContainer", "on_surface", fallback=on_surface)
+    outline = pick("outline", "on_surface_variant", fallback=on_surface_variant)
+    outline_variant = pick("outline_variant", "outlineVariant", "outline", fallback=outline)
+
+    return {
+        "background": background,
+        "on_background": on_background,
+        "surface": surface,
+        "surface_low": surface_low,
+        "surface_container": surface_container,
+        "surface_high": surface_high,
+        "surface_highest": surface_highest,
+        "on_surface": on_surface,
+        "on_surface_variant": on_surface_variant,
+        "primary": primary,
+        "on_primary": on_primary,
+        "primary_container": primary_container,
+        "on_primary_container": on_primary_container,
+        "secondary": secondary,
+        "secondary_container": secondary_container,
+        "on_secondary_container": on_secondary_container,
+        "tertiary": tertiary,
+        "tertiary_container": tertiary_container,
+        "error": error,
+        "error_container": error_container,
+        "on_error_container": on_error_container,
+        "outline": outline,
+        "outline_variant": outline_variant,
+    }
+
+
+def luminance(color: str) -> float:
+    rgb = [int(color[i:i+2], 16) / 255 for i in (1, 3, 5)]
+    def f(x):
+        return x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4
+    r, g, b = map(f, rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def alpha_hex(opacity: float) -> str:
+    opacity = max(0.0, min(1.0, opacity))
+    return f"{round(opacity * 255):02x}"
+
+
+def with_alpha(color: str, opacity: float) -> str:
+    return color[:7] + alpha_hex(opacity)
+
+
+def mix(a: str, b: str, t: float) -> str:
+    t = max(0.0, min(1.0, t))
+    ar = [int(a[i:i+2], 16) for i in (1, 3, 5)]
+    br = [int(b[i:i+2], 16) for i in (1, 3, 5)]
+    out = [round(x * (1 - t) + y * t) for x, y in zip(ar, br)]
+    return "#" + "".join(f"{x:02x}" for x in out)
+
+
+def load_appearance():
+    cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+    appearance = cfg.get("appearance", {}) if isinstance(cfg, dict) else {}
+    transparency = appearance.get("transparency", {}) or {}
+    radius = (appearance.get("geometry", {}) or {}).get("radius", {}) or {}
+    control = radius.get("control", {}) or {}
+    enabled = transparency.get("enable") is True
+    automatic = transparency.get("automatic") is True
+    bg_t = float(transparency.get("backgroundTransparency", 0.0) or 0.0)
+    content_t = float(transparency.get("contentTransparency", 0.0) or 0.0)
+    fluid = (
+        enabled
+        and not automatic
+        and appearance.get("extraBackgroundTint") is False
+        and abs(bg_t - 0.40) < 0.001
+        and abs(content_t - 0.80) < 0.001
+        and int(radius.get("global", -1)) == 8
+        and int(control.get("value", -1)) == 4
+    )
+    fonts = appearance.get("fonts", {}) or {}
+    return {
+        "transparent": enabled,
+        "background_transparency": max(0.0, min(1.0, bg_t)),
+        "content_transparency": max(0.0, min(1.0, content_t)),
+        "fluid": fluid,
+        "ui_font": fonts.get("main") or fonts.get("title") or "",
+        "mono_font": fonts.get("monospace") or "",
+    }
+
+
+def build_override(c, app):
+    is_dark = luminance(c["background"]) < 0.45
+    base_theme = "One Dark" if is_dark else "One Light"
+    transparent = app["transparent"]
+    fluid = app["fluid"]
+
+    if fluid:
+        substrate = "#101315"
+        surface_low = "#151a1d"
+        surface = "#1b2226"
+        surface_high = "#232b30"
+        selection = "#2a3439"
+        root_opacity = 0.60
+        content_opacity = 0.24
+    else:
+        substrate = c["background"]
+        surface_low = c["surface_low"]
+        surface = c["surface_container"]
+        surface_high = c["surface_high"]
+        selection = c["secondary_container"]
+        root_opacity = 1.0 - app["background_transparency"] if transparent else 1.0
+        content_opacity = 1.0 - app["content_transparency"] if transparent else 1.0
+
+    # Zed currently has some stacking rough edges with many translucent nested
+    # surfaces. Keep the window substrate transparent, but avoid ultra-low alpha
+    # on interactive/elevated elements where readability matters.
+    if transparent:
+        root_bg = with_alpha(substrate, root_opacity)
+        editor_bg = "#00000000"
+        panel_bg = with_alpha(surface_low, max(0.18, content_opacity))
+        surface_bg = with_alpha(surface, max(0.22, content_opacity))
+        element_bg = with_alpha(surface, max(0.24, content_opacity))
+        hover_bg = with_alpha(surface_high, max(0.32, content_opacity + 0.10))
+        active_bg = with_alpha(surface_high, max(0.44, content_opacity + 0.22))
+        selected_bg = with_alpha(selection, max(0.58, content_opacity + 0.36))
+        elevated_bg = with_alpha(surface_high, 0.92)
+        title_bg = "#00000000"
+        toolbar_bg = "#00000000"
+        status_bg = "#00000000"
+        tab_bar_bg = with_alpha(surface_low, max(0.14, content_opacity * 0.75))
+        tab_inactive_bg = "#00000000"
+        tab_active_bg = with_alpha(surface, max(0.32, content_opacity + 0.10))
+        appearance = "transparent"
+    else:
+        root_bg = substrate
+        editor_bg = substrate
+        panel_bg = surface_low
+        surface_bg = surface
+        element_bg = surface
+        hover_bg = surface_high
+        active_bg = surface_high
+        selected_bg = selection
+        elevated_bg = c["surface_highest"]
+        title_bg = substrate
+        toolbar_bg = substrate
+        status_bg = substrate
+        tab_bar_bg = surface_low
+        tab_inactive_bg = surface_low
+        tab_active_bg = substrate
+        appearance = "opaque"
+
+    border = with_alpha(c["outline_variant"], 0.58 if transparent else 1.0)
+    border_variant = with_alpha(c["outline_variant"], 0.36 if transparent else 1.0)
+    focus = c["primary"]
+    muted = c["on_surface_variant"]
+    comment = mix(c["on_surface_variant"], substrate, 0.28 if is_dark else 0.18)
+
+    style = {
+        "background.appearance": appearance,
+        "background": root_bg,
+        "surface.background": "#00000000" if fluid else surface_bg,
+        "elevated_surface.background": elevated_bg,
+        "border": border,
+        "border.variant": border_variant,
+        "border.focused": focus,
+        "border.selected": c["primary_container"],
+        "border.transparent": "#00000000",
+        "border.disabled": border_variant,
+        "element.background": element_bg,
+        "element.hover": hover_bg,
+        "element.active": active_bg,
+        "element.selected": selected_bg,
+        "element.disabled": with_alpha(surface, 0.35 if transparent else 1.0),
+        "ghost_element.background": "#00000000",
+        "ghost_element.hover": hover_bg,
+        "ghost_element.active": active_bg,
+        "ghost_element.selected": selected_bg,
+        "ghost_element.disabled": with_alpha(surface, 0.30 if transparent else 1.0),
+        "drop_target.background": with_alpha(c["primary"], 0.22),
+        "text": c["on_surface"],
+        "text.muted": muted,
+        "text.placeholder": c["outline"],
+        "text.disabled": c["outline_variant"],
+        "text.accent": c["primary"],
+        "icon": c["on_surface"],
+        "icon.muted": muted,
+        "icon.placeholder": c["outline"],
+        "icon.disabled": c["outline_variant"],
+        "icon.accent": c["primary"],
+        "title_bar.background": title_bg,
+        "title_bar.inactive_background": title_bg,
+        "toolbar.background": toolbar_bg,
+        "status_bar.background": status_bg,
+        "panel.background": panel_bg,
+        "panel.focused_border": focus,
+        "pane.focused_border": focus,
+        "tab_bar.background": tab_bar_bg,
+        "tab.inactive_background": tab_inactive_bg,
+        "tab.active_background": tab_active_bg,
+        "search.match_background": with_alpha(c["primary"], 0.25),
+        "search.active_match_background": with_alpha(c["secondary"], 0.38),
+        "scrollbar.thumb.background": with_alpha(c["outline"], 0.36),
+        "scrollbar.thumb.hover_background": with_alpha(c["on_surface_variant"], 0.58),
+        "scrollbar.thumb.border": "#00000000",
+        "scrollbar.track.background": "#00000000",
+        "scrollbar.track.border": "#00000000",
+        "editor.background": editor_bg,
+        "editor.foreground": c["on_surface"],
+        "editor.gutter.background": "#00000000" if transparent else substrate,
+        "editor.subheader.background": panel_bg,
+        "editor.active_line.background": with_alpha(surface, 0.26 if transparent else 1.0),
+        "editor.highlighted_line.background": with_alpha(surface_high, 0.34 if transparent else 1.0),
+        "editor.line_number": c["outline"],
+        "editor.active_line_number": c["primary"],
+        "editor.hover_line_number": c["on_surface_variant"],
+        "editor.invisible": c["outline_variant"],
+        "editor.wrap_guide": with_alpha(c["outline_variant"], 0.35),
+        "editor.active_wrap_guide": with_alpha(c["outline"], 0.55),
+        "editor.document_highlight.read_background": with_alpha(c["primary"], 0.12),
+        "editor.document_highlight.write_background": with_alpha(c["primary"], 0.20),
+        "error": c["error"],
+        "error.background": with_alpha(c["error_container"], 0.58 if transparent else 1.0),
+        "error.border": c["error"],
+        "warning": c["tertiary"],
+        "warning.background": with_alpha(c["tertiary_container"], 0.52 if transparent else 1.0),
+        "warning.border": c["tertiary"],
+        "info": c["primary"],
+        "info.background": with_alpha(c["primary_container"], 0.50 if transparent else 1.0),
+        "info.border": c["primary"],
+        "hint": c["secondary"],
+        "hint.background": with_alpha(c["secondary_container"], 0.46 if transparent else 1.0),
+        "hint.border": c["secondary"],
+        "success": c["secondary"],
+        "success.background": with_alpha(c["secondary_container"], 0.46 if transparent else 1.0),
+        "success.border": c["secondary"],
+        "version_control.added": c["secondary"],
+        "version_control.modified": c["primary"],
+        "version_control.deleted": c["error"],
+        "created": c["secondary"],
+        "created.background": with_alpha(c["secondary_container"], 0.30),
+        "created.border": c["secondary"],
+        "modified": c["primary"],
+        "modified.background": with_alpha(c["primary_container"], 0.30),
+        "modified.border": c["primary"],
+        "deleted": c["error"],
+        "deleted.background": with_alpha(c["error_container"], 0.30),
+        "deleted.border": c["error"],
+        "conflict": c["tertiary"],
+        "conflict.background": with_alpha(c["tertiary_container"], 0.30),
+        "conflict.border": c["tertiary"],
+        "link_text.hover": c["primary"],
+        "terminal.background": editor_bg,
+        "terminal.foreground": c["on_surface"],
+        "terminal.bright_foreground": c["on_surface"],
+        "terminal.dim_foreground": c["on_surface_variant"],
+        "terminal.ansi.black": substrate,
+        "terminal.ansi.bright_black": c["outline_variant"],
+        "terminal.ansi.dim_black": surface_low,
+        "terminal.ansi.red": c["error"],
+        "terminal.ansi.bright_red": mix(c["error"], c["on_surface"], 0.45),
+        "terminal.ansi.dim_red": mix(c["error"], substrate, 0.45),
+        "terminal.ansi.green": c["secondary"],
+        "terminal.ansi.bright_green": mix(c["secondary"], c["on_surface"], 0.45),
+        "terminal.ansi.dim_green": mix(c["secondary"], substrate, 0.45),
+        "terminal.ansi.yellow": c["tertiary"],
+        "terminal.ansi.bright_yellow": mix(c["tertiary"], c["on_surface"], 0.45),
+        "terminal.ansi.dim_yellow": mix(c["tertiary"], substrate, 0.45),
+        "terminal.ansi.blue": c["primary"],
+        "terminal.ansi.bright_blue": mix(c["primary"], c["on_surface"], 0.45),
+        "terminal.ansi.dim_blue": mix(c["primary"], substrate, 0.45),
+        "terminal.ansi.magenta": c["tertiary"],
+        "terminal.ansi.bright_magenta": mix(c["tertiary"], c["on_surface"], 0.55),
+        "terminal.ansi.dim_magenta": mix(c["tertiary"], substrate, 0.55),
+        "terminal.ansi.cyan": c["secondary"],
+        "terminal.ansi.bright_cyan": mix(c["secondary"], c["on_surface"], 0.55),
+        "terminal.ansi.dim_cyan": mix(c["secondary"], substrate, 0.55),
+        "terminal.ansi.white": c["on_surface_variant"],
+        "terminal.ansi.bright_white": c["on_surface"],
+        "terminal.ansi.dim_white": c["outline"],
+        "players": [
+            {"cursor": c["primary"], "background": c["primary"], "selection": with_alpha(c["primary"], 0.24)},
+            {"cursor": c["secondary"], "background": c["secondary"], "selection": with_alpha(c["secondary"], 0.24)},
+            {"cursor": c["tertiary"], "background": c["tertiary"], "selection": with_alpha(c["tertiary"], 0.24)},
+            {"cursor": c["error"], "background": c["error"], "selection": with_alpha(c["error"], 0.24)},
+        ],
+        "syntax": {
+            "attribute": {"color": c["tertiary"]},
+            "boolean": {"color": c["secondary"]},
+            "comment": {"color": comment},
+            "comment.doc": {"color": comment},
+            "constant": {"color": c["tertiary"]},
+            "constant.builtin": {"color": c["primary"]},
+            "constructor": {"color": c["primary"]},
+            "enum": {"color": c["secondary"]},
+            "function": {"color": c["primary"]},
+            "keyword": {"color": c["primary"]},
+            "label": {"color": c["tertiary"]},
+            "number": {"color": c["tertiary"]},
+            "operator": {"color": c["on_surface_variant"]},
+            "property": {"color": c["tertiary"]},
+            "punctuation": {"color": c["on_surface_variant"]},
+            "punctuation.bracket": {"color": c["on_surface_variant"]},
+            "punctuation.delimiter": {"color": c["outline"]},
+            "string": {"color": c["secondary"]},
+            "string.escape": {"color": c["primary"]},
+            "string.regex": {"color": c["secondary"]},
+            "tag": {"color": c["primary"]},
+            "type": {"color": c["secondary"]},
+            "type.builtin": {"color": c["secondary"]},
+            "variable": {"color": c["on_surface"]},
+            "variable.parameter": {"color": c["tertiary"]},
+            "variable.special": {"color": c["primary"]},
+            "variant": {"color": c["secondary"]},
+        },
+        "accents": [c["primary"], c["secondary"], c["tertiary"], c["error"], c["on_surface_variant"], c["outline"]],
+    }
+    return base_theme, style
+
+
+def skip_ws_comments(text: str, pos: int) -> int:
+    n = len(text)
+    while pos < n:
+        if text[pos].isspace():
+            pos += 1
+            continue
+        if text.startswith("//", pos):
+            end = text.find("\n", pos + 2)
+            return n if end < 0 else skip_ws_comments(text, end + 1)
+        if text.startswith("/*", pos):
+            end = text.find("*/", pos + 2)
+            if end < 0:
+                raise ValueError("unterminated block comment")
+            pos = end + 2
+            continue
+        break
+    return pos
+
+
+def parse_string_end(text: str, pos: int) -> int:
+    assert text[pos] == '"'
+    pos += 1
+    while pos < len(text):
+        if text[pos] == "\\":
+            pos += 2
+        elif text[pos] == '"':
+            return pos + 1
+        else:
+            pos += 1
+    raise ValueError("unterminated string")
+
+
+def value_end(text: str, pos: int) -> int:
+    pos = skip_ws_comments(text, pos)
+    if pos >= len(text):
+        raise ValueError("missing value")
+    ch = text[pos]
+    if ch == '"':
+        return parse_string_end(text, pos)
+    if ch in "[{":
+        open_ch = ch
+        close_ch = "]" if ch == "[" else "}"
+        depth = 0
+        i = pos
+        while i < len(text):
+            if text.startswith("//", i):
+                end = text.find("\n", i + 2)
+                i = len(text) if end < 0 else end + 1
+                continue
+            if text.startswith("/*", i):
+                end = text.find("*/", i + 2)
+                if end < 0:
+                    raise ValueError("unterminated block comment")
+                i = end + 2
+                continue
+            if text[i] == '"':
+                i = parse_string_end(text, i)
+                continue
+            if text[i] == open_ch:
+                depth += 1
+            elif text[i] == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+            i += 1
+        raise ValueError("unterminated composite value")
+    i = pos
+    while i < len(text) and text[i] not in ",}\n":
+        i += 1
+    return i
+
+
+def top_level_property_span(text: str, key: str):
+    i = 0
+    depth = 0
+    n = len(text)
+    while i < n:
+        if text.startswith("//", i):
+            end = text.find("\n", i + 2)
+            i = n if end < 0 else end + 1
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            if end < 0:
+                raise ValueError("unterminated block comment")
+            i = end + 2
+            continue
+        ch = text[i]
+        if ch == '"':
+            start = i
+            end = parse_string_end(text, i)
+            if depth == 1:
+                try:
+                    parsed = json.loads(text[start:end])
+                except Exception:
+                    parsed = None
+                j = skip_ws_comments(text, end)
+                if parsed == key and j < n and text[j] == ":":
+                    ve = value_end(text, j + 1)
+                    k = skip_ws_comments(text, ve)
+                    if k < n and text[k] == ",":
+                        k += 1
+                    while k < n and text[k] in " \t\r":
+                        k += 1
+                    if k < n and text[k] == "\n":
+                        k += 1
+                    return start, k
+            i = end
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        i += 1
+    return None
+
+
+def build_block(base_theme: str, style: dict) -> str:
+    override = {base_theme: style}
+    lines = [
+        "  " + MARK_BEGIN,
+        f'  "theme": {json.dumps(base_theme)},',
+        '  "theme_overrides": ' + json.dumps(override, indent=2, ensure_ascii=False).replace("\n", "\n  ") + ",",
+        "  " + MARK_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def replace_managed_block(text: str, block: str) -> str:
+    begin = text.find(MARK_BEGIN)
+    end = text.find(MARK_END)
+    if begin >= 0 or end >= 0:
+        if begin < 0 or end < 0 or end < begin:
+            raise ValueError("broken II Zed managed markers")
+        line_start = text.rfind("\n", 0, begin) + 1
+        line_end = text.find("\n", end)
+        line_end = len(text) if line_end < 0 else line_end + 1
+        return text[:line_start] + block + text[line_end:]
+
+    theme_span = top_level_property_span(text, "theme")
+    overrides_span = top_level_property_span(text, "theme_overrides")
+    if not theme_span or not overrides_span:
+        raise ValueError("could not locate top-level theme/theme_overrides settings")
+    raw_start = min(theme_span[0], overrides_span[0])
+    start = text.rfind("\n", 0, raw_start) + 1
+    end = max(theme_span[1], overrides_span[1])
+    return text[:start] + block + text[end:]
+
+
+def sync_font_setting(text: str, key: str, value: str, *, before_key: str | None = None) -> str:
+    if not value:
+        return text
+    pattern = re.compile(rf'(?m)^(\s*)"{re.escape(key)}"\s*:\s*"(?:\\.|[^"\\])*"\s*,\s*$')
+    m = pattern.search(text)
+    line = f'  "{key}": {json.dumps(value)},'
+    if m:
+        return text[:m.start()] + line + text[m.end():]
+    if before_key:
+        target = re.search(rf'(?m)^\s*"{re.escape(before_key)}"\s*:', text)
+        if target:
+            start = text.rfind("\n", 0, target.start()) + 1
+            return text[:start] + line + "\n" + text[start:]
+    # Insert before the top-level closing brace as a last-resort safe location.
+    pos = text.rfind("}")
+    if pos < 0:
+        raise ValueError("settings root closing brace not found")
+    return text[:pos] + line + "\n" + text[pos:]
+
+
+def strip_jsonc(text: str) -> str:
+    # Strip comments while preserving strings.
+    out = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        if in_string:
+            ch = text[i]
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if text[i] == '"':
+            in_string = True
+            out.append(text[i])
+            i += 1
+            continue
+        if text.startswith("//", i):
+            end = text.find("\n", i + 2)
+            if end < 0:
+                break
+            out.append("\n")
+            i = end + 1
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            if end < 0:
+                raise ValueError("unterminated block comment")
+            # Preserve newlines for useful error locations.
+            out.append("\n" * text[i:end + 2].count("\n"))
+            i = end + 2
+            continue
+        out.append(text[i])
+        i += 1
+
+    cleaned = "".join(out)
+    # Remove trailing commas outside strings.
+    out2 = []
+    i = 0
+    n = len(cleaned)
+    in_string = False
+    while i < n:
+        ch = cleaned[i]
+        if in_string:
+            out2.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out2.append(cleaned[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out2.append(ch)
+            i += 1
+            continue
+        if ch == ',':
+            j = i + 1
+            while j < n and cleaned[j].isspace():
+                j += 1
+            if j < n and cleaned[j] in '}]':
+                i += 1
+                continue
+        out2.append(ch)
+        i += 1
+    return "".join(out2)
+
+
+def atomic_write(path: Path, text: str):
+    # Preserve the existing settings.json inode so running Zed gets a
+    # normal MODIFY/CLOSE_WRITE event instead of a temp-file rename.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+
+def main():
+    STATE.mkdir(parents=True, exist_ok=True)
+    c = load_colors()
+    app = load_appearance()
+    base_theme, style = build_override(c, app)
+    block = build_block(base_theme, style)
+    old = SETTINGS.read_text(encoding="utf-8")
+    new = replace_managed_block(old, block)
+    new = sync_font_setting(new, "ui_font_family", app.get("ui_font", ""), before_key="ui_font_size")
+    new = sync_font_setting(new, "buffer_font_family", app.get("mono_font", ""))
+    # Reject malformed settings before replacing the live file.
+    json.loads(strip_jsonc(new))
+    if new != old:
+        atomic_write(SETTINGS, new)
+    LOG.write_text(
+        f"theme={base_theme}\nfluid={app['fluid']}\ntransparent={app['transparent']}\n"
+        f"background={style['background']}\nappearance={style['background.appearance']}\n",
+        encoding="utf-8",
+    )
+    print(f"Zed synced: {base_theme}; fluid={app['fluid']}; transparent={app['transparent']}")
+
+
+if __name__ == "__main__":
+    main()

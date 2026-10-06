@@ -1,0 +1,16 @@
+[Unit]
+Description=Nyvorel Quickshell
+StartLimitIntervalSec=60
+StartLimitBurst=20
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qs -c nyvorel
+Restart=always
+RestartSec=1
+KillMode=control-group
+TimeoutStopSec=5
+
+[Install]
+# Not enabled at default.target.
+# Hyprland exec-once starts this after importing the live session environment.

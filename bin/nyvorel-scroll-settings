@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HOME = Path.home()
+GENERAL = HOME / '.config/hypr/hyprland/general.conf'
+FAST_ENV = HOME / '.config/hypr/custom/nyvorel-super-scroll.env'
+RUNTIME = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / f'nyvorel-super-scroll-{os.getuid()}'
+SNAPSHOT = RUNTIME / 'scroll-baseline'
+
+NORMAL_MIN = 0.20
+NORMAL_MAX = 4.00
+FAST_MIN = 1.00
+FAST_MAX = 30.00
+
+
+def fail(message, code=1):
+    print(json.dumps({'ok': False, 'error': message}))
+    raise SystemExit(code)
+
+
+def fmt(value):
+    s = f'{value:.3f}'.rstrip('0').rstrip('.')
+    return s if s else '0'
+
+
+def parse_float(raw, name, lo, hi):
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        fail(f'{name} must be a number')
+    if not (lo <= value <= hi):
+        fail(f'{name} must be between {fmt(lo)} and {fmt(hi)}')
+    return round(value, 3)
+
+
+def find_block(text, block_name, start=0, end=None):
+    if end is None:
+        end = len(text)
+    m = re.search(r'(?m)^\s*' + re.escape(block_name) + r'\s*\{', text[start:end])
+    if not m:
+        return None
+    open_brace = start + m.end() - 1
+    depth = 0
+    for i in range(open_brace, end):
+        c = text[i]
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                return (open_brace + 1, i)
+    return None
+
+
+def read_normal():
+    if not GENERAL.is_file():
+        fail(f'Missing Hyprland config: {GENERAL}')
+    text = GENERAL.read_text()
+    input_block = find_block(text, 'input')
+    if not input_block:
+        fail('Could not find input { } in Hyprland general.conf')
+    touch = find_block(text, 'touchpad', *input_block)
+    if not touch:
+        fail('Could not find touchpad { } in Hyprland general.conf')
+    body = text[touch[0]:touch[1]]
+    m = re.search(r'(?m)^\s*scroll_factor\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(?:#.*)?$', body)
+    if not m:
+        fail('Could not find touchpad scroll_factor in Hyprland general.conf')
+    return float(m.group(1))
+
+
+def atomic_write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = path.stat().st_mode if path.exists() else 0o100644
+    fd, tmp_name = tempfile.mkstemp(prefix=f'.{path.name}.', dir=str(path.parent), text=True)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode & 0o777)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
+def write_normal(value):
+    if SNAPSHOT.exists():
+        fail('Release Super before changing normal touchpad scrolling')
+    text = GENERAL.read_text()
+    input_block = find_block(text, 'input')
+    if not input_block:
+        fail('Could not find input { } in Hyprland general.conf')
+    touch = find_block(text, 'touchpad', *input_block)
+    if not touch:
+        fail('Could not find touchpad { } in Hyprland general.conf')
+    body = text[touch[0]:touch[1]]
+    pattern = re.compile(r'(?m)^(\s*scroll_factor\s*=\s*)([0-9]+(?:\.[0-9]+)?)(\s*(?:#.*)?)$')
+    matches = list(pattern.finditer(body))
+    if len(matches) != 1:
+        fail(f'Expected exactly one touchpad scroll_factor, found {len(matches)}')
+    updated_body = pattern.sub(lambda m: m.group(1) + fmt(value) + m.group(3), body, count=1)
+    updated = text[:touch[0]] + updated_body + text[touch[1]:]
+    atomic_write(GENERAL, updated)
+
+    try:
+        subprocess.run(
+            ['hyprctl', 'keyword', 'input:touchpad:scroll_factor', fmt(value)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+            timeout=2,
+        )
+    except Exception as exc:
+        fail(f'Saved normal value, but live apply failed: {exc}')
+
+
+def read_fast():
+    if not FAST_ENV.is_file():
+        fail(f'Missing Super-scroll settings: {FAST_ENV}')
+    text = FAST_ENV.read_text()
+    m = re.search(r'(?m)^\s*NYVOREL_FAST_TOUCHPAD_SCROLL\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*$', text)
+    if not m:
+        fail('Could not find NYVOREL_FAST_TOUCHPAD_SCROLL in nyvorel-super-scroll.env')
+    return float(m.group(1))
+
+
+
+def read_hold_ms():
+    if not FAST_ENV.is_file():
+        return 250
+    text = FAST_ENV.read_text()
+    m = re.search(r'(?m)^\s*NYVOREL_SUPER_HOLD_MS\s*=\s*([0-9]+)\s*$', text)
+    if not m:
+        return 250
+    return int(m.group(1))
+
+def write_fast(value):
+    if not FAST_ENV.is_file():
+        fail(f'Missing Super-scroll settings: {FAST_ENV}')
+    text = FAST_ENV.read_text()
+    pattern = re.compile(r'(?m)^(\s*NYVOREL_FAST_TOUCHPAD_SCROLL\s*=\s*)([0-9]+(?:\.[0-9]+)?)(\s*)$')
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        fail(f'Expected exactly one NYVOREL_FAST_TOUCHPAD_SCROLL, found {len(matches)}')
+    updated = pattern.sub(lambda m: m.group(1) + fmt(value) + m.group(3), text, count=1)
+    atomic_write(FAST_ENV, updated)
+
+
+def runtime_value(option):
+    try:
+        out = subprocess.check_output(['hyprctl', 'getoption', option, '-j'], text=True, timeout=2)
+        data = json.loads(out)
+        for key in ('float', 'int', 'str'):
+            value = data.get(key)
+            if value not in (None, ''):
+                return float(value)
+    except Exception:
+        return None
+    return None
+
+
+def snapshot():
+    normal = read_normal()
+    fast = read_fast()
+    return {
+        'ok': True,
+        'normal_touchpad': normal,
+        'fast_touchpad': fast,
+        'hold_ms': read_hold_ms(),
+        'runtime_touchpad': runtime_value('input:touchpad:scroll_factor'),
+        'fast_active': SNAPSHOT.exists(),
+    }
+
+
+def main():
+    if len(sys.argv) < 2:
+        fail('Usage: nyvorel-scroll-settings {get|set-normal VALUE|set-fast VALUE}')
+    cmd = sys.argv[1]
+    if cmd == 'get':
+        print(json.dumps(snapshot()))
+        return
+    if cmd == 'set-normal' and len(sys.argv) == 3:
+        value = parse_float(sys.argv[2], 'normal touchpad scroll', NORMAL_MIN, NORMAL_MAX)
+        write_normal(value)
+        print(json.dumps(snapshot()))
+        return
+    if cmd == 'set-fast' and len(sys.argv) == 3:
+        value = parse_float(sys.argv[2], 'Super touchpad scroll', FAST_MIN, FAST_MAX)
+        write_fast(value)
+        print(json.dumps(snapshot()))
+        return
+    fail('Usage: nyvorel-scroll-settings {get|set-normal VALUE|set-fast VALUE}')
+
+
+if __name__ == '__main__':
+    main()

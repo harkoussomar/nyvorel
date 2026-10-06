@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+QS_ROOT="$HOME/.config/quickshell/nyvorel"
+BASE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/nyvorel-motion-production"
+CURRENT="$BASE_ROOT/current"
+MANIFEST="$CURRENT/MANIFEST.sha256"
+
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ -L "$CURRENT" || -d "$CURRENT" ]] || die "No current production baseline."
+[[ -f "$MANIFEST" ]] || die "Missing production manifest: $MANIFEST"
+[[ -d "$QS_ROOT" ]] || die "Missing Quickshell root: $QS_ROOT"
+
+echo "== Impulse Motion Health =="
+echo "baseline: $(readlink -f "$CURRENT")"
+echo
+
+drift=0
+
+while read -r expected rel; do
+  [[ -n "${rel:-}" ]] || continue
+  live="$QS_ROOT/$rel"
+
+  if [[ ! -f "$live" ]]; then
+    printf 'MISSING  %s\n' "$rel"
+    drift=1
+    continue
+  fi
+
+  actual="$(sha256sum "$live" | awk '{print $1}')"
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'OK       %s\n' "$rel"
+  else
+    printf 'DRIFT    %s\n' "$rel"
+    printf '         expected %s\n' "$expected"
+    printf '         actual   %s\n' "$actual"
+    drift=1
+  fi
+done < "$MANIFEST"
+
+echo
+if grep -RIlE \
+    --include='*.qml' \
+    'phase5a-runtime-probe|phase5State|phase5ReloadConfig|phase5BackupMotion|phase5ArchMotion' \
+    "$QS_ROOT/modules" 2>/dev/null | grep -q .; then
+  echo "TEMP PROBES: FOUND"
+  drift=1
+else
+  echo "TEMP PROBES: none"
+fi
+
+if command -v hyprctl >/dev/null 2>&1; then
+  errors="$(hyprctl configerrors 2>&1 || true)"
+  if [[ -n "${errors//[[:space:]]/}" ]]; then
+    echo "HYPRLAND: config errors present"
+    printf '%s\n' "$errors"
+    drift=1
+  else
+    echo "HYPRLAND: no config errors"
+  fi
+fi
+
+echo
+if (( drift == 0 )); then
+  echo "RESULT: PASS — motion production baseline is intact."
+  exit 0
+else
+  echo "RESULT: DRIFT — inspect before applying further motion changes."
+  exit 1
+fi

@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+
+HOME = Path.home()
+
+COLORS = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_COLORS",
+    HOME / ".local/state/quickshell/user/generated/colors.json",
+))
+NYVOREL_CONFIG = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_CONFIG",
+    HOME / ".config/nyvorel/config.json",
+))
+KDEGLOBALS = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_KDEGLOBALS",
+    HOME / ".config/kdeglobals",
+))
+DARKLYRC = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_DARKLYRC",
+    HOME / ".config/darklyrc",
+))
+SCHEME = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_SCHEME",
+    HOME / ".local/share/color-schemes/IllogicalImpulse.colors",
+))
+LOG = Path(os.environ.get(
+    "NYVOREL_DOLPHIN_LOG",
+    HOME / ".local/state/nyvorel/dolphin-theme-sync.log",
+))
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def valid_hex(value, fallback="#000000") -> str:
+    if isinstance(value, str):
+        m = HEX.match(value.strip())
+        if m:
+            return "#" + m.group(1).lower()
+    return fallback
+
+
+def load_palette() -> dict[str, str]:
+    raw = json.loads(COLORS.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise RuntimeError("generated colors.json is not an object")
+
+    def c(name: str, fallback: str) -> str:
+        return valid_hex(raw.get(name), fallback)
+
+    return {
+        "background": c("background", "#101315"),
+        "surface": c("surface", c("background", "#101315")),
+        "surface_lowest": c("surface_container_lowest", c("background", "#101315")),
+        "surface_low": c("surface_container_low", c("surface", "#151a1d")),
+        "surface_mid": c("surface_container", c("surface", "#1b2226")),
+        "surface_high": c("surface_container_high", c("surface", "#232b30")),
+        "surface_highest": c("surface_container_highest", c("surface", "#2b343a")),
+        "on_surface": c("on_surface", "#f6ddd5"),
+        "on_surface_variant": c("on_surface_variant", "#e0c0b4"),
+        "outline": c("outline", "#a88a80"),
+        "outline_variant": c("outline_variant", "#594239"),
+        "primary": c("primary", "#ffb59a"),
+        "on_primary": c("on_primary", "#5a1b00"),
+        "secondary": c("secondary", "#ffb59a"),
+        "tertiary": c("tertiary", "#5ad4ff"),
+        "error": c("error", "#ffb4ab"),
+        "error_container": c("error_container", "#93000a"),
+    }
+
+
+def luminance(color: str) -> float:
+    vals = [int(color[i:i+2], 16) / 255.0 for i in (1, 3, 5)]
+
+    def linear(v: float) -> float:
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+    r, g, b = map(linear, vals)
+    return 0.2126*r + 0.7152*g + 0.0722*b
+
+
+def mix(a: str, b: str, t: float) -> str:
+    t = max(0.0, min(1.0, t))
+    aa = [int(a[i:i+2], 16) for i in (1, 3, 5)]
+    bb = [int(b[i:i+2], 16) for i in (1, 3, 5)]
+    out = [round(x*(1-t) + y*t) for x, y in zip(aa, bb)]
+    return "#" + "".join(f"{v:02x}" for v in out)
+
+
+def rgb(color: str) -> str:
+    return ",".join(str(int(color[i:i+2], 16)) for i in (1, 3, 5))
+
+
+
+
+def load_appearance() -> dict:
+    cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+    appearance = cfg.get("appearance", {}) if isinstance(cfg, dict) else {}
+    transparency = appearance.get("transparency", {}) or {}
+    geometry = appearance.get("geometry", {}) or {}
+    radius = geometry.get("radius", {}) or {}
+
+    raw_style = str(appearance.get("interfaceStyle") or "").strip().lower()
+    style = {
+        "glass": "fluid",
+        "mica": "inlay",
+        "solid": "default",
+        "minimal": "default",
+    }.get(raw_style, raw_style)
+    if style not in {"fluid", "prism", "inlay", "default"}:
+        style = "default"
+
+    enabled = transparency.get("enable") is True
+    bg_t = float(transparency.get("backgroundTransparency", 0.0) or 0.0)
+    content_t = float(transparency.get("contentTransparency", 0.0) or 0.0)
+
+    def radius_value(name: str, fallback: int) -> int:
+        item = radius.get(name, {}) or {}
+        if item.get("followGlobal") is True:
+            return int(radius.get("global", fallback))
+        try:
+            return int(item.get("value", fallback))
+        except Exception:
+            return fallback
+
+    return {
+        "style": style,
+        "fluid": style == "fluid",
+        "prism": style == "prism",
+        "inlay": style == "inlay",
+        "default": style == "default",
+        "transparent": enabled,
+        "background_transparency": max(0.0, min(1.0, bg_t)),
+        "content_transparency": max(0.0, min(1.0, content_t)),
+        "radius_global": int(radius.get("global", 8) or 8),
+        "radius_window": radius_value("window", 8),
+        "radius_control": radius_value("control", 4),
+    }
+
+
+
+def opacity_model(app: dict) -> dict[str, int]:
+    style = app["style"]
+
+    if style == "fluid":
+        return {
+            "view": 60,
+            "sidebar": 55,
+            "toolbar": 60,
+            "tabbar": 55,
+            "menubar": 60,
+            "menu": 94,
+        }
+
+    if style == "prism":
+        return {
+            "view": 84,
+            "sidebar": 82,
+            "toolbar": 86,
+            "tabbar": 84,
+            "menubar": 86,
+            "menu": 96,
+        }
+
+    return {
+        "view": 100,
+        "sidebar": 100,
+        "toolbar": 100,
+        "tabbar": 100,
+        "menubar": 100,
+        "menu": 100,
+    }
+
+
+def palette_model(p: dict[str, str], app: dict) -> dict:
+    dark = luminance(p["background"]) < 0.45
+
+    if app["style"] == "fluid" and dark:
+        # Same neutral Fluid base as Kitty/Zed; accent/text still follow II.
+        window_bg = "#101315"
+        view_bg = "#101315"
+        alt_bg = "#151a1d"
+        button_bg = "#1b2226"
+        header_bg = "#151a1d"
+        tooltip_bg = "#232b30"
+    else:
+        window_bg = p["surface"]
+        view_bg = p["surface_lowest"]
+        alt_bg = p["surface_low"]
+        button_bg = p["surface_mid"]
+        header_bg = p["surface_low"]
+        tooltip_bg = p["surface_high"]
+
+    inactive = mix(p["on_surface_variant"], window_bg, 0.34 if dark else 0.22)
+    hover = mix(p["primary"], button_bg, 0.28)
+    positive = p["secondary"]
+    neutral = p["tertiary"]
+
+    common_fg = {
+        "ForegroundActive": p["primary"],
+        "ForegroundInactive": inactive,
+        "ForegroundLink": p["tertiary"],
+        "ForegroundNegative": p["error"],
+        "ForegroundNeutral": neutral,
+        "ForegroundNormal": p["on_surface"],
+        "ForegroundPositive": positive,
+        "ForegroundVisited": mix(p["tertiary"], p["primary"], 0.35),
+    }
+
+    groups = {}
+
+    def normal_group(bg: str, alt: str, hover_color: str | None = None):
+        data = {
+            "BackgroundAlternate": alt,
+            "BackgroundNormal": bg,
+            "DecorationFocus": p["primary"],
+            "DecorationHover": hover_color or p["primary"],
+        }
+        data.update(common_fg)
+        return data
+
+    groups["Colors:Window"] = normal_group(window_bg, alt_bg)
+    groups["Colors:View"] = normal_group(view_bg, alt_bg, hover)
+    groups["Colors:Button"] = normal_group(button_bg, p["surface_high"], hover)
+    groups["Colors:Header"] = normal_group(header_bg, p["surface_mid"])
+    groups["Colors:Header][Inactive"] = normal_group(header_bg, p["surface_mid"])
+    groups["Colors:Tooltip"] = normal_group(tooltip_bg, p["surface_highest"])
+    groups["Colors:Complementary"] = normal_group(p["surface_high"], p["surface_mid"])
+
+    selection = {
+        "BackgroundAlternate": p["primary"],
+        "BackgroundNormal": p["primary"],
+        "DecorationFocus": p["primary"],
+        "DecorationHover": mix(p["primary"], p["on_surface"], 0.20),
+        "ForegroundActive": p["on_primary"],
+        "ForegroundInactive": p["on_primary"],
+        "ForegroundLink": p["on_primary"],
+        "ForegroundNegative": p["on_primary"],
+        "ForegroundNeutral": p["on_primary"],
+        "ForegroundNormal": p["on_primary"],
+        "ForegroundPositive": p["on_primary"],
+        "ForegroundVisited": p["on_primary"],
+    }
+    groups["Colors:Selection"] = selection
+
+    return {
+        "dark": dark,
+        "window_bg": window_bg,
+        "header_bg": header_bg,
+        "groups": groups,
+        "wm": {
+            "activeBackground": rgb(header_bg),
+            "activeBlend": rgb(p["on_surface"]),
+            "activeForeground": rgb(p["on_surface"]),
+            "inactiveBackground": rgb(header_bg if app["style"] == "fluid" else alt_bg),
+            "inactiveBlend": rgb(inactive),
+            "inactiveForeground": rgb(p["on_surface_variant"]),
+        },
+    }
+
+
+def set_ini_key(text: str, section: str, key: str, value: str) -> str:
+    section_re = re.compile(rf"(?m)^\[{re.escape(section)}\]\s*$")
+    match = section_re.search(text)
+
+    if not match:
+        suffix = "" if text.endswith("\n") else "\n"
+        return text + suffix + f"\n[{section}]\n{key}={value}\n"
+
+    start = match.end()
+    next_section = re.search(r"(?m)^\[[^\n]+\]\s*$", text[start:])
+    end = start + next_section.start() if next_section else len(text)
+
+    body = text[start:end]
+    key_re = re.compile(rf"(?m)^{re.escape(key)}=.*$")
+    km = key_re.search(body)
+
+    if km:
+        body = body[:km.start()] + f"{key}={value}" + body[km.end():]
+    else:
+        # match.end() points at the closing `]` of the section header.
+        # Keep the section header newline before inserting a new key.
+        # Without this, an existing section like `[Style]` became
+        # `[Style]DolphinViewOpacity=60` on the same line.
+        if body.startswith("\n"):
+            body = "\n" + f"{key}={value}\n" + body[1:]
+        else:
+            body = "\n" + f"{key}={value}\n" + body
+
+    return text[:start] + body + text[end:]
+
+
+def atomic_inplace(path: Path, text: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        with path.open("r+", encoding="utf-8") as f:
+            f.seek(0)
+            f.write(text)
+            f.truncate()
+            f.flush()
+            os.fsync(f.fileno())
+    else:
+        with path.open("w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+
+
+def make_scheme(model: dict, p: dict[str, str]) -> str:
+    lines = [
+        "[General]",
+        "Name=Nyvorel",
+        "ColorScheme=IllogicalImpulse",
+        "shadeSortColumn=true",
+        "",
+        "[KDE]",
+        "contrast=4",
+        "",
+    ]
+
+    for section, values in model["groups"].items():
+        lines.append(f"[{section}]")
+        for key, value in values.items():
+            lines.append(f"{key}={value}")
+        lines.append("")
+
+    lines.append("[WM]")
+    for key, value in model["wm"].items():
+        lines.append(f"{key}={value}")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def patch_kdeglobals(text: str, model: dict, scheme_hash: str) -> str:
+    for section, values in model["groups"].items():
+        for key, value in values.items():
+            text = set_ini_key(text, section, key, value)
+
+    for key, value in model["wm"].items():
+        text = set_ini_key(text, "WM", key, value)
+
+    text = set_ini_key(text, "General", "ColorScheme", "IllogicalImpulse")
+    text = set_ini_key(text, "General", "ColorSchemeHash", scheme_hash)
+
+    # Preserve fonts, icon theme, terminal choice and Darkly selection.
+    return text
+
+
+
+
+def patch_darkly(text: str, app: dict, opacity: dict[str, int]) -> str:
+    style = app["style"]
+
+    common = {
+        "CornerRadius": (
+            1 if style == "inlay"
+            else app["radius_window"] if style in {"fluid", "prism"}
+            else 9
+        ),
+        "ScrollBarTransient": style in {"fluid", "prism"},
+        "ScrollBarTransientAlwaysShowSlim": style in {"fluid", "prism"},
+    }
+
+    settings = {
+        "DolphinViewOpacity": opacity["view"],
+        "DolphinSidebarOpacity": opacity["sidebar"],
+        "ToolBarOpacity": opacity["toolbar"],
+        "TabBarOpacity": opacity["tabbar"],
+        "MenuBarOpacity": opacity["menubar"],
+        "MenuOpacity": opacity["menu"],
+        "DisableDolphinUrlNavigatorBackground": True,
+        "TransparentDolphinView": False,
+        "SidePanelDrawFrame": style in {"prism", "inlay"},
+        "DockWidgetDrawFrame": style in {"prism", "inlay"},
+        "ToolBarDrawSeparator": style in {"prism", "inlay"},
+        "FullOutline": style in {"prism", "inlay"},
+        "NoOutline": False,
+        "WidgetDrawShadow": style in {"prism", "default"},
+        "WidgetToolBarShadow": False,
+    }
+
+    for key, value in common.items():
+        text = set_ini_key(text, "Common", key, str(value).lower())
+
+    for key, value in settings.items():
+        text = set_ini_key(text, "Style", key, str(value).lower())
+
+    return text
+
+
+def notify_kde():
+    if os.environ.get("NYVOREL_DOLPHIN_NO_NOTIFY") == "1":
+        return
+
+    commands = [
+        [
+            "dbus-send", "--session", "--type=signal",
+            "/KGlobalSettings",
+            "org.kde.KGlobalSettings.notifyChange",
+            "int32:0", "int32:0",
+        ],
+
+    ]
+
+    for cmd in commands:
+        try:
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except FileNotFoundError:
+            return
+
+
+def main():
+    p = load_palette()
+    app = load_appearance()
+    opacity = opacity_model(app)
+    model = palette_model(p, app)
+
+    scheme_text = make_scheme(model, p)
+    scheme_hash = hashlib.sha1(scheme_text.encode("utf-8")).hexdigest()
+
+    kde_text = KDEGLOBALS.read_text(encoding="utf-8") if KDEGLOBALS.exists() else ""
+    darkly_text = DARKLYRC.read_text(encoding="utf-8") if DARKLYRC.exists() else ""
+
+    kde_new = (
+        patch_kdeglobals(kde_text, model, scheme_hash)
+        if app["style"] == "fluid"
+        else kde_text
+    )
+    darkly_new = patch_darkly(darkly_text, app, opacity)
+
+    atomic_inplace(SCHEME, scheme_text)
+    if app["style"] == "fluid":
+        atomic_inplace(KDEGLOBALS, kde_new)
+    atomic_inplace(DARKLYRC, darkly_new)
+
+    notify_kde()
+
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    log = "\n".join([
+        "integration=v1",
+        f"interfaceStyle={app['style']}",
+        f"transparent={app['transparent']}",
+        f"palette={'dark' if model['dark'] else 'light'}",
+        f"view_opacity={opacity['view']}",
+        f"sidebar_opacity={opacity['sidebar']}",
+        f"toolbar_opacity={opacity['toolbar']}",
+        f"tabbar_opacity={opacity['tabbar']}",
+        f"colorscheme=IllogicalImpulse",
+        f"window_background={model['window_bg']}",
+        "",
+    ])
+    atomic_inplace(LOG, log)
+
+    print(
+        "Dolphin synced: "
+        f"style={app['style']}; "
+        f"transparent={app['transparent']}; "
+        f"view={opacity['view']}%; "
+        f"sidebar={opacity['sidebar']}%; "
+        f"scheme=IllogicalImpulse"
+    )
+
+
+if __name__ == "__main__":
+    main()

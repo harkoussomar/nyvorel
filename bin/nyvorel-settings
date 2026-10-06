@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SETTINGS_QML="$HOME/.config/quickshell/nyvorel/settings.qml"
+SETTINGS_TITLE="Nyvorel Settings"
+
+# Reuse the mapped window if Settings is already open.
+if command -v hyprctl >/dev/null 2>&1; then
+    if hyprctl clients 2>/dev/null \
+        | grep -Fq "title: $SETTINGS_TITLE"; then
+
+        hyprctl dispatch focuswindow \
+            'title:^(Nyvorel Settings)$' \
+            >/dev/null 2>&1 || true
+        exit 0
+    fi
+fi
+
+# Remove stale standalone Settings processes only.
+pkill -f '^qs -p .*/settings\.qml$' 2>/dev/null || true
+pkill -f '^quickshell -p .*/settings\.qml$' 2>/dev/null || true
+
+if command -v qs >/dev/null 2>&1; then
+    exec env XDG_CURRENT_DESKTOP=gnome \
+        qs -p "$SETTINGS_QML"
+fi
+
+if command -v quickshell >/dev/null 2>&1; then
+    exec env XDG_CURRENT_DESKTOP=gnome \
+        quickshell -p "$SETTINGS_QML"
+fi
+
+for app in systemsettings gnome-control-center better-control; do
+    if command -v "$app" >/dev/null 2>&1; then
+        exec "$app"
+    fi
+done
+
+echo "No supported Settings application found." >&2
+exit 127

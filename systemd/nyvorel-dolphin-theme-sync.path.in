@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Nyvorel palette/interface style for Dolphin
+
+[Path]
+PathChanged=%h/.local/state/quickshell/user/generated/colors.json
+PathChanged=%h/.config/nyvorel/config.json
+Unit=nyvorel-dolphin-theme-sync.service
+
+[Install]
+WantedBy=default.target

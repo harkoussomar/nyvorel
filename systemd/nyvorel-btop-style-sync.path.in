@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Nyvorel style/palette for btop
+
+[Path]
+PathChanged=%h/.config/nyvorel/config.json
+PathChanged=%h/.local/state/quickshell/user/generated/colors.json
+Unit=nyvorel-btop-style-sync.service
+
+[Install]
+WantedBy=default.target

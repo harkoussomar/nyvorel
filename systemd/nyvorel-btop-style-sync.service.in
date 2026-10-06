@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync btop with the Nyvorel interface style
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/nyvorel-btop-style-sync

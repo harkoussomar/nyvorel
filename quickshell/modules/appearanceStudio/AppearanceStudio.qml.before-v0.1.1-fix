@@ -1,0 +1,1511 @@
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+import Quickshell.Hyprland
+
+Scope {
+    id: root
+
+    property string managerPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/appearance-studio/appearance_studio.py`
+    property var statusData: ({})
+    property var variantsData: []
+    property int currentPage: 0
+
+    property string selectedSource: "wallpaper"
+    property string selectedMode: "dark"
+    property string selectedScheme: "auto"
+    property string selectedPreset: "midnight"
+    property string selectedWallpaper: ""
+    property string customSeed: "#7AA2F7"
+    property bool initialized: false
+    property int previewSeconds: 0
+    property string toastText: ""
+    property bool actionFailed: false
+
+    readonly property var pageModel: [
+        { "name": "Theme", "icon": "palette" },
+        { "name": "Wallpaper", "icon": "wallpaper" },
+        { "name": "Interface", "icon": "tune" },
+        { "name": "Targets", "icon": "devices" },
+        { "name": "Saved", "icon": "bookmark" }
+    ]
+
+    function close() {
+        GlobalStates.appearanceStudioOpen = false
+    }
+
+    function toggle() {
+        GlobalStates.appearanceStudioOpen = !GlobalStates.appearanceStudioOpen
+    }
+
+    function refreshStatus() {
+        if (!statusProc.running)
+            statusProc.exec([root.managerPath, "status"])
+    }
+
+    function loadVariants() {
+        if (variantProc.running) return
+        const wallpaper = root.selectedWallpaper.length > 0
+            ? root.selectedWallpaper
+            : (root.statusData.wallpaper ?? Config.options.background.wallpaperPath)
+        variantProc.exec([
+            root.managerPath,
+            "variants",
+            "--wallpaper", wallpaper ?? "",
+            "--mode", root.selectedMode
+        ])
+    }
+
+    function variantFor(schemeId) {
+        for (let i = 0; i < root.variantsData.length; ++i) {
+            if (root.variantsData[i].id === schemeId)
+                return root.variantsData[i]
+        }
+        return null
+    }
+
+    function presetFor(presetId) {
+        const presets = root.statusData.presets ?? []
+        for (let i = 0; i < presets.length; ++i) {
+            if (presets[i].id === presetId)
+                return presets[i]
+        }
+        return null
+    }
+
+    function buildApplyCommand(preview) {
+        let command = [
+            root.managerPath,
+            "apply",
+            "--source", root.selectedSource,
+            "--mode", root.selectedMode,
+            "--scheme", root.selectedScheme
+        ]
+
+        if (root.selectedSource === "preset") {
+            command.push("--preset", root.selectedPreset)
+        } else if (root.selectedSource === "hybrid") {
+            command.push("--preset", root.selectedPreset)
+            if (root.selectedWallpaper.length > 0)
+                command.push("--wallpaper", root.selectedWallpaper)
+        } else if (root.selectedSource === "custom") {
+            command.push("--seed", root.customSeed)
+        } else if (root.selectedWallpaper.length > 0) {
+            command.push("--wallpaper", root.selectedWallpaper)
+        }
+
+        if (preview)
+            command.push("--preview")
+
+        return command
+    }
+
+    function applyTheme(preview) {
+        if (actionProc.running) return
+        root.toastText = preview ? "Building preview…" : "Applying appearance…"
+        root.actionFailed = false
+        actionProc.actionKind = preview ? "preview" : "apply"
+        actionProc.exec(root.buildApplyCommand(preview))
+    }
+
+    function runAction(command, kind) {
+        if (actionProc.running) return
+        root.actionFailed = false
+        actionProc.actionKind = kind
+        actionProc.exec(command)
+    }
+
+    function setTarget(name, enabled) {
+        if (targetProc.running) return
+        targetProc.exec([root.managerPath, "target", name, enabled ? "true" : "false"])
+    }
+
+    function targetEnabled(name) {
+        const targets = root.statusData.targets ?? ({})
+        return targets[name] ?? true
+    }
+
+    function formatAge(timestamp) {
+        if (!timestamp) return ""
+        const seconds = Math.max(0, Math.floor(Date.now() / 1000) - timestamp)
+        if (seconds < 60) return "now"
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+        return `${Math.floor(seconds / 86400)}d ago`
+    }
+
+    function shortPath(path) {
+        if (!path) return "No wallpaper"
+        const parts = path.split("/")
+        return parts[parts.length - 1]
+    }
+
+    function chooseUiProfile(profileId) {
+        root.runAction([root.managerPath, "ui-profile", profileId], "ui-profile")
+    }
+
+    function applyBarPosition(value) {
+        Config.options.bar.bottom = value === "bottom" || value === "right"
+        Config.options.bar.vertical = value === "left" || value === "right"
+    }
+
+    function currentBarPosition() {
+        if (Config.options.bar.vertical)
+            return Config.options.bar.bottom ? "right" : "left"
+        return Config.options.bar.bottom ? "bottom" : "top"
+    }
+
+    onSelectedModeChanged: {
+        if (root.initialized)
+            variantReloadTimer.restart()
+    }
+
+    onSelectedWallpaperChanged: {
+        if (root.initialized)
+            variantReloadTimer.restart()
+    }
+
+    Timer {
+        id: variantReloadTimer
+        interval: 180
+        repeat: false
+        onTriggered: root.loadVariants()
+    }
+
+    Timer {
+        id: previewTimer
+        interval: 1000
+        repeat: true
+        running: root.previewSeconds > 0
+        onTriggered: {
+            root.previewSeconds -= 1
+            if (root.previewSeconds <= 0) {
+                stop()
+                root.runAction([root.managerPath, "revert-preview"], "revert-preview")
+            }
+        }
+    }
+
+    Timer {
+        id: toastTimer
+        interval: 2800
+        repeat: false
+        onTriggered: root.toastText = ""
+    }
+
+    Process {
+        id: statusProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(text)
+                    if (!data.ok) return
+                    root.statusData = data
+                    if (data.preview) {
+                        const timeout = data.preview.timeoutSeconds ?? data.previewTimeout ?? 15
+                        const elapsed = Math.max(0, Math.floor(Date.now() / 1000) - (data.preview.started ?? 0))
+                        root.previewSeconds = Math.max(0, timeout - elapsed)
+                    } else if (root.previewSeconds > 0) {
+                        root.previewSeconds = 0
+                    }
+                    if (!root.initialized) {
+                        const active = data.active ?? ({})
+                        root.selectedSource = active.source ?? "wallpaper"
+                        root.selectedMode = active.mode ?? (Appearance.m3colors.darkmode ? "dark" : "light")
+                        root.selectedScheme = active.scheme ?? data.palette?.type ?? "auto"
+                        root.selectedPreset = active.preset?.length > 0 ? active.preset : "midnight"
+                        root.selectedWallpaper = data.wallpaper ?? Config.options.background.wallpaperPath
+                        if (active.seed?.length > 0)
+                            root.customSeed = active.seed
+                        root.initialized = true
+                        root.loadVariants()
+                    }
+                } catch (e) {
+                    console.warn("[AppearanceStudio] status parse failed", e)
+                }
+            }
+        }
+    }
+
+    Process {
+        id: variantProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(text)
+                    root.variantsData = data.variants ?? []
+                } catch (e) {
+                    root.variantsData = []
+                }
+            }
+        }
+    }
+
+    Process {
+        id: targetProc
+        onExited: root.refreshStatus()
+    }
+
+    Process {
+        id: actionProc
+        property string actionKind: ""
+        property string resultText: ""
+
+        stdout: StdioCollector {
+            onStreamFinished: actionProc.resultText = text
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            let result = ({})
+            try { result = JSON.parse(actionProc.resultText) } catch (e) {}
+            if (exitCode !== 0 || result.ok === false) {
+                root.actionFailed = true
+                root.toastText = result.error ?? "Appearance action failed"
+                toastTimer.restart()
+                return
+            }
+
+            MaterialThemeLoader.reapplyTheme()
+            if (actionProc.actionKind === "preview") {
+                root.previewSeconds = result.previewTimeout ?? 15
+                root.toastText = "Preview active · keep it or it will revert"
+            } else if (actionProc.actionKind === "keep-preview") {
+                root.previewSeconds = 0
+                root.toastText = "Preview kept"
+            } else if (actionProc.actionKind === "revert-preview") {
+                root.previewSeconds = 0
+                root.toastText = "Preview reverted"
+            } else if (actionProc.actionKind === "favorite") {
+                root.toastText = "Saved to favorites"
+            } else {
+                root.toastText = "Appearance updated"
+            }
+            toastTimer.restart()
+            root.refreshStatus()
+            root.loadVariants()
+        }
+    }
+
+    Connections {
+        target: GlobalStates
+        function onAppearanceStudioOpenChanged() {
+            if (GlobalStates.appearanceStudioOpen) {
+                root.refreshStatus()
+                const current = Config.options.background.wallpaperPath
+                if (current?.length > 0) {
+                    root.selectedWallpaper = current
+                    Wallpapers.setDirectory(FileUtils.parentDirectory(current))
+                }
+            }
+        }
+    }
+
+    IpcHandler {
+        target: "appearanceStudio"
+        function toggle(): void { root.toggle() }
+        function open(): void { GlobalStates.appearanceStudioOpen = true }
+        function close(): void { root.close() }
+    }
+
+    GlobalShortcut {
+        name: "appearanceStudioToggle"
+        description: "Toggle Appearance Studio"
+        onPressed: root.toggle()
+    }
+
+    component StudioButton: RippleButton {
+        id: button
+        property string icon: ""
+        property string label: ""
+        property color textColor: toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+        implicitHeight: 42
+        buttonRadius: Appearance.rounding.normal
+        contentItem: RowLayout {
+            spacing: 8
+            MaterialSymbol {
+                text: button.icon
+                iconSize: 19
+                color: button.textColor
+            }
+            StyledText {
+                text: button.label
+                color: button.textColor
+                font.pixelSize: Appearance.font.pixelSize.small
+                Layout.fillWidth: true
+            }
+        }
+    }
+
+    component PillButton: RippleButton {
+        id: pill
+        property string label: ""
+        property string icon: ""
+        implicitHeight: 36
+        implicitWidth: Math.max(94, pillContent.implicitWidth + 24)
+        buttonRadius: Appearance.rounding.full
+        contentItem: RowLayout {
+            id: pillContent
+            anchors.centerIn: parent
+            spacing: 6
+            MaterialSymbol {
+                visible: pill.icon.length > 0
+                text: pill.icon
+                iconSize: 17
+                color: pill.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+            }
+            StyledText {
+                text: pill.label
+                color: pill.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                font.pixelSize: Appearance.font.pixelSize.smaller
+            }
+        }
+    }
+
+    component SectionTitle: ColumnLayout {
+        property string title: ""
+        property string subtitle: ""
+        spacing: 2
+        StyledText {
+            text: parent.title
+            color: Appearance.colors.colOnLayer1
+            font {
+                family: Appearance.font.family.title
+                pixelSize: Appearance.font.pixelSize.large
+                variableAxes: Appearance.font.variableAxes.title
+            }
+        }
+        StyledText {
+            visible: parent.subtitle.length > 0
+            text: parent.subtitle
+            color: Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.smaller
+        }
+    }
+
+    component ColorDot: Rectangle {
+        property color dotColor: Appearance.colors.colPrimary
+        implicitWidth: 20
+        implicitHeight: 20
+        radius: Appearance.rounding.full
+        color: dotColor
+        border.width: 1
+        border.color: Appearance.colors.colLayer0Border
+    }
+
+    component VariantCard: RippleButton {
+        id: card
+        required property string schemeId
+        property var variant: root.variantFor(schemeId)
+        property string title: variant?.name ?? schemeId
+        property var palette: variant?.colors ?? ({})
+        property bool selected: root.selectedScheme === schemeId
+        toggled: selected
+        implicitHeight: 126
+        buttonRadius: Appearance.rounding.normal
+        onClicked: root.selectedScheme = schemeId
+        contentItem: ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 10
+            RowLayout {
+                Layout.fillWidth: true
+                StyledText {
+                    Layout.fillWidth: true
+                    text: card.title
+                    color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.DemiBold
+                }
+                MaterialSymbol {
+                    visible: card.selected
+                    text: "check_circle"
+                    iconSize: 19
+                    color: Appearance.colors.colOnPrimary
+                }
+            }
+            RowLayout {
+                spacing: 7
+                ColorDot { dotColor: card.palette.primary ?? Appearance.colors.colPrimary }
+                ColorDot { dotColor: card.palette.secondary ?? Appearance.m3colors.m3secondary }
+                ColorDot { dotColor: card.palette.tertiary ?? Appearance.m3colors.m3tertiary }
+                ColorDot { dotColor: card.palette.surface ?? Appearance.m3colors.m3surfaceContainer }
+            }
+            StyledText {
+                Layout.fillWidth: true
+                text: card.schemeId === "scheme-fidelity" ? "Keeps the source color strong"
+                    : card.schemeId === "scheme-neutral" ? "Quiet, low-chroma surfaces"
+                    : card.schemeId === "scheme-expressive" ? "More adventurous relationships"
+                    : card.schemeId === "scheme-monochrome" ? "Near monochrome"
+                    : "Material color relationship"
+                color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    component PresetCard: RippleButton {
+        id: card
+        required property var preset
+        property bool selected: root.selectedPreset === preset.id && root.selectedSource === "preset"
+        toggled: selected
+        implicitHeight: 118
+        buttonRadius: Appearance.rounding.normal
+        onClicked: {
+            if (root.selectedSource !== "hybrid")
+                root.selectedSource = "preset"
+            root.selectedPreset = preset.id
+            if (root.selectedSource === "preset")
+                root.selectedScheme = preset.scheme
+        }
+        contentItem: RowLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 12
+            Rectangle {
+                implicitWidth: 48
+                implicitHeight: 48
+                radius: Appearance.rounding.full
+                color: card.preset.seed
+                border.width: 2
+                border.color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colLayer0Border
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                StyledText {
+                    text: card.preset.name
+                    color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.DemiBold
+                }
+                StyledText {
+                    text: card.preset.description
+                    color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                StyledText {
+                    text: card.preset.seed
+                    color: card.selected ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                }
+            }
+        }
+    }
+
+    component SavedRow: Rectangle {
+        id: saved
+        required property var entry
+        required property bool favorite
+        implicitHeight: 70
+        color: Appearance.colors.colLayer2
+        radius: Appearance.rounding.normal
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 11
+            spacing: 10
+            Rectangle {
+                implicitWidth: 38
+                implicitHeight: 38
+                radius: Appearance.rounding.full
+                color: saved.entry.active?.seed?.length > 0 ? saved.entry.active.seed : Appearance.colors.colPrimary
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                StyledText {
+                    Layout.fillWidth: true
+                    text: saved.entry.label ?? "Saved appearance"
+                    color: Appearance.colors.colOnLayer2
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    elide: Text.ElideRight
+                }
+                StyledText {
+                    text: `${saved.entry.active?.uiProfile ?? "custom"} · ${root.formatAge(saved.entry.timestamp)}`
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                }
+            }
+            RippleButton {
+                implicitWidth: 36
+                implicitHeight: 36
+                buttonRadius: Appearance.rounding.full
+                onClicked: root.runAction([
+                    root.managerPath,
+                    saved.favorite ? "favorite-apply" : "history-apply",
+                    saved.entry.id
+                ], "saved-apply")
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "restore"
+                    iconSize: 19
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
+            RippleButton {
+                visible: saved.favorite
+                implicitWidth: 36
+                implicitHeight: 36
+                buttonRadius: Appearance.rounding.full
+                onClicked: root.runAction([root.managerPath, "favorite-remove", saved.entry.id], "favorite-remove")
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "delete"
+                    iconSize: 19
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
+        }
+    }
+
+    PanelWindow {
+        id: panelWindow
+
+        visible: GlobalStates.appearanceStudioOpen
+        screen: Quickshell.screens.find(screen => screen.name === Hyprland.focusedMonitor?.name) ?? null
+        color: "transparent"
+        exclusiveZone: 0
+
+        WlrLayershell.namespace: "quickshell:appearanceStudio"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
+
+        onVisibleChanged: {
+            if (visible) {
+                root.refreshStatus()
+                focusItem.forceActiveFocus()
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, 0.42)
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.close()
+            }
+        }
+
+        Rectangle {
+            id: studioCard
+            anchors.centerIn: parent
+            width: Math.min(panelWindow.width - 56, 1180)
+            height: Math.min(panelWindow.height - 54, 790)
+            color: Appearance.colors.colLayer1
+            radius: Appearance.rounding.large
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+            clip: true
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {}
+            }
+
+            Item {
+                id: focusItem
+                focus: true
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Escape) {
+                        if (root.previewSeconds > 0)
+                            root.runAction([root.managerPath, "revert-preview"], "revert-preview")
+                        else
+                            root.close()
+                        event.accepted = true
+                    }
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 76
+                    color: Appearance.colors.colLayer2
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 14
+                        spacing: 12
+
+                        Rectangle {
+                            implicitWidth: 42
+                            implicitHeight: 42
+                            radius: Appearance.rounding.normal
+                            color: Appearance.colors.colPrimary
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "palette"
+                                iconSize: 24
+                                color: Appearance.colors.colOnPrimary
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+                            StyledText {
+                                text: "Appearance Studio"
+                                color: Appearance.colors.colOnLayer2
+                                font {
+                                    family: Appearance.font.family.title
+                                    pixelSize: Appearance.font.pixelSize.title
+                                    variableAxes: Appearance.font.variableAxes.title
+                                }
+                            }
+                            StyledText {
+                                text: `${root.shortPath(root.selectedWallpaper || root.statusData.wallpaper)} · ${root.selectedMode}`
+                                color: Appearance.colors.colSubtext
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                            }
+                        }
+
+                        Rectangle {
+                            visible: root.previewSeconds > 0
+                            implicitWidth: previewRow.implicitWidth + 20
+                            implicitHeight: 34
+                            radius: Appearance.rounding.full
+                            color: Appearance.colors.colTertiaryContainer
+                            RowLayout {
+                                id: previewRow
+                                anchors.centerIn: parent
+                                spacing: 6
+                                MaterialSymbol {
+                                    text: "timer"
+                                    iconSize: 17
+                                    color: Appearance.colors.colOnTertiaryContainer
+                                }
+                                StyledText {
+                                    text: `Preview ${root.previewSeconds}s`
+                                    color: Appearance.colors.colOnTertiaryContainer
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                }
+                            }
+                        }
+
+                        RippleButton {
+                            implicitWidth: 40
+                            implicitHeight: 40
+                            buttonRadius: Appearance.rounding.full
+                            onClicked: root.runAction([root.managerPath, "favorite-add"], "favorite")
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "bookmark_add"
+                                iconSize: 21
+                                color: Appearance.colors.colOnLayer2
+                            }
+                            StyledToolTip { text: "Save current appearance" }
+                        }
+
+                        RippleButton {
+                            implicitWidth: 40
+                            implicitHeight: 40
+                            buttonRadius: Appearance.rounding.full
+                            onClicked: root.close()
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "close"
+                                iconSize: 21
+                                color: Appearance.colors.colOnLayer2
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 0
+
+                    Rectangle {
+                        Layout.preferredWidth: 170
+                        Layout.fillHeight: true
+                        color: Appearance.colors.colLayer1
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 8
+
+                            Repeater {
+                                model: root.pageModel
+                                StudioButton {
+                                    required property int index
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    icon: modelData.icon
+                                    label: modelData.name
+                                    toggled: root.currentPage === index
+                                    onClicked: root.currentPage = index
+                                }
+                            }
+
+                            Item { Layout.fillHeight: true }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 96
+                                radius: Appearance.rounding.normal
+                                color: Appearance.colors.colLayer2
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 11
+                                    spacing: 6
+                                    StyledText {
+                                        text: "Current palette"
+                                        color: Appearance.colors.colSubtext
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                    }
+                                    RowLayout {
+                                        spacing: 5
+                                        ColorDot { dotColor: Appearance.colors.colPrimary }
+                                        ColorDot { dotColor: Appearance.m3colors.m3secondary }
+                                        ColorDot { dotColor: Appearance.m3colors.m3tertiary }
+                                        ColorDot { dotColor: Appearance.m3colors.m3surfaceContainer }
+                                    }
+                                    StyledText {
+                                        text: Appearance.m3colors.darkmode ? "Dark material palette" : "Light material palette"
+                                        color: Appearance.colors.colOnLayer2
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.fillHeight: true
+                        color: Appearance.colors.colLayer0Border
+                    }
+
+                    StackLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: root.currentPage
+
+                        // =====================================================
+                        // THEME
+                        // =====================================================
+                        ScrollView {
+                            clip: true
+                            leftPadding: 20
+                            rightPadding: 20
+                            topPadding: 20
+                            bottomPadding: 20
+                            contentWidth: availableWidth
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: 18
+
+                                SectionTitle {
+                                    title: "Theme engine"
+                                    subtitle: "Wallpaper-derived, preset, or custom Material color source"
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    PillButton {
+                                        label: "Wallpaper"
+                                        icon: "wallpaper"
+                                        toggled: root.selectedSource === "wallpaper"
+                                        onClicked: root.selectedSource = "wallpaper"
+                                    }
+                                    PillButton {
+                                        label: "Preset"
+                                        icon: "auto_awesome"
+                                        toggled: root.selectedSource === "preset"
+                                        onClicked: root.selectedSource = "preset"
+                                    }
+                                    PillButton {
+                                        label: "Hybrid"
+                                        icon: "join_inner"
+                                        toggled: root.selectedSource === "hybrid"
+                                        onClicked: root.selectedSource = "hybrid"
+                                        StyledToolTip { text: "Wallpaper accents + preset surfaces" }
+                                    }
+                                    PillButton {
+                                        label: "Custom"
+                                        icon: "colorize"
+                                        toggled: root.selectedSource === "custom"
+                                        onClicked: root.selectedSource = "custom"
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: modeColumn.implicitHeight + 26
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer2
+                                    ColumnLayout {
+                                        id: modeColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 13
+                                        spacing: 9
+                                        StyledText {
+                                            text: "Mode"
+                                            color: Appearance.colors.colOnLayer2
+                                            font.weight: Font.DemiBold
+                                        }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 7
+                                            Repeater {
+                                                model: root.statusData.modes ?? []
+                                                PillButton {
+                                                    required property var modelData
+                                                    label: modelData.name
+                                                    toggled: root.selectedMode === modelData.id
+                                                    onClicked: root.selectedMode = modelData.id
+                                                }
+                                            }
+                                        }
+                                        StyledText {
+                                            visible: ["oled", "dim", "high-contrast"].includes(root.selectedMode)
+                                            text: "Special modes use the normal Material dark palette as their base, then adjust shell surfaces."
+                                            color: Appearance.colors.colSubtext
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+
+                                Loader {
+                                    Layout.fillWidth: true
+                                    active: root.selectedSource === "wallpaper" || root.selectedSource === "hybrid"
+                                    visible: active
+                                    sourceComponent: ColumnLayout {
+                                        spacing: 10
+                                        SectionTitle {
+                                            title: root.selectedSource === "hybrid" ? "Wallpaper accent variant" : "Wallpaper variants"
+                                            subtitle: root.selectedSource === "hybrid"
+                                                ? `Accent from ${root.shortPath(root.selectedWallpaper || root.statusData.wallpaper)}`
+                                                : `Source · ${root.shortPath(root.selectedWallpaper || root.statusData.wallpaper)}`
+                                        }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 10
+                                            Repeater {
+                                                model: [
+                                                    "scheme-tonal-spot", "scheme-fidelity", "scheme-content", "scheme-expressive",
+                                                    "scheme-neutral", "scheme-monochrome", "scheme-rainbow", "scheme-fruit-salad"
+                                                ]
+                                                VariantCard {
+                                                    required property string modelData
+                                                    width: Math.max(205, (parent.width - 20) / 3)
+                                                    schemeId: modelData
+                                                }
+                                            }
+                                        }
+                                        PillButton {
+                                            label: "Auto chooses Neutral or Tonal Spot"
+                                            icon: "auto_mode"
+                                            toggled: root.selectedScheme === "auto"
+                                            onClicked: root.selectedScheme = "auto"
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: root.selectedSource === "hybrid"
+                                    Layout.fillWidth: true
+                                    implicitHeight: hybridInfo.implicitHeight + 24
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer2
+                                    RowLayout {
+                                        id: hybridInfo
+                                        anchors.fill: parent
+                                        anchors.margins: 12
+                                        spacing: 10
+                                        MaterialSymbol {
+                                            text: "join_inner"
+                                            iconSize: 22
+                                            color: Appearance.colors.colPrimary
+                                        }
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: "Hybrid keeps the wallpaper's Material accent family while taking backgrounds, surfaces, outlines and neutral text roles from the selected preset."
+                                            color: Appearance.colors.colOnLayer2
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
+                                            wrapMode: Text.Wrap
+                                        }
+                                    }
+                                }
+
+                                Loader {
+                                    Layout.fillWidth: true
+                                    active: root.selectedSource === "preset" || root.selectedSource === "hybrid"
+                                    visible: active
+                                    sourceComponent: ColumnLayout {
+                                        spacing: 10
+                                        SectionTitle {
+                                            title: root.selectedSource === "hybrid" ? "Surface base" : "Preset themes"
+                                            subtitle: root.selectedSource === "hybrid"
+                                                ? "Choose the preset that supplies neutral and surface roles"
+                                                : "Independent of the wallpaper. Presets are Material seeds, not copied third-party themes."
+                                        }
+                                        GridLayout {
+                                            Layout.fillWidth: true
+                                            columns: 2
+                                            columnSpacing: 10
+                                            rowSpacing: 10
+                                            Repeater {
+                                                model: root.statusData.presets ?? []
+                                                PresetCard {
+                                                    required property var modelData
+                                                    Layout.fillWidth: true
+                                                    preset: modelData
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Loader {
+                                    Layout.fillWidth: true
+                                    active: root.selectedSource === "custom"
+                                    visible: active
+                                    sourceComponent: ColumnLayout {
+                                        spacing: 12
+                                        SectionTitle {
+                                            title: "Custom color"
+                                            subtitle: "Use any six-digit hex color as the Material source"
+                                        }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 10
+                                            MaterialTextField {
+                                                Layout.fillWidth: true
+                                                placeholderText: "#7AA2F7"
+                                                text: root.customSeed
+                                                onTextChanged: root.customSeed = text
+                                            }
+                                            Rectangle {
+                                                implicitWidth: 44
+                                                implicitHeight: 44
+                                                radius: Appearance.rounding.normal
+                                                color: /^#[0-9A-Fa-f]{6}$/.test(root.customSeed) ? root.customSeed : Appearance.colors.colLayer3
+                                            }
+                                        }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 7
+                                            Repeater {
+                                                model: root.statusData.schemes ?? []
+                                                PillButton {
+                                                    required property var modelData
+                                                    label: modelData.name
+                                                    toggled: root.selectedScheme === modelData.id
+                                                    onClicked: root.selectedScheme = modelData.id
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Item { implicitHeight: 12 }
+                            }
+                        }
+
+                        // =====================================================
+                        // WALLPAPER
+                        // =====================================================
+                        ColumnLayout {
+                            spacing: 12
+                            anchors.margins: 20
+
+                            SectionTitle {
+                                title: "Wallpaper library"
+                                subtitle: "Selecting an image stages it. Apply or Preview from the bottom bar."
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 48
+                                radius: Appearance.rounding.normal
+                                color: Appearance.colors.colLayer2
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 8
+                                    RippleButton {
+                                        implicitWidth: 34
+                                        implicitHeight: 34
+                                        buttonRadius: Appearance.rounding.full
+                                        onClicked: Wallpapers.navigateUp()
+                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "arrow_upward"; iconSize: 18; color: Appearance.colors.colOnLayer2 }
+                                    }
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Wallpapers.effectiveDirectory
+                                        color: Appearance.colors.colOnLayer2
+                                        font.family: Appearance.font.family.monospace
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                        elide: Text.ElideMiddle
+                                    }
+                                    RippleButton {
+                                        implicitWidth: 34
+                                        implicitHeight: 34
+                                        buttonRadius: Appearance.rounding.full
+                                        onClicked: Wallpapers.setDirectory(FileUtils.parentDirectory(Config.options.background.wallpaperPath))
+                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "my_location"; iconSize: 18; color: Appearance.colors.colOnLayer2 }
+                                    }
+                                }
+                            }
+
+                            GridView {
+                                id: wallpaperGrid
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                cellWidth: Math.max(185, width / 4)
+                                cellHeight: 145
+                                model: Wallpapers.folderModel
+
+                                delegate: Item {
+                                    id: wallItem
+                                    required property string fileName
+                                    required property string filePath
+                                    required property bool fileIsDir
+                                    width: wallpaperGrid.cellWidth
+                                    height: wallpaperGrid.cellHeight
+
+                                    RippleButton {
+                                        anchors.fill: parent
+                                        anchors.margins: 5
+                                        buttonRadius: Appearance.rounding.normal
+                                        toggled: !wallItem.fileIsDir && root.selectedWallpaper === wallItem.filePath
+                                        onClicked: {
+                                            if (wallItem.fileIsDir) {
+                                                Wallpapers.setDirectory(wallItem.filePath)
+                                            } else {
+                                                root.selectedWallpaper = wallItem.filePath
+                                                root.selectedSource = "wallpaper"
+                                            }
+                                        }
+                                        contentItem: Item {
+                                            StyledImage {
+                                                anchors.fill: parent
+                                                visible: !wallItem.fileIsDir
+                                                source: wallItem.filePath
+                                                fillMode: Image.PreserveAspectCrop
+                                            }
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: wallItem.fileIsDir ? Appearance.colors.colLayer2 : Qt.rgba(0,0,0,0.20)
+                                            }
+                                            MaterialSymbol {
+                                                visible: wallItem.fileIsDir
+                                                anchors.centerIn: parent
+                                                text: "folder"
+                                                iconSize: 38
+                                                color: Appearance.colors.colPrimary
+                                            }
+                                            Rectangle {
+                                                anchors.left: parent.left
+                                                anchors.right: parent.right
+                                                anchors.bottom: parent.bottom
+                                                implicitHeight: 34
+                                                color: Qt.rgba(0,0,0,0.58)
+                                                StyledText {
+                                                    anchors.fill: parent
+                                                    anchors.leftMargin: 8
+                                                    anchors.rightMargin: 8
+                                                    verticalAlignment: Text.AlignVCenter
+                                                    text: wallItem.fileName
+                                                    color: "white"
+                                                    font.pixelSize: Appearance.font.pixelSize.smallest
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // =====================================================
+                        // INTERFACE
+                        // =====================================================
+                        ScrollView {
+                            clip: true
+                            leftPadding: 20
+                            rightPadding: 20
+                            topPadding: 20
+                            bottomPadding: 20
+                            contentWidth: availableWidth
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: 18
+
+                                SectionTitle {
+                                    title: "Interface profile"
+                                    subtitle: "UI structure is independent from the color source"
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Repeater {
+                                        model: root.statusData.uiProfiles ?? []
+                                        PillButton {
+                                            required property var modelData
+                                            label: modelData.name
+                                            toggled: root.statusData.active?.uiProfile === modelData.id
+                                            onClicked: root.chooseUiProfile(modelData.id)
+                                            StyledToolTip { text: modelData.description }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: transparencyColumn.implicitHeight + 26
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer2
+                                    ColumnLayout {
+                                        id: transparencyColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 13
+                                        spacing: 8
+                                        StyledText { text: "Surfaces"; color: Appearance.colors.colOnLayer2; font.weight: Font.DemiBold }
+                                        ConfigSwitch {
+                                            text: "Transparency"
+                                            buttonIcon: "opacity"
+                                            checked: Config.options.appearance.transparency.enable
+                                            onCheckedChanged: Config.options.appearance.transparency.enable = checked
+                                        }
+                                        ConfigSwitch {
+                                            text: "Automatic transparency"
+                                            buttonIcon: "auto_mode"
+                                            enabled: Config.options.appearance.transparency.enable
+                                            checked: Config.options.appearance.transparency.automatic
+                                            onCheckedChanged: Config.options.appearance.transparency.automatic = checked
+                                        }
+                                        ConfigSwitch {
+                                            text: "Extra background tint"
+                                            buttonIcon: "format_color_fill"
+                                            checked: Config.options.appearance.extraBackgroundTint
+                                            onCheckedChanged: Config.options.appearance.extraBackgroundTint = checked
+                                        }
+                                        ColumnLayout {
+                                            visible: Config.options.appearance.transparency.enable && !Config.options.appearance.transparency.automatic
+                                            Layout.fillWidth: true
+                                            StyledText { text: `Background transparency · ${Math.round(Config.options.appearance.transparency.backgroundTransparency * 100)}%`; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                            StyledSlider {
+                                                from: 0
+                                                to: 0.35
+                                                value: Config.options.appearance.transparency.backgroundTransparency
+                                                onMoved: Config.options.appearance.transparency.backgroundTransparency = value
+                                            }
+                                            StyledText { text: `Content transparency · ${Math.round(Config.options.appearance.transparency.contentTransparency * 100)}%`; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                            StyledSlider {
+                                                from: 0
+                                                to: 0.95
+                                                value: Config.options.appearance.transparency.contentTransparency
+                                                onMoved: Config.options.appearance.transparency.contentTransparency = value
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: barColumn.implicitHeight + 26
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer2
+                                    ColumnLayout {
+                                        id: barColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 13
+                                        spacing: 9
+                                        StyledText { text: "Bar"; color: Appearance.colors.colOnLayer2; font.weight: Font.DemiBold }
+                                        StyledText { text: "Style"; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 7
+                                            PillButton { label: "Hug"; toggled: Config.options.bar.cornerStyle === 0; onClicked: Config.options.bar.cornerStyle = 0 }
+                                            PillButton { label: "Float"; toggled: Config.options.bar.cornerStyle === 1; onClicked: Config.options.bar.cornerStyle = 1 }
+                                            PillButton { label: "Plain"; toggled: Config.options.bar.cornerStyle === 2; onClicked: Config.options.bar.cornerStyle = 2 }
+                                        }
+                                        StyledText { text: "Position"; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 7
+                                            PillButton { label: "Top"; toggled: root.currentBarPosition() === "top"; onClicked: root.applyBarPosition("top") }
+                                            PillButton { label: "Left"; toggled: root.currentBarPosition() === "left"; onClicked: root.applyBarPosition("left") }
+                                            PillButton { label: "Bottom"; toggled: root.currentBarPosition() === "bottom"; onClicked: root.applyBarPosition("bottom") }
+                                            PillButton { label: "Right"; toggled: root.currentBarPosition() === "right"; onClicked: root.applyBarPosition("right") }
+                                        }
+                                        ConfigSwitch { text: "Floating shadow"; buttonIcon: "ev_shadow"; checked: Config.options.bar.floatStyleShadow; onCheckedChanged: Config.options.bar.floatStyleShadow = checked }
+                                        ConfigSwitch { text: "Borderless groups"; buttonIcon: "border_clear"; checked: Config.options.bar.borderless; onCheckedChanged: Config.options.bar.borderless = checked }
+                                        ConfigSwitch { text: "Bar background"; buttonIcon: "rectangle"; checked: Config.options.bar.showBackground; onCheckedChanged: Config.options.bar.showBackground = checked }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: miscColumn.implicitHeight + 26
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer2
+                                    ColumnLayout {
+                                        id: miscColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 13
+                                        spacing: 9
+                                        StyledText { text: "Screen & wallpaper motion"; color: Appearance.colors.colOnLayer2; font.weight: Font.DemiBold }
+                                        ConfigSwitch { text: "Workspace parallax"; buttonIcon: "view_carousel"; checked: Config.options.background.parallax.enableWorkspace; onCheckedChanged: Config.options.background.parallax.enableWorkspace = checked }
+                                        ConfigSwitch { text: "Sidebar parallax"; buttonIcon: "dock_to_right"; checked: Config.options.background.parallax.enableSidebar; onCheckedChanged: Config.options.background.parallax.enableSidebar = checked }
+                                        StyledText { text: "Fake screen rounding"; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                        Flow {
+                                            Layout.fillWidth: true
+                                            spacing: 7
+                                            PillButton { label: "None"; toggled: Config.options.appearance.fakeScreenRounding === 0; onClicked: Config.options.appearance.fakeScreenRounding = 0 }
+                                            PillButton { label: "Always"; toggled: Config.options.appearance.fakeScreenRounding === 1; onClicked: Config.options.appearance.fakeScreenRounding = 1 }
+                                            PillButton { label: "Smart"; toggled: Config.options.appearance.fakeScreenRounding === 2; onClicked: Config.options.appearance.fakeScreenRounding = 2 }
+                                        }
+                                    }
+                                }
+
+                                Item { implicitHeight: 12 }
+                            }
+                        }
+
+                        // =====================================================
+                        // TARGETS
+                        // =====================================================
+                        ScrollView {
+                            clip: true
+                            leftPadding: 20
+                            rightPadding: 20
+                            topPadding: 20
+                            bottomPadding: 20
+                            contentWidth: availableWidth
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: 16
+                                SectionTitle {
+                                    title: "Theme targets"
+                                    subtitle: "Choose which parts of the desktop follow Appearance Studio"
+                                }
+
+                                Repeater {
+                                    model: [
+                                        { "id": "shell", "name": "Nyvorel", "icon": "dashboard", "desc": "Quickshell panels, dialogs and widgets" },
+                                        { "id": "hyprland", "name": "Hyprland", "icon": "select_window", "desc": "Compositor colors and borders" },
+                                        { "id": "hyprlock", "name": "Hyprlock", "icon": "lock", "desc": "Lock-screen color template" },
+                                        { "id": "gtk", "name": "GTK", "icon": "widgets", "desc": "GTK 3 and GTK 4 generated CSS" },
+                                        { "id": "fuzzel", "name": "Fuzzel", "icon": "search", "desc": "Launcher color theme" },
+                                        { "id": "qt", "name": "Qt / KDE bridge", "icon": "desktop_windows", "desc": "Opt-in on Hyprland; the existing bridge expects Plasma/KWin" },
+                                        { "id": "terminal", "name": "Terminal", "icon": "terminal", "desc": "Live terminal escape-sequence colors" }
+                                    ]
+                                    Rectangle {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        implicitHeight: 72
+                                        color: Appearance.colors.colLayer2
+                                        radius: Appearance.rounding.normal
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 12
+                                            spacing: 12
+                                            MaterialSymbol { text: modelData.icon; iconSize: 23; color: Appearance.colors.colPrimary }
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 1
+                                                StyledText { text: modelData.name; color: Appearance.colors.colOnLayer2; font.weight: Font.DemiBold }
+                                                StyledText { text: modelData.desc; color: Appearance.colors.colSubtext; font.pixelSize: Appearance.font.pixelSize.smallest }
+                                            }
+                                            StyledSwitch {
+                                                checked: root.targetEnabled(modelData.id)
+                                                onClicked: root.setTarget(modelData.id, checked)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: 72
+                                    radius: Appearance.rounding.normal
+                                    color: Appearance.colors.colTertiaryContainer
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 12
+                                        spacing: 10
+                                        MaterialSymbol { text: "info"; iconSize: 21; color: Appearance.colors.colOnTertiaryContainer }
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: "Preview is intentionally shell-only. External apps are updated only when you Keep or Apply a theme."
+                                            wrapMode: Text.Wrap
+                                            color: Appearance.colors.colOnTertiaryContainer
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // =====================================================
+                        // SAVED
+                        // =====================================================
+                        ScrollView {
+                            clip: true
+                            leftPadding: 20
+                            rightPadding: 20
+                            topPadding: 20
+                            bottomPadding: 20
+                            contentWidth: availableWidth
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: 18
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SectionTitle {
+                                        Layout.fillWidth: true
+                                        title: "Favorites"
+                                        subtitle: "Reusable appearance combinations"
+                                    }
+                                    PillButton {
+                                        label: "Save current"
+                                        icon: "bookmark_add"
+                                        onClicked: root.runAction([root.managerPath, "favorite-add"], "favorite")
+                                    }
+                                }
+
+                                StyledText {
+                                    visible: (root.statusData.favorites ?? []).length === 0
+                                    text: "No favorites yet. Save a theme from the title bar or here."
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                                Repeater {
+                                    model: root.statusData.favorites ?? []
+                                    SavedRow {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        entry: modelData
+                                        favorite: true
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SectionTitle {
+                                        Layout.fillWidth: true
+                                        title: "History"
+                                        subtitle: "Recent committed appearances"
+                                    }
+                                    PillButton {
+                                        visible: (root.statusData.history ?? []).length > 0
+                                        label: "Clear"
+                                        icon: "delete_sweep"
+                                        onClicked: root.runAction([root.managerPath, "clear-history"], "clear-history")
+                                    }
+                                }
+
+                                StyledText {
+                                    visible: (root.statusData.history ?? []).length === 0
+                                    text: "History will appear after you apply themes."
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                                Repeater {
+                                    model: root.statusData.history ?? []
+                                    SavedRow {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        entry: modelData
+                                        favorite: false
+                                    }
+                                }
+
+                                Item { implicitHeight: 12 }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 70
+                    color: Appearance.colors.colLayer2
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+                        spacing: 10
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.toastText.length > 0
+                                ? root.toastText
+                                : `${root.selectedSource} · ${root.selectedScheme} · ${root.selectedMode}`
+                            color: root.actionFailed ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            elide: Text.ElideRight
+                        }
+
+                        PillButton {
+                            visible: root.previewSeconds > 0
+                            label: "Revert"
+                            icon: "undo"
+                            onClicked: root.runAction([root.managerPath, "revert-preview"], "revert-preview")
+                        }
+
+                        PillButton {
+                            visible: root.previewSeconds > 0
+                            label: "Keep"
+                            icon: "check"
+                            toggled: true
+                            onClicked: root.runAction([root.managerPath, "keep-preview"], "keep-preview")
+                        }
+
+                        PillButton {
+                            visible: root.previewSeconds <= 0
+                            label: "Preview 15s"
+                            icon: "visibility"
+                            enabled: !actionProc.running
+                            onClicked: root.applyTheme(true)
+                        }
+
+                        PillButton {
+                            visible: root.previewSeconds <= 0
+                            label: "Apply"
+                            icon: "check_circle"
+                            toggled: true
+                            enabled: !actionProc.running
+                            onClicked: root.applyTheme(false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,27 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Canonical license:
+https://creativecommons.org/licenses/by/4.0/
+
+Nyvorel uses or inherits the following CC BY 4.0 icon material:
+
+1. Windows 11 community design icons used by the upstream Waffle shell:
+   Creator: Joshua Oghenekaro Okwe
+   Source:
+   https://www.figma.com/community/file/1123040825921884189/windows-11
+   Affected families:
+   - start-here*
+   - system-search*
+   - task-view*
+   Upstream states these were modified. Nyvorel preserves that modification
+   notice and attribution.
+
+2. Fedora SVG inherited from the upstream shell:
+   Source attribution embedded in the SVG:
+   Font Awesome Free 6.2.1 by Fonticons, Inc.
+   Icon license: CC BY 4.0
+   https://fontawesome.com/license/free
+
+CC BY 4.0 requires appropriate credit, a license link, and an indication of
+modifications when modified. Do not remove attribution notices from the
+affected source assets.

@@ -1,0 +1,564 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import configparser
+import colorsys
+import json
+import os
+import re
+from pathlib import Path
+
+HOME = Path.home()
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"
+COLOR_JSON = HOME / ".local/state/quickshell/user/generated/colors.json"
+
+ZEN_ROOT = HOME / ".zen"
+ZEN_PROFILES = ZEN_ROOT / "profiles.ini"
+
+CODE_SETTINGS = HOME / ".config/Code/User/settings.json"
+CODE_EXT_DIR = HOME / ".vscode/extensions/nyvorel-interface-styles-1.0.0"
+CODE_THEME_DIR = CODE_EXT_DIR / "themes"
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def valid_hex(value):
+    if not isinstance(value, str):
+        return None
+    m = HEX.match(value.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def interface_style() -> str:
+    forced = os.environ.get("NYVOREL_INTERFACE_STYLE_OVERRIDE", "").strip().lower()
+    if forced in {"fluid", "prism", "inlay", "default"}:
+        return forced
+
+    try:
+        cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        value = str(
+            (cfg.get("appearance") or {}).get("interfaceStyle") or ""
+        ).strip().lower()
+        value = {
+            "glass": "fluid",
+            "mica": "inlay",
+            "solid": "default",
+            "minimal": "default",
+        }.get(value, value)
+        if value in {"fluid", "prism", "inlay", "default"}:
+            return value
+    except Exception:
+        pass
+
+    return "default"
+
+
+def best_color_scope(data):
+    expected = {
+        "background", "onbackground", "surface", "onsurface", "primary",
+        "onprimary", "secondary", "tertiary", "error", "outline",
+    }
+    candidates = []
+
+    def add(obj, priority):
+        if not isinstance(obj, dict):
+            return
+        keys = {norm(k) for k, v in obj.items() if valid_hex(v)}
+        candidates.append((len(keys & expected), priority, obj))
+
+    add(data, 100)
+    if isinstance(data, dict):
+        mode = str(data.get("mode") or data.get("theme") or "").lower()
+        dark_flag = data.get("is_dark")
+        preferred = None
+        if dark_flag is True or "dark" in mode:
+            preferred = "dark"
+        elif dark_flag is False or "light" in mode:
+            preferred = "light"
+
+        for key in ("colors", "current", "scheme", "dark", "light"):
+            add(data.get(key), 80 + (20 if key == preferred else 0))
+
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2] if candidates else data
+
+
+def load_colors():
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    scope = best_color_scope(data)
+    colors = {}
+
+    if isinstance(scope, dict):
+        for key, value in scope.items():
+            hx = valid_hex(value)
+            if hx:
+                colors[norm(key)] = hx
+
+    def pick(*names, fallback=None):
+        for name in names:
+            value = colors.get(norm(name))
+            if value:
+                return value
+        if fallback is not None:
+            return fallback
+        raise KeyError("Missing generated color role: " + ", ".join(names))
+
+    background = pick("background", "surface_dim")
+    surface = pick("surface", fallback=background)
+    surface_low = pick("surface_container_low", fallback=surface)
+    surface_lowest = pick("surface_container_lowest", fallback=background)
+    surface_container = pick(
+        "surface_container", "surface_variant", fallback=surface
+    )
+    surface_high = pick(
+        "surface_container_high", "surface_container", fallback=surface_container
+    )
+    surface_highest = pick(
+        "surface_container_highest", "surface_container_high",
+        fallback=surface_high
+    )
+    on_surface = pick("on_surface", "on_background")
+    on_variant = pick("on_surface_variant", "outline", fallback=on_surface)
+    primary = pick("primary", fallback=on_surface)
+    on_primary = pick("on_primary", fallback=background)
+    secondary = pick("secondary", fallback=primary)
+    tertiary = pick("tertiary", fallback=secondary)
+    error = pick("error", fallback="#ff6b6b")
+    outline = pick("outline", fallback=on_variant)
+    outline_variant = pick("outline_variant", fallback=outline)
+
+    return {
+        "background": background,
+        "surface": surface,
+        "surface_low": surface_low,
+        "surface_lowest": surface_lowest,
+        "surface_container": surface_container,
+        "surface_high": surface_high,
+        "surface_highest": surface_highest,
+        "on_surface": on_surface,
+        "on_variant": on_variant,
+        "primary": primary,
+        "on_primary": on_primary,
+        "secondary": secondary,
+        "tertiary": tertiary,
+        "error": error,
+        "outline": outline,
+        "outline_variant": outline_variant,
+    }
+
+
+def mix_hex(a: str, b: str, amount: float) -> str:
+    amount = max(0.0, min(1.0, amount))
+    av = a.lstrip("#")[:6]
+    bv = b.lstrip("#")[:6]
+    vals = []
+    for i in (0, 2, 4):
+        x = int(av[i:i+2], 16)
+        y = int(bv[i:i+2], 16)
+        vals.append(round(x + (y - x) * amount))
+    return "#" + "".join(f"{value:02x}" for value in vals)
+
+
+def adapt_to_accent(base: str, accent: str) -> str:
+    def rgb(value):
+        value = value.lstrip("#")[:6]
+        return tuple(int(value[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    br, bg, bb = rgb(base)
+    ar, ag, ab = rgb(accent)
+    _bh, base_l, _bs = colorsys.rgb_to_hls(br, bg, bb)
+    accent_h, _al, accent_s = colorsys.rgb_to_hls(ar, ag, ab)
+    rr, rg, rb = colorsys.hls_to_rgb(accent_h, base_l, accent_s)
+    return "#" + "".join(f"{round(v * 255):02x}" for v in (rr, rg, rb))
+
+
+def is_dark(value: str) -> bool:
+    hx = value.lstrip("#")[:6]
+    r, g, b = (int(hx[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    _h, lightness, _s = colorsys.rgb_to_hls(r, g, b)
+    return lightness < 0.5
+
+
+def inlay_surface(c) -> str:
+    base = c["surface_low"]
+    accented = adapt_to_accent(base, c["primary"])
+    amount = 0.18 if is_dark(c["background"]) else 0.10
+    return mix_hex(base, accented, amount)
+
+
+def active_zen_profile() -> Path:
+    cp = configparser.ConfigParser()
+    cp.optionxform = str
+    cp.read(ZEN_PROFILES, encoding="utf-8")
+
+    install_default = None
+    for section in cp.sections():
+        if section.startswith("Install") and cp.has_option(section, "Default"):
+            install_default = cp.get(section, "Default").strip()
+            if install_default:
+                break
+
+    if install_default:
+        return ZEN_ROOT / install_default
+
+    for section in cp.sections():
+        if section.startswith("Profile") and cp.get(section, "Default", fallback="0") == "1":
+            return ZEN_ROOT / cp.get(section, "Path")
+
+    raise RuntimeError("Could not resolve the active Zen profile")
+
+
+def render_zen_css(style: str, c: dict) -> str:
+    header = (
+        "/* AUTO-GENERATED by nyvorel-zen-code-style-sync. DO NOT EDIT. */\n"
+        f"/* interfaceStyle={style} */\n"
+    )
+
+    if style == "fluid":
+        # Fluid is deliberately a true no-op: the existing
+        # nyvorel.css remains the sole visual owner.
+        return header + "/* Fluid frozen: no visual overrides. */\n"
+
+    if style == "prism":
+        shell = mix_hex(c["surface"], c["primary"], 0.035)
+        raised = mix_hex(c["surface_high"], c["primary"], 0.10)
+        border = mix_hex(c["primary"], c["outline"], 0.25)
+        return header + f"""
+:root {{
+  --toolbar-bgcolor: {shell}ee !important;
+  --toolbar-field-background-color: {raised}f2 !important;
+  --toolbar-field-color: {c["on_surface"]} !important;
+  --toolbarbutton-border-radius: 10px !important;
+  --tab-border-radius: 10px !important;
+  --zen-border-radius: 12px !important;
+  --zen-colors-border: {border} !important;
+}}
+
+#navigator-toolbox,
+#nav-bar,
+#TabsToolbar,
+#PersonalToolbar {{
+  background-color: {shell}ee !important;
+}}
+
+#urlbar-background,
+.urlbar-background,
+.tab-background,
+toolbarbutton,
+.toolbarbutton-1,
+panelview,
+menupopup {{
+  border-radius: 10px !important;
+}}
+
+#urlbar-background,
+.urlbar-background {{
+  background-color: {raised}f2 !important;
+  border: 1px solid {border}aa !important;
+  box-shadow: 0 8px 24px {c["background"]}55 !important;
+}}
+"""
+
+    if style == "inlay":
+        shell = inlay_surface(c)
+        inset = mix_hex(shell, c["primary"], 0.09)
+        border = mix_hex(c["outline_variant"], c["on_surface"], 0.10)
+        return header + f"""
+:root {{
+  --toolbar-bgcolor: {shell} !important;
+  --toolbar-field-background-color: {inset} !important;
+  --toolbar-field-color: {c["on_surface"]} !important;
+  --toolbarbutton-border-radius: 0px !important;
+  --tab-border-radius: 0px !important;
+  --zen-border-radius: 0px !important;
+  --zen-colors-border: {border} !important;
+}}
+
+#navigator-toolbox,
+#nav-bar,
+#TabsToolbar,
+#PersonalToolbar {{
+  background-color: {shell} !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}}
+
+#urlbar-background,
+.urlbar-background,
+.tab-background,
+toolbarbutton,
+.toolbarbutton-1,
+panelview,
+menupopup,
+#unified-extensions-view {{
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}}
+
+#urlbar-background,
+.urlbar-background {{
+  background-color: {inset} !important;
+  border: 1px solid {border} !important;
+}}
+"""
+
+    # Default: restrained browser chrome.
+    return header + f"""
+:root {{
+  --toolbar-bgcolor: {c["surface"]} !important;
+  --toolbar-field-background-color: {c["surface_high"]} !important;
+  --toolbar-field-color: {c["on_surface"]} !important;
+  --toolbarbutton-border-radius: 7px !important;
+  --tab-border-radius: 7px !important;
+  --zen-border-radius: 8px !important;
+  --zen-colors-border: {c["outline_variant"]} !important;
+}}
+
+#navigator-toolbox,
+#nav-bar,
+#TabsToolbar,
+#PersonalToolbar {{
+  background-color: {c["surface"]} !important;
+}}
+
+#urlbar-background,
+.urlbar-background,
+.tab-background,
+toolbarbutton,
+.toolbarbutton-1,
+panelview,
+menupopup {{
+  border-radius: 7px !important;
+  box-shadow: none !important;
+}}
+
+#urlbar-background,
+.urlbar-background {{
+  border: 1px solid {c["outline_variant"]}aa !important;
+}}
+"""
+
+
+def vscode_theme(style: str, c: dict) -> dict:
+    if style == "prism":
+        editor = c["surface_lowest"]
+        side = mix_hex(c["surface"], c["primary"], 0.04)
+        panel = mix_hex(c["surface_high"], c["primary"], 0.08)
+        activity = c["surface"]
+        border = mix_hex(c["primary"], c["outline"], 0.40)
+        focus = c["primary"]
+    elif style == "inlay":
+        shell = inlay_surface(c)
+        editor = mix_hex(shell, c["background"], 0.22)
+        side = shell
+        panel = mix_hex(shell, c["primary"], 0.08)
+        activity = shell
+        border = c["outline_variant"]
+        focus = c["primary"]
+    else:
+        editor = c["background"]
+        side = c["surface"]
+        panel = c["surface_high"]
+        activity = c["surface"]
+        border = c["outline_variant"]
+        focus = c["primary"]
+
+    colors = {
+        "foreground": c["on_surface"],
+        "descriptionForeground": c["on_variant"],
+        "errorForeground": c["error"],
+        "focusBorder": focus,
+        "contrastBorder": border if style == "inlay" else "#00000000",
+
+        "editor.background": editor,
+        "editor.foreground": c["on_surface"],
+        "editorLineNumber.foreground": c["on_variant"],
+        "editorLineNumber.activeForeground": c["primary"],
+        "editorCursor.foreground": c["primary"],
+        "editor.selectionBackground": mix_hex(panel, c["primary"], 0.20),
+        "editor.inactiveSelectionBackground": panel,
+
+        "sideBar.background": side,
+        "sideBar.foreground": c["on_surface"],
+        "sideBar.border": border,
+        "sideBarSectionHeader.background": panel,
+
+        "activityBar.background": activity,
+        "activityBar.foreground": c["on_surface"],
+        "activityBar.inactiveForeground": c["on_variant"],
+        "activityBar.border": border,
+        "activityBarBadge.background": c["primary"],
+        "activityBarBadge.foreground": c["on_primary"],
+
+        "titleBar.activeBackground": side,
+        "titleBar.activeForeground": c["on_surface"],
+        "titleBar.inactiveBackground": side,
+        "titleBar.inactiveForeground": c["on_variant"],
+        "titleBar.border": border,
+
+        "statusBar.background": side,
+        "statusBar.foreground": c["on_surface"],
+        "statusBar.border": border,
+        "statusBar.debuggingBackground": c["tertiary"],
+
+        "panel.background": panel,
+        "panel.border": border,
+        "panelTitle.activeForeground": c["on_surface"],
+        "panelTitle.inactiveForeground": c["on_variant"],
+        "panelTitle.activeBorder": c["primary"],
+
+        "tab.activeBackground": editor,
+        "tab.inactiveBackground": side,
+        "tab.activeForeground": c["on_surface"],
+        "tab.inactiveForeground": c["on_variant"],
+        "tab.border": border,
+        "tab.activeBorderTop": c["primary"],
+
+        "editorGroupHeader.tabsBackground": side,
+        "editorGroupHeader.tabsBorder": border,
+        "editorGroup.border": border,
+
+        "input.background": panel,
+        "input.foreground": c["on_surface"],
+        "input.border": border,
+        "inputOption.activeBorder": c["primary"],
+        "inputOption.activeBackground": mix_hex(panel, c["primary"], 0.15),
+
+        "dropdown.background": panel,
+        "dropdown.foreground": c["on_surface"],
+        "dropdown.border": border,
+
+        "list.activeSelectionBackground": mix_hex(panel, c["primary"], 0.18),
+        "list.activeSelectionForeground": c["on_surface"],
+        "list.inactiveSelectionBackground": panel,
+        "list.hoverBackground": mix_hex(panel, c["primary"], 0.08),
+        "list.focusOutline": c["primary"],
+
+        "menu.background": panel,
+        "menu.foreground": c["on_surface"],
+        "menu.selectionBackground": mix_hex(panel, c["primary"], 0.18),
+        "menu.border": border,
+
+        "badge.background": c["primary"],
+        "badge.foreground": c["on_primary"],
+
+        "terminal.background": editor,
+        "terminal.foreground": c["on_surface"],
+        "terminalCursor.foreground": c["primary"],
+        "terminal.border": border,
+    }
+
+    if style == "inlay":
+        # Make Inlay visually architectural rather than card-like.
+        colors["editorWidget.background"] = panel
+        colors["editorWidget.border"] = border
+        colors["peekView.border"] = border
+        colors["notificationCenter.border"] = border
+        colors["notifications.border"] = border
+
+    return {
+        "$schema": "vscode://schemas/color-theme",
+        "name": f"Nyvorel {style.title()}",
+        "type": "dark",
+        "colors": colors,
+        "tokenColors": [],
+    }
+
+
+def write_vscode_extension(c: dict):
+    CODE_THEME_DIR.mkdir(parents=True, exist_ok=True)
+
+    package = {
+        "name": "nyvorel-interface-styles",
+        "displayName": "Nyvorel Interface Styles",
+        "description": "Prism, Inlay and Default identities generated from the Nyvorel palette.",
+        "version": "1.0.0",
+        "publisher": "local",
+        "engines": {"vscode": "^1.80.0"},
+        "categories": ["Themes"],
+        "contributes": {
+            "themes": [
+                {
+                    "label": "Nyvorel Prism",
+                    "uiTheme": "vs-dark",
+                    "path": "./themes/prism-color-theme.json",
+                },
+                {
+                    "label": "Nyvorel Inlay",
+                    "uiTheme": "vs-dark",
+                    "path": "./themes/inlay-color-theme.json",
+                },
+                {
+                    "label": "Nyvorel Default",
+                    "uiTheme": "vs-dark",
+                    "path": "./themes/default-color-theme.json",
+                },
+            ]
+        },
+    }
+    atomic_write(
+        CODE_EXT_DIR / "package.json",
+        json.dumps(package, indent=2) + "\n",
+    )
+
+    for name in ("prism", "inlay", "default"):
+        theme = vscode_theme(name, c)
+        atomic_write(
+            CODE_THEME_DIR / f"{name}-color-theme.json",
+            json.dumps(theme, indent=2) + "\n",
+        )
+
+
+def patch_vscode_theme(style: str):
+    if not CODE_SETTINGS.exists():
+        raise RuntimeError("VS Code settings.json is missing")
+
+    if style == "fluid":
+        label = "Nyvorel System"
+    else:
+        label = f"Nyvorel {style.title()}"
+
+    text = CODE_SETTINGS.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r'(?m)(^\s*"workbench\.colorTheme"\s*:\s*)"(?:[^"\\]|\\.)*"'
+    )
+    replacement = lambda m: m.group(1) + json.dumps(label)
+    new_text, count = pattern.subn(replacement, text, count=1)
+    if count != 1:
+        raise RuntimeError(
+            "Expected exactly one workbench.colorTheme key; refusing to rewrite settings.json"
+        )
+
+    if new_text != text:
+        atomic_write(CODE_SETTINGS, new_text)
+
+
+def atomic_write(path: Path, text: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def main():
+    current = interface_style()
+    c = load_colors()
+
+    # Zen
+    profile = active_zen_profile()
+    chrome = profile / "chrome"
+    chrome.mkdir(parents=True, exist_ok=True)
+    atomic_write(chrome / "nyvorel-interface-style.css", render_zen_css(current, c))
+
+    # VS Code
+    write_vscode_extension(c)
+    patch_vscode_theme(current)
+
+
+if __name__ == "__main__":
+    main()

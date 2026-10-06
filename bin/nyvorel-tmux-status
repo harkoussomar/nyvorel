@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -u
+
+MODE="${1:-context}"
+CWD="${2:-$HOME}"
+
+# Style palette — kept aligned with the Starship palette.
+BG='#21170f'
+SURFACE='#2b1e14'
+SURFACE2='#35251a'
+ORANGE='#e9a23a'
+CREAM='#eadcc8'
+OLIVE='#a6b06b'
+MUTED='#7f7468'
+GREEN='#9dbc6c'
+RED='#df6b63'
+CYAN='#75b8b0'
+
+# tmux #() runs outside the pane shell. Always work from the pane's cwd.
+cd -- "$CWD" 2>/dev/null || exit 0
+
+segment() {
+    local fg="$1" text="$2"
+    printf '#[fg=%s,bg=%s]│#[fg=%s,bg=%s,bold] %s #[fg=%s,bg=%s]' \
+        "$MUTED" "$BG" "$fg" "$SURFACE" "$text" "$CREAM" "$BG"
+}
+
+segment_alt() {
+    local fg="$1" text="$2"
+    printf '#[fg=%s,bg=%s]│#[fg=%s,bg=%s,bold] %s #[fg=%s,bg=%s]' \
+        "$MUTED" "$BG" "$fg" "$SURFACE2" "$text" "$CREAM" "$BG"
+}
+
+repo_root() {
+    git rev-parse --show-toplevel 2>/dev/null
+}
+
+if [[ "$MODE" == "git" ]]; then
+    ROOT="$(repo_root || true)"
+    [[ -n "$ROOT" ]] || exit 0
+
+    BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || true)"
+    CHANGES="$(git status --porcelain --untracked-files=normal 2>/dev/null | wc -l | tr -d ' ')"
+
+    AHEAD=0
+    BEHIND=0
+    if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+        read -r BEHIND AHEAD < <(git rev-list --left-right --count '@{upstream}...HEAD' 2>/dev/null || printf '0 0')
+    fi
+
+    DIRTY=''
+    if [[ "${CHANGES:-0}" -gt 0 ]]; then
+        DIRTY=' ●'
+    fi
+
+    printf '#[fg=%s,bg=%s,bold]  %s%s #[fg=%s,bg=%s]' \
+        "$ORANGE" "$SURFACE" "$BRANCH" "$DIRTY" "$CREAM" "$BG"
+
+    if [[ "${CHANGES:-0}" -gt 0 ]]; then
+        segment_alt "$CREAM" "󰈙 ${CHANGES} changed"
+    else
+        segment_alt "$GREEN" '✓ clean'
+    fi
+
+    if [[ "$AHEAD" -gt 0 || "$BEHIND" -gt 0 ]]; then
+        SYNC=''
+        [[ "$AHEAD" -gt 0 ]] && SYNC+="↑${AHEAD}"
+        if [[ "$BEHIND" -gt 0 ]]; then
+            [[ -n "$SYNC" ]] && SYNC+='  '
+            SYNC+="↓${BEHIND}"
+        fi
+        segment "$GREEN" "$SYNC"
+    fi
+
+    printf '#[fg=%s,bg=%s] ' "$CREAM" "$BG"
+    exit 0
+fi
+
+# Context mode -------------------------------------------------
+ROOT="$(repo_root || true)"
+BASE="$CWD"
+[[ -n "$ROOT" ]] && BASE="$ROOT"
+
+RUNTIME=''
+ENVINFO=''
+
+# Prefer the project type implied by files in the project root.
+if [[ -f "$BASE/package.json" ]]; then
+    if command -v node >/dev/null 2>&1; then
+        NODEV="$(node -v 2>/dev/null || true)"
+        [[ -n "$NODEV" ]] && RUNTIME=" ${NODEV}"
+    fi
+
+    if [[ -f "$BASE/pnpm-lock.yaml" ]]; then
+        ENVINFO='󰏗 pnpm'
+    elif [[ -f "$BASE/bun.lock" || -f "$BASE/bun.lockb" ]]; then
+        ENVINFO=' bun'
+    elif [[ -f "$BASE/yarn.lock" ]]; then
+        ENVINFO='󰏗 yarn'
+    elif [[ -f "$BASE/package-lock.json" ]]; then
+        ENVINFO='󰏗 npm'
+    fi
+elif [[ -f "$BASE/pyproject.toml" || -f "$BASE/requirements.txt" || -f "$BASE/Pipfile" ]]; then
+    if command -v python >/dev/null 2>&1; then
+        PYV="$(python --version 2>/dev/null | awk '{print $2}')"
+        [[ -n "$PYV" ]] && RUNTIME=" py ${PYV}"
+    fi
+    if [[ -d "$BASE/.venv" ]]; then
+        ENVINFO='󰆧 .venv'
+    elif [[ -d "$BASE/venv" ]]; then
+        ENVINFO='󰆧 venv'
+    fi
+elif [[ -f "$BASE/Cargo.toml" ]]; then
+    if command -v rustc >/dev/null 2>&1; then
+        RV="$(rustc --version 2>/dev/null | awk '{print $2}')"
+        [[ -n "$RV" ]] && RUNTIME=" ${RV}"
+    fi
+    ENVINFO='󰏗 cargo'
+elif [[ -f "$BASE/go.mod" ]]; then
+    if command -v go >/dev/null 2>&1; then
+        GV="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+        [[ -n "$GV" ]] && RUNTIME=" ${GV}"
+    fi
+elif [[ -f "$BASE/pom.xml" || -f "$BASE/build.gradle" || -f "$BASE/build.gradle.kts" ]]; then
+    if command -v java >/dev/null 2>&1; then
+        JV="$(java -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+        [[ -n "$JV" ]] && RUNTIME=" ${JV}"
+    fi
+fi
+
+if [[ -n "$RUNTIME" ]]; then
+    segment "$ORANGE" "$RUNTIME"
+fi
+if [[ -n "$ENVINFO" ]]; then
+    segment_alt "$OLIVE" "$ENVINFO"
+fi
+
+segment "$CREAM" '󰣇 Arch Linux'
+segment_alt "$CREAM" "󰥔 $(date '+%a %d %b  %H:%M')"
+printf '#[fg=%s,bg=%s] ' "$CREAM" "$BG"

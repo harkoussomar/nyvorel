@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync KDE applications with the Nyvorel interface style
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/nyvorel-kde-app-style-sync

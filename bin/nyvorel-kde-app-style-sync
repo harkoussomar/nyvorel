@@ -1,0 +1,471 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import colorsys
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+
+HOME = Path.home()
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"
+COLOR_JSON = HOME / ".local/state/quickshell/user/generated/colors.json"
+KDEGLOBALS = HOME / ".config/kdeglobals"
+SCHEME_DIR = HOME / ".local/share/color-schemes"
+STATE_DIR = Path(os.environ.get(
+    "XDG_STATE_HOME",
+    str(HOME / ".local/state"),
+)) / "nyvorel-kde-app-style-sync"
+BASELINE = STATE_DIR / "fluid-baseline.json"
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+MANAGED = {
+    "IllogicalImpulsePrism",
+    "IllogicalImpulseInlay",
+    "IllogicalImpulseDefault",
+}
+
+
+def norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def valid_hex(value):
+    if not isinstance(value, str):
+        return None
+    m = HEX.match(value.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def style() -> str:
+    forced = os.environ.get("NYVOREL_INTERFACE_STYLE_OVERRIDE", "").strip().lower()
+    if forced in {"fluid", "prism", "inlay", "default"}:
+        return forced
+    try:
+        d = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        value = str((d.get("appearance") or {}).get("interfaceStyle") or "").strip().lower()
+        value = {
+            "glass": "fluid",
+            "mica": "inlay",
+            "solid": "default",
+            "minimal": "default",
+        }.get(value, value)
+        if value in {"fluid", "prism", "inlay", "default"}:
+            return value
+    except Exception:
+        pass
+    return "default"
+
+
+def best_color_scope(data):
+    expected = {
+        "background", "onbackground", "surface", "onsurface", "primary",
+        "onprimary", "secondary", "tertiary", "error", "outline",
+    }
+    candidates = []
+
+    def add(obj, priority):
+        if not isinstance(obj, dict):
+            return
+        keys = {norm(k) for k, v in obj.items() if valid_hex(v)}
+        candidates.append((len(keys & expected), priority, obj))
+
+    add(data, 100)
+    if isinstance(data, dict):
+        mode = str(data.get("mode") or data.get("theme") or "").lower()
+        dark_flag = data.get("is_dark")
+        preferred = None
+        if dark_flag is True or "dark" in mode:
+            preferred = "dark"
+        elif dark_flag is False or "light" in mode:
+            preferred = "light"
+
+        for key in ("colors", "current", "scheme", "dark", "light"):
+            add(data.get(key), 80 + (20 if key == preferred else 0))
+
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2] if candidates else data
+
+
+def load_colors():
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    scope = best_color_scope(data)
+    flat = {}
+    if isinstance(scope, dict):
+        for key, value in scope.items():
+            hx = valid_hex(value)
+            if hx:
+                flat[norm(key)] = hx
+
+    def pick(*names, fallback=None):
+        for name in names:
+            value = flat.get(norm(name))
+            if value:
+                return value
+        if fallback is not None:
+            return fallback
+        raise KeyError("missing color role: " + ", ".join(names))
+
+    background = pick("background", "surface_dim")
+    surface = pick("surface", fallback=background)
+    surface_low = pick("surface_container_low", fallback=surface)
+    surface_container = pick("surface_container", fallback=surface)
+    surface_high = pick("surface_container_high", fallback=surface_container)
+    surface_highest = pick("surface_container_highest", fallback=surface_high)
+    on_surface = pick("on_surface", "on_background")
+    on_variant = pick("on_surface_variant", "outline", fallback=on_surface)
+    primary = pick("primary", fallback=on_surface)
+    on_primary = pick("on_primary", fallback=background)
+    secondary = pick("secondary", fallback=primary)
+    tertiary = pick("tertiary", fallback=secondary)
+    error = pick("error", fallback="#ff6b6b")
+    outline = pick("outline", fallback=on_variant)
+    outline_variant = pick("outline_variant", fallback=outline)
+
+    return {
+        "background": background,
+        "surface": surface,
+        "surface_low": surface_low,
+        "surface_container": surface_container,
+        "surface_high": surface_high,
+        "surface_highest": surface_highest,
+        "on_surface": on_surface,
+        "on_variant": on_variant,
+        "primary": primary,
+        "on_primary": on_primary,
+        "secondary": secondary,
+        "tertiary": tertiary,
+        "error": error,
+        "outline": outline,
+        "outline_variant": outline_variant,
+    }
+
+
+def mix_hex(a: str, b: str, amount: float) -> str:
+    amount = max(0.0, min(1.0, amount))
+    av, bv = a.lstrip("#")[:6], b.lstrip("#")[:6]
+    vals = []
+    for i in (0, 2, 4):
+        x, y = int(av[i:i+2], 16), int(bv[i:i+2], 16)
+        vals.append(round(x + (y - x) * amount))
+    return "#" + "".join(f"{v:02x}" for v in vals)
+
+
+def qmix(a: str, b: str, first_weight: float) -> str:
+    # Match Quickshell ColorUtils.mix(c1, c2, p): p=1 means all c1.
+    return mix_hex(a, b, 1.0 - first_weight)
+
+
+def adapt_to_accent(base: str, accent: str) -> str:
+    def rgb(value):
+        value = value.lstrip("#")[:6]
+        return tuple(int(value[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    br, bg, bb = rgb(base)
+    ar, ag, ab = rgb(accent)
+    _bh, base_l, _bs = colorsys.rgb_to_hls(br, bg, bb)
+    accent_h, _al, accent_s = colorsys.rgb_to_hls(ar, ag, ab)
+    rr, rg, rb = colorsys.hls_to_rgb(accent_h, base_l, accent_s)
+    return "#" + "".join(f"{round(v * 255):02x}" for v in (rr, rg, rb))
+
+
+def is_dark(value: str) -> bool:
+    hx = value.lstrip("#")[:6]
+    r, g, b = (int(hx[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    _h, l, _s = colorsys.rgb_to_hls(r, g, b)
+    return l < 0.5
+
+
+def inlay(c):
+    dark = is_dark(c["background"])
+    ratios = (0.72, 0.82, 0.88, 0.92, 0.95) if dark else (0.84, 0.90, 0.94, 0.96, 0.98)
+
+    a0 = adapt_to_accent(c["background"], c["primary"])
+    a1 = adapt_to_accent(c["surface_low"], c["primary"])
+    a2 = adapt_to_accent(c["surface_container"], c["primary"])
+    a3 = adapt_to_accent(c["surface_high"], c["primary"])
+    a4 = adapt_to_accent(c["surface_highest"], c["primary"])
+
+    base = qmix(c["background"], a0, ratios[0])
+    surface = qmix(c["surface_low"], a1, ratios[1])
+    inset = qmix(c["surface_container"], a2, ratios[2])
+    control = qmix(c["surface_high"], a3, ratios[3])
+    emphasis = qmix(c["surface_highest"], a4, ratios[4])
+
+    border_accent = adapt_to_accent(c["outline_variant"], c["primary"])
+    mica_border = qmix(
+        c["outline_variant"],
+        border_accent,
+        0.60 if dark else 0.74,
+    )
+
+    return {
+        "base": base,
+        "surface": surface,
+        "inset": inset,
+        "control": control,
+        "emphasis": emphasis,
+        "border": qmix(mica_border, surface, 0.46),
+        "border_section": qmix(mica_border, inset, 0.62),
+    }
+
+
+def rgb(value: str) -> str:
+    h = value.lstrip("#")[:6]
+    return ",".join(str(int(h[i:i+2], 16)) for i in (0, 2, 4))
+
+
+def scheme_values(name: str, c: dict):
+    if name == "inlay":
+        t = inlay(c)
+        return {
+            "window": t["surface"],
+            "view": t["base"],
+            "button": t["control"],
+            "alternate": t["inset"],
+            "header": t["surface"],
+            "tooltip": t["control"],
+            "complementary": t["inset"],
+            "border": t["border"],
+            "border_section": t["border_section"],
+            "hover": mix_hex(t["control"], c["on_surface"], 0.04),
+            "selection": qmix(t["control"], c["primary"], 0.91),
+        }
+
+    if name == "prism":
+        shell = mix_hex(c["surface"], c["primary"], 0.04)
+        raised = mix_hex(c["surface_high"], c["primary"], 0.10)
+        return {
+            "window": shell,
+            "view": c["background"],
+            "button": raised,
+            "alternate": mix_hex(c["surface_container"], c["primary"], 0.08),
+            "header": shell,
+            "tooltip": raised,
+            "complementary": raised,
+            "border": mix_hex(c["outline"], c["primary"], 0.22),
+            "border_section": mix_hex(c["outline_variant"], c["primary"], 0.16),
+            "hover": mix_hex(raised, c["primary"], 0.14),
+            "selection": mix_hex(raised, c["primary"], 0.22),
+        }
+
+    return {
+        "window": c["surface"],
+        "view": c["background"],
+        "button": c["surface_container"],
+        "alternate": c["surface_low"],
+        "header": c["surface"],
+        "tooltip": c["surface_high"],
+        "complementary": c["surface_high"],
+        "border": c["outline_variant"],
+        "border_section": c["outline_variant"],
+        "hover": c["surface_high"],
+        "selection": c["primary"],
+    }
+
+
+def group(background, alternate, c, selection, hover, *, selection_fg=None):
+    selection_fg = selection_fg or c["on_surface"]
+    return "\n".join([
+        f"BackgroundAlternate={rgb(alternate)}",
+        f"BackgroundNormal={rgb(background)}",
+        f"DecorationFocus={rgb(c['primary'])}",
+        f"DecorationHover={rgb(hover)}",
+        f"ForegroundActive={rgb(c['primary'])}",
+        f"ForegroundInactive={rgb(c['on_variant'])}",
+        f"ForegroundLink={rgb(c['tertiary'])}",
+        f"ForegroundNegative={rgb(c['error'])}",
+        f"ForegroundNeutral={rgb(c['tertiary'])}",
+        f"ForegroundNormal={rgb(c['on_surface'])}",
+        f"ForegroundPositive={rgb(c['secondary'])}",
+        f"ForegroundVisited={rgb(c['tertiary'])}",
+    ])
+
+
+def render_scheme(style_name: str, c: dict) -> str:
+    v = scheme_values(style_name, c)
+    display = {
+        "prism": "Nyvorel Prism",
+        "inlay": "Nyvorel Inlay",
+        "default": "Nyvorel Default",
+    }[style_name]
+
+    selection_fg = c["on_primary"] if style_name == "default" else c["on_surface"]
+
+    return f"""[ColorEffects:Disabled]
+Color={rgb(v['window'])}
+ColorAmount=0.5
+ColorEffect=3
+ContrastAmount=0
+ContrastEffect=0
+Enable=
+IntensityAmount=0
+IntensityEffect=0
+
+[ColorEffects:Inactive]
+ChangeSelectionColor=true
+Color={rgb(v['view'])}
+ColorAmount=0.025
+ColorEffect=0
+ContrastAmount=0.1
+ContrastEffect=0
+Enable=true
+IntensityAmount=0
+IntensityEffect=0
+
+[Colors:Button]
+{group(v['button'], v['alternate'], c, v['selection'], v['hover'])}
+
+[Colors:Complementary]
+{group(v['complementary'], v['window'], c, v['selection'], v['hover'])}
+
+[Colors:Header]
+{group(v['header'], v['window'], c, v['selection'], v['hover'])}
+
+[Colors:Header][Inactive]
+{group(v['header'], v['window'], c, v['selection'], v['hover'])}
+
+[Colors:Selection]
+BackgroundAlternate={rgb(v['selection'])}
+BackgroundNormal={rgb(v['selection'])}
+DecorationFocus={rgb(c['primary'])}
+DecorationHover={rgb(v['hover'])}
+ForegroundActive={rgb(selection_fg)}
+ForegroundInactive={rgb(selection_fg)}
+ForegroundLink={rgb(selection_fg)}
+ForegroundNegative={rgb(selection_fg)}
+ForegroundNeutral={rgb(selection_fg)}
+ForegroundNormal={rgb(selection_fg)}
+ForegroundPositive={rgb(selection_fg)}
+ForegroundVisited={rgb(selection_fg)}
+
+[Colors:Tooltip]
+{group(v['tooltip'], v['alternate'], c, v['selection'], v['hover'])}
+
+[Colors:View]
+{group(v['view'], v['alternate'], c, v['selection'], v['hover'])}
+
+[Colors:Window]
+{group(v['window'], v['alternate'], c, v['selection'], v['hover'])}
+
+[General]
+ColorScheme={display.replace(' ', '')}
+Name={display}
+shadeSortColumn=true
+
+[WM]
+activeBackground={rgb(v['header'])}
+activeBlend={rgb(c['on_surface'])}
+activeForeground={rgb(c['on_surface'])}
+inactiveBackground={rgb(v['header'])}
+inactiveBlend={rgb(c['on_variant'])}
+inactiveForeground={rgb(c['on_variant'])}
+"""
+
+
+def read_current_scheme(text: str):
+    scheme = re.search(r"(?m)^ColorScheme=(.*)$", text)
+    digest = re.search(r"(?m)^ColorSchemeHash=(.*)$", text)
+    return (
+        scheme.group(1).strip() if scheme else "",
+        digest.group(1).strip() if digest else "",
+    )
+
+
+def save_baseline(scheme: str, digest: str):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    BASELINE.write_text(
+        json.dumps({"ColorScheme": scheme, "ColorSchemeHash": digest}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_baseline():
+    if not BASELINE.exists():
+        return {"ColorScheme": "IllogicalImpulse", "ColorSchemeHash": ""}
+    try:
+        return json.loads(BASELINE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"ColorScheme": "IllogicalImpulse", "ColorSchemeHash": ""}
+
+
+def patch_kdeglobals(target: str, target_hash: str | None):
+    text = KDEGLOBALS.read_text(encoding="utf-8")
+    current, current_hash = read_current_scheme(text)
+
+    # A Matugen/non-managed scheme is the Fluid source-of-truth. Capture it
+    # before switching to one of the managed identities.
+    if current and current not in MANAGED:
+        save_baseline(current, current_hash)
+
+    if target == "fluid":
+        if current not in MANAGED:
+            return
+        baseline = load_baseline()
+        scheme = baseline.get("ColorScheme") or "IllogicalImpulse"
+        digest = baseline.get("ColorSchemeHash") or ""
+    else:
+        scheme = target
+        digest = target_hash or ""
+
+    text, n = re.subn(
+        r"(?m)^ColorScheme=.*$",
+        f"ColorScheme={scheme}",
+        text,
+        count=1,
+    )
+    if n != 1:
+        raise RuntimeError("Could not find exactly one ColorScheme= entry")
+
+    if re.search(r"(?m)^ColorSchemeHash=.*$", text):
+        text = re.sub(
+            r"(?m)^ColorSchemeHash=.*$",
+            f"ColorSchemeHash={digest}",
+            text,
+            count=1,
+        )
+    else:
+        text = text.replace(
+            f"ColorScheme={scheme}\n",
+            f"ColorScheme={scheme}\nColorSchemeHash={digest}\n",
+            1,
+        )
+
+    atomic_write(KDEGLOBALS, text)
+
+
+def atomic_write(path: Path, text: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return
+        except Exception:
+            pass
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def main():
+    current = style()
+    c = load_colors()
+    SCHEME_DIR.mkdir(parents=True, exist_ok=True)
+
+    hashes = {}
+    for name in ("prism", "inlay", "default"):
+        body = render_scheme(name, c)
+        path = SCHEME_DIR / f"IllogicalImpulse{name.title()}.colors"
+        atomic_write(path, body)
+        hashes[name] = hashlib.sha1(body.encode()).hexdigest()
+
+    if current == "fluid":
+        patch_kdeglobals("fluid", None)
+    else:
+        target = f"IllogicalImpulse{current.title()}"
+        patch_kdeglobals(target, hashes[current])
+
+
+if __name__ == "__main__":
+    main()

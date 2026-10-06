@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REAL_OPENCODE="/usr/bin/opencode"
+THEME_SYNC="$HOME/.local/bin/nyvorel-opencode-theme-sync"
+
+if [[ -x "$THEME_SYNC" ]]; then
+    "$THEME_SYNC" >/dev/null 2>&1 || true
+fi
+
+if [[ "$PWD" != "$HOME" || "$#" -gt 0 ]]; then
+    exec "$REAL_OPENCODE" "$@"
+fi
+
+PROJECT_ROOT="$HOME/dev-mine/projects"
+
+if [[ ! -d "$PROJECT_ROOT" ]]; then
+    printf 'OpenCode: run it from a project directory or pass a path.\n' >&2
+    exit 2
+fi
+
+mapfile -t projects < <(
+    find "$PROJECT_ROOT" \
+        -mindepth 2 \
+        -maxdepth 4 \
+        -type d \
+        -name .git \
+        -printf '%h\n' \
+        2>/dev/null \
+        | sort -u
+)
+
+if [[ "${#projects[@]}" -eq 0 ]]; then
+    printf 'No Git projects found under %s\n' "$PROJECT_ROOT" >&2
+    exit 2
+fi
+
+if command -v fzf >/dev/null 2>&1; then
+    choice="$(
+        printf '%s\n' "${projects[@]}" \
+            | sed "s#^$HOME/##" \
+            | fzf \
+                --height=60% \
+                --reverse \
+                --border \
+                --prompt='OpenCode project > '
+    )" || exit 0
+
+    [[ -n "$choice" ]] || exit 0
+    exec "$REAL_OPENCODE" "$HOME/$choice"
+fi
+
+printf '\nChoose project:\n\n'
+
+for i in "${!projects[@]}"; do
+    printf '  %2d) %s\n' \
+        "$((i + 1))" \
+        "${projects[$i]#$HOME/}"
+done
+
+printf '\nProject number: '
+read -r number
+
+[[ "$number" =~ ^[0-9]+$ ]] || exit 1
+(( number >= 1 && number <= ${#projects[@]} )) || exit 1
+
+exec "$REAL_OPENCODE" "${projects[$((number - 1))]}"

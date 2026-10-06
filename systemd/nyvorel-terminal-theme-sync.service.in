@@ -1,0 +1,7 @@
+[Unit]
+Description=Sync Kitty, Starship and Fish with Nyvorel system colors
+
+[Service]
+Type=oneshot
+Environment=NYVOREL_TERMINAL_OPACITY=0.80
+ExecStart=@HOME@/.local/bin/nyvorel-terminal-theme-sync

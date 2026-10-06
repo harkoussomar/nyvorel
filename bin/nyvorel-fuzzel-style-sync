@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import colorsys
+import json
+import os
+import re
+from pathlib import Path
+
+HOME = Path.home()
+NYVOREL_CONFIG = HOME / ".config/nyvorel/config.json"
+COLOR_JSON = HOME / ".local/state/quickshell/user/generated/colors.json"
+OUTPUT = Path(os.environ.get(
+    "NYVOREL_FUZZEL_OUTPUT",
+    str(HOME / ".config/fuzzel/nyvorel-style.ini"),
+))
+
+HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
+
+
+def norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def valid_hex(value):
+    if not isinstance(value, str):
+        return None
+    m = HEX.match(value.strip())
+    return "#" + m.group(1).lower() if m else None
+
+
+def interface_style() -> str:
+    forced = os.environ.get("NYVOREL_INTERFACE_STYLE_OVERRIDE", "").strip().lower()
+    if forced in {"fluid", "prism", "inlay", "default"}:
+        return forced
+
+    try:
+        cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
+        style = str(
+            (cfg.get("appearance") or {}).get("interfaceStyle") or ""
+        ).strip().lower()
+        style = {
+            "glass": "fluid",
+            "mica": "inlay",
+            "solid": "default",
+            "minimal": "default",
+        }.get(style, style)
+        if style in {"fluid", "prism", "inlay", "default"}:
+            return style
+    except Exception:
+        pass
+
+    return "default"
+
+
+def best_color_scope(data):
+    expected = {
+        "background", "onbackground", "surface", "onsurface", "primary",
+        "onprimary", "secondary", "tertiary", "error", "outline",
+    }
+    candidates = []
+
+    def add(obj, priority):
+        if not isinstance(obj, dict):
+            return
+        keys = {norm(k) for k, v in obj.items() if valid_hex(v)}
+        candidates.append((len(keys & expected), priority, obj))
+
+    add(data, 100)
+    if isinstance(data, dict):
+        mode = str(data.get("mode") or data.get("theme") or "").lower()
+        dark_flag = data.get("is_dark")
+        preferred = None
+        if dark_flag is True or "dark" in mode:
+            preferred = "dark"
+        elif dark_flag is False or "light" in mode:
+            preferred = "light"
+
+        for key in ("colors", "current", "scheme", "dark", "light"):
+            add(data.get(key), 80 + (20 if key == preferred else 0))
+
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2] if candidates else data
+
+
+def load_colors():
+    data = json.loads(COLOR_JSON.read_text(encoding="utf-8"))
+    scope = best_color_scope(data)
+    colors = {}
+
+    for key, value in scope.items():
+        hx = valid_hex(value)
+        if hx:
+            colors[norm(key)] = hx
+
+    def pick(*names, fallback=None):
+        for name in names:
+            value = colors.get(norm(name))
+            if value:
+                return value
+        if fallback is not None:
+            return fallback
+        raise KeyError("Missing generated color role: " + ", ".join(names))
+
+    background = pick("background")
+    surface = pick("surface", "surface_dim", fallback=background)
+    surface_low = pick("surface_container_low", "surface", fallback=surface)
+    surface_container = pick(
+        "surface_container", "surface_variant", fallback=surface_low
+    )
+    surface_high = pick(
+        "surface_container_high", "surface_container", fallback=surface_container
+    )
+    on_surface = pick("on_surface", "on_background")
+    on_surface_variant = pick(
+        "on_surface_variant", "outline", fallback=on_surface
+    )
+    primary = pick("primary", fallback=on_surface)
+    outline = pick("outline", fallback=on_surface_variant)
+    outline_variant = pick("outline_variant", "outline", fallback=outline)
+
+    return {
+        "background": background,
+        "surface": surface,
+        "surface_low": surface_low,
+        "surface_container": surface_container,
+        "surface_high": surface_high,
+        "on_surface": on_surface,
+        "on_surface_variant": on_surface_variant,
+        "primary": primary,
+        "outline": outline,
+        "outline_variant": outline_variant,
+    }
+
+
+def mix_hex(a: str, b: str, amount: float) -> str:
+    amount = max(0.0, min(1.0, amount))
+    av = a.lstrip("#")[:6]
+    bv = b.lstrip("#")[:6]
+    ar, ag, ab = int(av[0:2], 16), int(av[2:4], 16), int(av[4:6], 16)
+    br, bg, bb = int(bv[0:2], 16), int(bv[2:4], 16), int(bv[4:6], 16)
+    vals = [
+        round(ar + (br - ar) * amount),
+        round(ag + (bg - ag) * amount),
+        round(ab + (bb - ab) * amount),
+    ]
+    return "#" + "".join(f"{value:02x}" for value in vals)
+
+
+def adapt_to_accent(base: str, accent: str) -> str:
+    def rgb(value):
+        value = value.lstrip("#")[:6]
+        return tuple(int(value[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    br, bg, bb = rgb(base)
+    ar, ag, ab = rgb(accent)
+    _base_h, base_l, _base_s = colorsys.rgb_to_hls(br, bg, bb)
+    accent_h, _accent_l, accent_s = colorsys.rgb_to_hls(ar, ag, ab)
+    rr, rg, rb = colorsys.hls_to_rgb(accent_h, base_l, accent_s)
+    return "#" + "".join(f"{round(value * 255):02x}" for value in (rr, rg, rb))
+
+
+def is_dark(value: str) -> bool:
+    hx = value.lstrip("#")[:6]
+    r, g, b = (int(hx[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    _h, lightness, _s = colorsys.rgb_to_hls(r, g, b)
+    return lightness < 0.5
+
+
+def inlay_surface(colors) -> str:
+    # Same formula used by the Inlay navbar / terminal substrate.
+    base = colors["surface_low"]
+    accented = adapt_to_accent(base, colors["primary"])
+    accent_amount = 0.18 if is_dark(colors["background"]) else 0.10
+    return mix_hex(base, accented, accent_amount)
+
+
+def rgba(value: str, alpha: str = "ff") -> str:
+    return value.lstrip("#")[:6] + alpha
+
+
+def render(style: str, colors) -> str:
+    header = (
+        "# AUTO-GENERATED by nyvorel-fuzzel-style-sync. DO NOT EDIT.\n"
+        f"# interfaceStyle={style}\n"
+    )
+
+    if style == "fluid":
+        # Frozen Fluid behavior:
+        # colors remain owned by the existing Matugen fuzzel_theme.ini and
+        # the historical 17px / 1px border geometry is reproduced exactly.
+        return header + """
+[border]
+radius=17
+width=1
+"""
+
+    if style == "prism":
+        # Spatial/floating: more air, translucent depth, accent edge.
+        background = mix_hex(colors["surface"], colors["primary"], 0.035)
+        selection = mix_hex(colors["surface_high"], colors["primary"], 0.12)
+        return header + f"""
+[colors]
+background={rgba(background, "e8")}
+text={rgba(colors["on_surface"])}
+selection={rgba(selection, "f2")}
+selection-text={rgba(colors["on_surface"])}
+border={rgba(colors["primary"], "88")}
+match={rgba(colors["primary"])}
+selection-match={rgba(colors["primary"])}
+
+[border]
+radius=12
+width=1
+"""
+
+    if style == "inlay":
+        # Embedded/matte: same family as the Inlay navbar, square and opaque.
+        background = inlay_surface(colors)
+        selection = mix_hex(background, colors["primary"], 0.14)
+        border = mix_hex(colors["outline_variant"], colors["on_surface"], 0.10)
+        return header + f"""
+[colors]
+background={rgba(background)}
+text={rgba(colors["on_surface"])}
+selection={rgba(selection)}
+selection-text={rgba(colors["on_surface"])}
+border={rgba(border)}
+match={rgba(colors["primary"])}
+selection-match={rgba(colors["primary"])}
+
+[border]
+radius=0
+width=1
+"""
+
+    # Default: deliberately conventional and restrained.
+    return header + f"""
+[colors]
+background={rgba(colors["surface"])}
+text={rgba(colors["on_surface"])}
+selection={rgba(colors["surface_high"])}
+selection-text={rgba(colors["on_surface"])}
+border={rgba(colors["outline_variant"], "aa")}
+match={rgba(colors["primary"])}
+selection-match={rgba(colors["primary"])}
+
+[border]
+radius=8
+width=1
+"""
+
+
+def atomic_write(path: Path, text: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def main():
+    style = interface_style()
+    colors = load_colors()
+    atomic_write(OUTPUT, render(style, colors))
+
+
+if __name__ == "__main__":
+    main()

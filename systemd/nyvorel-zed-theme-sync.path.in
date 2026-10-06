@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Nyvorel palette/style changes for Zed
+
+[Path]
+PathChanged=@HOME@/.local/state/quickshell/user/generated/colors.json
+PathChanged=@HOME@/.config/nyvorel/config.json
+Unit=nyvorel-zed-theme-sync.service
+
+[Install]
+WantedBy=default.target
