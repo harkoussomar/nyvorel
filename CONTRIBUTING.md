@@ -51,6 +51,26 @@ Actual publication requires `--publish --yes`. Do not bypass the publisher with
 a manual tag move or release retarget: the tool requires exact `origin/main`,
 main CI, immutable tag identity, tag CI, and only then a stable GitHub Release.
 
+## Packaging-sensitive changes
+
+Arch packaging is governed by [`PACKAGING.md`](PACKAGING.md) and
+`packaging/ownership-contract.json`.
+
+Do not introduce package scripts that write into a real user's home directory,
+start user services for arbitrary users, or make package-owned `/usr` content
+mutable through Nyvorel's remote updater.
+
+Package mode must preserve the split-ownership boundary:
+
+- pacman owns immutable `/usr` payload;
+- Nyvorel owns per-user materialization, manifests, backups, and state;
+- `/usr/bin/nyvorel` is the package-mode public CLI;
+- package-provided user units belong under `/usr/lib/systemd/user`;
+- package upgrades/removal must not silently rewrite or delete user data.
+
+Phase 7B changes must advance the machine-readable contract and include
+packaging regression coverage.
+
 ## Testing
 
 At minimum, validate the files you changed.

@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "phase": "7A",
+  "status": "locked",
+  "target_distribution": "Arch Linux",
+  "package_manager": "pacman",
+  "architecture": "split-package-and-user-lifecycle-ownership",
+  "principles": {
+    "package_build_or_install_writes_user_home": false,
+    "package_install_hook_writes_user_home": false,
+    "package_install_hook_starts_user_services": false,
+    "package_upgrade_silently_rewrites_user_config": false,
+    "package_removal_deletes_user_config_state_or_backups": false,
+    "package_owned_content_is_mutated_by_nyvorel_remote_updater": false,
+    "user_materialization_remains_manifest_backed": true,
+    "user_materialization_remains_backup_first": true,
+    "existing_release_tags_may_move": false
+  },
+  "package_owned": {
+    "public_cli": "/usr/bin/nyvorel",
+    "helper_root": "/usr/lib/nyvorel/bin",
+    "payload_root": "/usr/share/nyvorel",
+    "dependency_contract": "/usr/share/nyvorel/dependencies/arch.json",
+    "systemd_user_unit_root": "/usr/lib/systemd/user",
+    "application_icon": "/usr/share/icons/hicolor/scalable/apps/nyvorel.svg",
+    "documentation_root": "/usr/share/doc/nyvorel",
+    "license_root": "/usr/share/licenses/nyvorel"
+  },
+  "user_owned": {
+    "materialized_shell": "~/.config/quickshell/nyvorel",
+    "materialized_hyprland": "~/.config/hypr",
+    "fish_integration": "~/.config/fish",
+    "kitty_integration": "~/.config/kitty",
+    "runtime_config": "~/.config/nyvorel",
+    "installation_state": "~/.local/state/nyvorel",
+    "quickshell_generated_state": "~/.local/state/quickshell",
+    "backup_and_archive_state": "~/.local/state/nyvorel"
+  },
+  "package_mode_forbidden_owners": [
+    "~/.local/bin/nyvorel",
+    "~/.local/bin/nyvorel-*",
+    "~/.config/systemd/user/nyvorel-*.service",
+    "~/.config/systemd/user/nyvorel-*.path"
+  ],
+  "service_policy": {
+    "package_unit_definitions": "/usr/lib/systemd/user",
+    "user_specific_enable_disable_state": "user-owned",
+    "package_mode_materializes_unit_definitions_into_home": false,
+    "home_paths_inside_package_units": "systemd-specifiers-or-runtime-safe-paths",
+    "literal_HOME_template_rendering_inside_package_units": false
+  },
+  "update_policy": {
+    "package_payload_updates": "pacman-or-AUR-package-manager",
+    "package_mode_remote_source_fetch_mutates_usr": false,
+    "user_materialization_update": "Nyvorel-manifest-transaction",
+    "user_materialization_requires_package_owned_payload": true,
+    "package_upgrade_triggers_automatic_home_mutation": false,
+    "source_clone_mode_remote_channels_remain_supported_during_transition": true
+  },
+  "migration_policy": {
+    "legacy_source_clone_mode": "supported-during-7B-transition",
+    "package_mode": "pending-7B",
+    "source_kind_must_be_explicit_in_future_install_state": true,
+    "source_clone_to_package_conversion_requires_explicit_migration": true,
+    "dual_public_cli_ownership_allowed": false,
+    "dual_systemd_unit_definition_ownership_allowed": false,
+    "stale_user_helper_shadowing_must_be_detected": true
+  },
+  "dependency_mapping_policy": {
+    "required_runtime": "candidate-for-depends-after-package-name-resolution",
+    "optional_features": "candidate-for-optdepends",
+    "build_only": "makedepends",
+    "test_only": "checkdepends-or-CI-only",
+    "AUR_helper_invocation_by_package_or_bootstrap": false,
+    "semantic_source_of_truth": "dependencies/arch.json"
+  },
+  "package_hook_policy": {
+    "allowed": [
+      "print-actionable-post-install-guidance"
+    ],
+    "forbidden": [
+      "write-real-user-home",
+      "run-Nyvorel-user-materialization",
+      "enable-or-start-user-services-for-arbitrary-users",
+      "rewrite-user-configuration",
+      "delete-user-state-or-backups"
+    ]
+  },
+  "phase7b_required_gates": [
+    "exact-package-filesystem-map",
+    "package-aware-source-discovery",
+    "package-safe-helper-path-migration",
+    "package-safe-systemd-user-units",
+    "source-clone-to-package-migration-semantics",
+    "package-upgrade-with-zero-automatic-home-mutation",
+    "package-removal-preserves-user-state",
+    "clean-makepkg-build",
+    "clean-Arch-package-install",
+    "source-clone-mode-regression"
+  ],
+  "audit_evidence": {
+    "phase6d_baseline_commit": "b7da6435371ee812af4c873b73963807cc2528ef",
+    "current_user_managed_files": 989,
+    "installer_HOME_template_files": 10,
+    "installer_HOME_occurrences": 29,
+    "source_bin_files": 22,
+    "source_systemd_files": 20,
+    "source_quickshell_files": 911,
+    "source_hypr_files": 32,
+    "source_integrations_files": 2,
+    "local_bin_reference_files": 28,
+    "user_systemd_reference_files": 7,
+    "existing_arch_package_surface": "none"
+  },
+  "implementation_status": {
+    "ownership_contract": "implemented-7A",
+    "pkgbuild": "pending-7B",
+    "srcinfo": "pending-7B",
+    "package_payload_layout": "pending-7B",
+    "package_mode_installer": "pending-7B",
+    "package_migration": "pending-7B",
+    "package_lifecycle_regression": "pending-7C-or-later"
+  }
+}

@@ -31,6 +31,9 @@ jobs:
       - name: Validate source contracts
         run: bash scripts/ci/validate-source.sh
 
+      - name: Validate packaging ownership contract
+        run: bash scripts/ci/test-packaging-ownership-contract.sh
+
       - name: Validate release candidate preflight
         run: bash scripts/ci/test-release-preflight.sh
 

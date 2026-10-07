@@ -433,6 +433,7 @@ See [`RELEASES.md`](./RELEASES.md) for resume and immutability rules.
 | [`CHANGELOG.md`](./CHANGELOG.md) | public release history |
 | [`PROVENANCE.md`](./PROVENANCE.md) | upstream and source provenance |
 | [`RELEASES.md`](./RELEASES.md) | stable/development channels and release invariants |
+| [`PACKAGING.md`](./PACKAGING.md) | Arch package ownership, user lifecycle boundary, and Phase 7 packaging rules |
 | [`INHERITED_ASSETS.md`](./INHERITED_ASSETS.md) | inherited asset policy |
 | [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) | third-party notices |
 | [`TRADEMARKS.md`](./TRADEMARKS.md) | trademark and affiliation notices |
@@ -448,11 +449,16 @@ Post-release infrastructure now includes deterministic dependency/bootstrap
 validation, stable/development update channels, release preflight/publication
 tooling, and pristine-Arch install/upgrade/recovery regression coverage.
 
+Phase 7A locks the Arch packaging ownership boundary: package-managed
+immutable files belong under `/usr`, while user configuration, manifests,
+backups, and runtime state remain under the recoverable per-user lifecycle.
+Package implementation begins in Phase 7B.
+
 Next focus areas include:
 
+- Phase 7B Arch package filesystem map and `PKGBUILD`;
 - richer visual showcase and project website;
-- complete user and technical documentation;
-- packaging and distribution improvements.
+- complete user and technical documentation.
 
 ## Contributing
 

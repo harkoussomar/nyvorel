@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Packaging & distribution — Phase 7A
+- Locked split ownership between pacman-managed immutable `/usr` payload and Nyvorel-managed per-user materialization/state.
+- Defined package-mode CLI, helper, payload, systemd user-unit, documentation, and license ownership roots.
+- Added machine-readable packaging policy and CI regression gates before any `PKGBUILD` implementation.
+
 ### Post-release infrastructure — Phase 6D
 - Added a deterministic synthetic `0.1.0 -> 0.1.1` stable patch-upgrade matrix with stable no-op and downgrade-policy coverage.
 - Added same-version development/stable switching assertions and original-backup recovery proof across multiple updates.

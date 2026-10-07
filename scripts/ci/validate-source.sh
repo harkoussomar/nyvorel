@@ -25,6 +25,8 @@ required_files=(
   CONTRIBUTING.md
   RELEASES.md
   release/channel-policy.json
+  PACKAGING.md
+  packaging/ownership-contract.json
   assets/nyvorel.svg
   quickshell/shell.qml
   bin/nyvorel
@@ -43,6 +45,7 @@ required_files=(
   scripts/release/publish.sh
   scripts/ci/test-upgrade-matrix.sh
   scripts/ci/test-upgrade-matrix-clean-machine.sh
+  scripts/ci/test-packaging-ownership-contract.sh
 )
 
 required_dirs=(
@@ -53,6 +56,7 @@ required_dirs=(
   integrations
   runtime-config
   LICENSES
+  packaging
 )
 
 for path in "${required_files[@]}"; do
