@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+from typing import Any
+
+BOOTSTRAP_VERSION = 1
+CONTRACT_SCHEMA = 2
+CONTRACT_DESTINATION = Path(".local/share/nyvorel/dependencies/arch.json")
+PACKAGE_RE = re.compile(r"^[A-Za-z0-9@._+-]+$")
+
+
+class BootstrapError(RuntimeError):
+    pass
+
+
+def parse_os_release(path: Path) -> str:
+    if not path.is_file():
+        return "unknown"
+    values: dict[str, str] = {}
+    for raw in path.read_text(errors="replace").splitlines():
+        if "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        values[key] = value.strip().strip('"')
+    return values.get("ID", "unknown")
+
+
+def selector(
+    entry: dict[str, Any],
+    any_key: str,
+    all_key: str,
+) -> tuple[str, list[str]]:
+    any_values = entry.get(any_key)
+    all_values = entry.get(all_key)
+
+    has_any = isinstance(any_values, list) and bool(any_values)
+    has_all = isinstance(all_values, list) and bool(all_values)
+
+    if has_any == has_all:
+        raise BootstrapError(
+            f"{entry.get('id', '<unknown>')}: exactly one of "
+            f"{any_key}/{all_key} is required"
+        )
+
+    values = list(any_values if has_any else all_values)
+    if not all(isinstance(value, str) and value for value in values):
+        raise BootstrapError(
+            f"{entry.get('id', '<unknown>')}: invalid selector values"
+        )
+
+    return ("any" if has_any else "all"), values
+
+
+def load_contract(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text())
+    except Exception as exc:
+        raise BootstrapError(f"cannot read dependency contract {path}: {exc}") from exc
+
+    if data.get("schema") != CONTRACT_SCHEMA:
+        raise BootstrapError(
+            f"unsupported dependency contract schema: {data.get('schema')!r}"
+        )
+    if data.get("product") != "Nyvorel":
+        raise BootstrapError("dependency contract product is not Nyvorel")
+
+    policy = data.get("policy")
+    if not isinstance(policy, dict):
+        raise BootstrapError("dependency contract policy is missing")
+
+    bootstrap = policy.get("bootstrap")
+    if not isinstance(bootstrap, dict):
+        raise BootstrapError("dependency contract bootstrap policy is missing")
+
+    expected_policy = {
+        "mode": "plan-only",
+        "package_manager": "pacman",
+        "default_scope": "required",
+        "optional_selection": "explicit-id-only",
+        "refresh_sync_database": False,
+        "package_mutation": False,
+        "aur_helper_invocation": False,
+    }
+    for key, value in expected_policy.items():
+        if bootstrap.get(key) != value:
+            raise BootstrapError(
+                f"unsafe/unsupported bootstrap policy {key}={bootstrap.get(key)!r}"
+            )
+
+    for class_name in ("required", "optional", "test-only"):
+        entries = data.get(class_name)
+        if not isinstance(entries, list) or not entries:
+            raise BootstrapError(f"{class_name} dependency class is missing/empty")
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                raise BootstrapError(f"invalid {class_name} dependency entry")
+            selector(entry, "commands_any_of", "commands_all_of")
+            _, packages = selector(
+                entry,
+                "arch_packages_any_of",
+                "arch_packages_all_of",
+            )
+            if not all(PACKAGE_RE.fullmatch(package) for package in packages):
+                raise BootstrapError(
+                    f"{entry['id']}: unsafe package hint in dependency contract"
+                )
+
+    return data
+
+
+def command_status(
+    entry: dict[str, Any],
+    search_path: str | None,
+) -> dict[str, Any]:
+    mode, commands = selector(entry, "commands_any_of", "commands_all_of")
+    found: list[dict[str, str]] = []
+    missing: list[str] = []
+
+    for command in commands:
+        path = shutil.which(command, path=search_path)
+        if path is None:
+            missing.append(command)
+        else:
+            found.append({"command": command, "path": path})
+
+    satisfied = bool(found) if mode == "any" else not missing
+
+    return {
+        "id": entry["id"],
+        "command_mode": mode,
+        "commands": commands,
+        "found": found,
+        "missing_commands": missing,
+        "satisfied": satisfied,
+    }
+
+
+def pacman_has(pacman: str, package: str) -> bool:
+    proc = subprocess.run(
+        [pacman, "-Si", package],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.returncode == 0
+
+
+def package_plan(entry: dict[str, Any], pacman: str) -> dict[str, Any]:
+    mode, packages = selector(
+        entry,
+        "arch_packages_any_of",
+        "arch_packages_all_of",
+    )
+
+    availability = [
+        {"package": package, "available": pacman_has(pacman, package)}
+        for package in packages
+    ]
+
+    if mode == "any":
+        selected = next(
+            (
+                item["package"]
+                for item in availability
+                if item["available"]
+            ),
+            None,
+        )
+        resolved = selected is not None
+        selected_packages = [selected] if selected else []
+    else:
+        resolved = all(item["available"] for item in availability)
+        selected_packages = packages if resolved else []
+
+    return {
+        "package_mode": mode,
+        "package_hints": packages,
+        "repository_availability": availability,
+        "resolved": resolved,
+        "selected_packages": selected_packages,
+    }
+
+
+def build_plan(
+    contract: dict[str, Any],
+    optional_ids: list[str],
+    pacman: str,
+    search_path: str | None,
+) -> dict[str, Any]:
+    optional_by_id = {entry["id"]: entry for entry in contract["optional"]}
+
+    unknown = sorted(set(optional_ids) - set(optional_by_id))
+    if unknown:
+        raise BootstrapError(
+            "unknown optional dependency id(s): " + ", ".join(unknown)
+        )
+
+    selected_optional = [
+        optional_by_id[dep_id]
+        for dep_id in dict.fromkeys(optional_ids)
+    ]
+
+    required_results = []
+    optional_results = []
+    packages: list[str] = []
+    manual_required: list[dict[str, Any]] = []
+    manual_optional: list[dict[str, Any]] = []
+
+    for class_name, entries, output, manual in (
+        ("required", contract["required"], required_results, manual_required),
+        ("optional", selected_optional, optional_results, manual_optional),
+    ):
+        for entry in entries:
+            status = command_status(entry, search_path)
+            result: dict[str, Any] = {
+                **status,
+                "class": class_name,
+            }
+
+            if status["satisfied"]:
+                result["package_plan"] = {
+                    "needed": False,
+                    "resolved": True,
+                    "selected_packages": [],
+                }
+            else:
+                package = package_plan(entry, pacman)
+                result["package_plan"] = {
+                    "needed": True,
+                    **package,
+                }
+                if package["resolved"]:
+                    for name in package["selected_packages"]:
+                        if name not in packages:
+                            packages.append(name)
+                else:
+                    manual.append(
+                        {
+                            "id": entry["id"],
+                            "commands": status["commands"],
+                            "package_hints": package["package_hints"],
+                        }
+                    )
+
+            output.append(result)
+
+    required_missing = [
+        item for item in required_results if not item["satisfied"]
+    ]
+    optional_missing = [
+        item for item in optional_results if not item["satisfied"]
+    ]
+
+    return {
+        "schema": 1,
+        "product": "Nyvorel",
+        "bootstrap_version": BOOTSTRAP_VERSION,
+        "mode": "plan-only",
+        "mutation_performed": False,
+        "policy": contract["policy"]["bootstrap"],
+        "required": {
+            "total": len(required_results),
+            "satisfied": len(required_results) - len(required_missing),
+            "missing": required_missing,
+        },
+        "optional": {
+            "selected_ids": list(dict.fromkeys(optional_ids)),
+            "total": len(optional_results),
+            "satisfied": len(optional_results) - len(optional_missing),
+            "missing": optional_missing,
+        },
+        "pacman_packages": packages,
+        "manual_required": manual_required,
+        "manual_optional": manual_optional,
+        "status": "MANUAL_REQUIRED" if manual_required else "READY",
+    }
+
+
+def print_human(plan: dict[str, Any], contract_path: Path, pacman: str) -> None:
+    required = plan["required"]
+    optional = plan["optional"]
+
+    print("============================================================")
+    print("NYVOREL BOOTSTRAP PLAN")
+    print("============================================================")
+    print(f"Contract       : {contract_path}")
+    print("Mode           : plan-only / read-only")
+    print(f"Package manager: {pacman}")
+    print("Repo probe     : pacman -Si (read-only)")
+    print()
+    print(
+        "Required       : "
+        f"{required['satisfied']}/{required['total']} currently satisfied"
+    )
+
+    if optional["selected_ids"]:
+        print(
+            "Optional       : "
+            + ", ".join(optional["selected_ids"])
+            + f" ({optional['satisfied']}/{optional['total']} satisfied)"
+        )
+    else:
+        print("Optional       : none selected")
+
+    print()
+    if plan["pacman_packages"]:
+        print("Resolvable package plan:")
+        for package in plan["pacman_packages"]:
+            print(f"  - {package}")
+    else:
+        print("Resolvable package plan: no packages needed/resolvable")
+
+    if plan["manual_required"]:
+        print()
+        print("Manual required-provider decisions:")
+        for item in plan["manual_required"]:
+            print(
+                f"  - {item['id']}: package hints "
+                + "/".join(item["package_hints"])
+            )
+
+    if plan["manual_optional"]:
+        print()
+        print("Manual optional-provider decisions:")
+        for item in plan["manual_optional"]:
+            print(
+                f"  - {item['id']}: package hints "
+                + "/".join(item["package_hints"])
+            )
+
+    print()
+    print("No packages were installed.")
+    print("Nyvorel does not run pacman -S, pacman -Sy, pacman -Syu, yay, or paru.")
+    print(
+        "Use your normal Arch full-upgrade/package workflow to install the "
+        "reviewed package plan."
+    )
+    print(f"RESULT: {plan['status']}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="nyvorel bootstrap",
+        description=(
+            "Build a read-only Arch dependency package plan. "
+            "This command never installs packages."
+        ),
+    )
+    parser.add_argument(
+        "--home",
+        metavar="PATH",
+        help=(
+            "Read the installed dependency contract from another home. "
+            "Defaults to the current HOME."
+        ),
+    )
+    parser.add_argument(
+        "--contract",
+        metavar="PATH",
+        help="Use an explicit dependency contract path.",
+    )
+    parser.add_argument(
+        "--optional",
+        metavar="ID",
+        action="append",
+        default=[],
+        help=(
+            "Include one optional dependency group by contract id. "
+            "Repeat for multiple features."
+        ),
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON only.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    os_release = Path(
+        os.environ.get("NYVOREL_BOOTSTRAP_OS_RELEASE", "/etc/os-release")
+    )
+    distro = parse_os_release(os_release)
+    if distro != "arch":
+        print(
+            f"ERROR: Nyvorel bootstrap planning supports Arch Linux; detected {distro}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    home = (
+        Path(args.home).expanduser().resolve(strict=False)
+        if args.home
+        else Path.home().resolve(strict=False)
+    )
+    contract_path = (
+        Path(args.contract).expanduser().resolve(strict=False)
+        if args.contract
+        else home / CONTRACT_DESTINATION
+    )
+
+    try:
+        contract = load_contract(contract_path)
+
+        pacman = os.environ.get("NYVOREL_PACMAN_BIN") or shutil.which("pacman")
+        if not pacman:
+            raise BootstrapError("pacman is unavailable on the supported Arch target")
+
+        search_path = os.environ.get("NYVOREL_BOOTSTRAP_SEARCH_PATH")
+        plan = build_plan(
+            contract,
+            list(args.optional),
+            pacman,
+            search_path,
+        )
+    except BootstrapError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(plan, indent=2))
+    else:
+        print_human(plan, contract_path, pacman)
+
+    return 1 if plan["manual_required"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -22,7 +22,7 @@ contract_path = Path(sys.argv[1])
 root = Path(sys.argv[2]).resolve()
 data = json.loads(contract_path.read_text())
 
-assert data.get("schema") == 1, "unsupported dependency contract schema"
+assert data.get("schema") == 2, "unsupported dependency contract schema"
 assert data.get("product") == "Nyvorel", "wrong dependency contract product"
 
 platform = data.get("platform")
@@ -35,8 +35,22 @@ policy = data.get("policy")
 assert isinstance(policy, dict)
 assert policy.get("automatic_installation") is False
 
+bootstrap = policy.get("bootstrap")
+assert isinstance(bootstrap, dict)
+assert bootstrap == {
+    "mode": "plan-only",
+    "package_manager": "pacman",
+    "repository_probe": "pacman -Si",
+    "default_scope": "required",
+    "optional_selection": "explicit-id-only",
+    "refresh_sync_database": False,
+    "package_mutation": False,
+    "aur_helper_invocation": False,
+}
+
 classes = ("required", "optional", "test-only")
 all_ids: set[str] = set()
+by_id: dict[str, dict] = {}
 
 for class_name in classes:
     entries = data.get(class_name)
@@ -49,16 +63,27 @@ for class_name in classes:
         assert isinstance(dep_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]*", dep_id), dep_id
         assert dep_id not in all_ids, f"duplicate dependency id: {dep_id}"
         all_ids.add(dep_id)
+        by_id[dep_id] = entry
 
-        commands = entry.get("commands_any_of")
-        assert isinstance(commands, list) and commands, f"{dep_id}: commands_any_of"
+        command_keys = [
+            key
+            for key in ("commands_any_of", "commands_all_of")
+            if isinstance(entry.get(key), list) and entry.get(key)
+        ]
+        assert len(command_keys) == 1, f"{dep_id}: exactly one command selector required"
+        commands = entry[command_keys[0]]
         assert len(commands) == len(set(commands)), f"{dep_id}: duplicate command"
         for command in commands:
             assert isinstance(command, str) and command
             assert "/" not in command, f"{dep_id}: commands must be executable names"
 
-        packages = entry.get("arch_packages_any_of")
-        assert isinstance(packages, list) and packages, f"{dep_id}: arch_packages_any_of"
+        package_keys = [
+            key
+            for key in ("arch_packages_any_of", "arch_packages_all_of")
+            if isinstance(entry.get(key), list) and entry.get(key)
+        ]
+        assert len(package_keys) == 1, f"{dep_id}: exactly one package selector required"
+        packages = entry[package_keys[0]]
         assert len(packages) == len(set(packages)), f"{dep_id}: duplicate package hint"
         for package in packages:
             assert isinstance(package, str) and package
@@ -68,8 +93,7 @@ for class_name in classes:
         assert isinstance(evidence, list) and evidence, f"{dep_id}: evidence"
         for raw in evidence:
             assert isinstance(raw, str) and raw
-            path = root / raw
-            assert path.exists(), f"{dep_id}: evidence path does not exist: {raw}"
+            assert (root / raw).exists(), f"{dep_id}: evidence path does not exist: {raw}"
 
         if class_name == "optional":
             feature = entry.get("feature")
@@ -88,13 +112,28 @@ required_minimum = {
     "dbus-session",
     "git",
 }
-missing = sorted(required_minimum - required_ids)
-assert not missing, f"required core dependency id(s) missing: {missing}"
+assert not (required_minimum - required_ids)
+
+assert "commands_any_of" in by_id["quickshell"]
+assert by_id["quickshell"]["commands_any_of"] == ["qs", "quickshell"]
+
+assert "commands_all_of" in by_id["coreutils"]
+assert "commands_all_of" in by_id["clipboard-wayland"]
+assert "commands_all_of" in by_id["screenshots"]
+assert "arch_packages_all_of" in by_id["screenshots"]
+assert "commands_any_of" in by_id["image-processing"]
+assert "commands_all_of" in by_id["process-tools"]
+
+assert "commands_any_of" in by_id["container-runtime"]
+assert "commands_all_of" in by_id["clean-machine-bootstrap"]
+assert "arch_packages_all_of" in by_id["clean-machine-bootstrap"]
 
 print(f"required_dependencies={len(data['required'])}")
 print(f"optional_dependencies={len(data['optional'])}")
 print(f"test_only_dependencies={len(data['test-only'])}")
 print(f"total_dependencies={len(all_ids)}")
+print("contract_schema=2")
+print("bootstrap_policy=plan-only")
 PY
 
-echo "PASS  dependency contract schema, classes, evidence, and core baseline"
+echo "PASS  dependency contract schema, selectors, evidence, and bootstrap policy"

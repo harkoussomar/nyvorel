@@ -27,9 +27,11 @@ required_files=(
   quickshell/shell.qml
   bin/nyvorel
   bin/nyvorel-doctor
+  bin/nyvorel-bootstrap
   bin/nyvorel-update
   scripts/ci/test-clean-machine.sh
   scripts/ci/test-dependency-contract.sh
+  scripts/ci/test-bootstrap.sh
 )
 
 required_dirs=(

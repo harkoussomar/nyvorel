@@ -81,3 +81,18 @@ jobs:
           NYVOREL_CONTAINER_RUNTIME: docker
           NYVOREL_CLEAN_MACHINE_IMAGE: archlinux:base
         run: bash scripts/ci/test-clean-machine.sh
+
+  bootstrap-plan:
+    name: Bootstrap planning
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate read-only bootstrap planning on pristine Arch
+        env:
+          NYVOREL_CONTAINER_RUNTIME: docker
+          NYVOREL_BOOTSTRAP_IMAGE: archlinux:base
+        run: bash scripts/ci/test-bootstrap.sh

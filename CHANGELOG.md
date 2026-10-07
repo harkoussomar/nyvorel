@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 5C
+- Added a plan-only `nyvorel bootstrap` command for required and explicitly selected optional dependencies.
+- Upgraded the dependency contract to schema 2 with explicit any/all command and package semantics.
+- Added pristine-Arch bootstrap planning regression coverage proving that only read-only `pacman -Si` probes occur.
+
 ### Post-release infrastructure — Phase 5B
 - Installed the canonical Arch dependency contract as managed Nyvorel state.
 - Added read-only required/optional dependency preflight diagnostics to `nyvorel doctor`.

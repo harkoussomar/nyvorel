@@ -82,8 +82,13 @@ import sys
 
 data = json.loads(Path(sys.argv[1]).read_text())
 for entry in data["required"]:
-    commands = entry["commands_any_of"]
-    print(commands[0])
+    if isinstance(entry.get("commands_all_of"), list):
+        commands = entry["commands_all_of"]
+        for command in commands:
+            print(command)
+    else:
+        commands = entry["commands_any_of"]
+        print(commands[0])
 PYDEPS
 
 while IFS= read -r command; do
@@ -106,7 +111,7 @@ import sys
 data = json.loads(Path(sys.argv[1]).read_text())
 checks = {item["id"]: item for item in data["checks"]}
 
-assert data["doctor_version"] == 2
+assert data["doctor_version"] == 3
 assert data["dependency_checks"] is True
 assert checks["dependencies.contract"]["status"] == "PASS"
 assert checks["dependencies.required"]["status"] == "PASS"

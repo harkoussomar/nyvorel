@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 SCHEMA = 1
-DOCTOR_VERSION = 2
+DOCTOR_VERSION = 3
 HOME_TOKEN = "@" + "HOME" + "@"
 DEPENDENCY_CONTRACT_DESTINATION = ".local/share/nyvorel/dependencies/arch.json"
 
@@ -32,6 +32,7 @@ CRITICAL_DESTINATIONS = [
     ".local/bin/nyvorel",
     ".local/bin/nyvorel-doctor",
     ".local/bin/nyvorel-update",
+    ".local/bin/nyvorel-bootstrap",
     ".local/bin/nyvorel-settings",
     DEPENDENCY_CONTRACT_DESTINATION,
     ".config/systemd/user/nyvorel-quickshell.service",
@@ -164,10 +165,11 @@ class Doctor:
         cli = self.home / ".local/bin/nyvorel"
         doctor = self.home / ".local/bin/nyvorel-doctor"
         updater = self.home / ".local/bin/nyvorel-update"
+        bootstrap = self.home / ".local/bin/nyvorel-bootstrap"
 
         missing = [
             str(path.relative_to(self.home))
-            for path in (shell, cli, doctor, updater)
+            for path in (shell, cli, doctor, updater, bootstrap)
             if not path.is_file()
         ]
 
@@ -184,7 +186,7 @@ class Doctor:
                 "install.core",
                 "PASS",
                 "Installed core",
-                "Shell, CLI, doctor, and update helper are present.",
+                "Shell, CLI, doctor, update helper, and bootstrap planner are present.",
             )
 
         systemd_dir = self.home / ".config/systemd/user"
@@ -528,7 +530,7 @@ class Doctor:
             return
 
         errors: list[str] = []
-        if data.get("schema") != 1:
+        if data.get("schema") != 2:
             errors.append(f"schema={data.get('schema')!r}")
         if data.get("product") != "Nyvorel":
             errors.append(f"product={data.get('product')!r}")
@@ -542,20 +544,33 @@ class Doctor:
                 if not isinstance(entry, dict):
                     errors.append(f"{class_name} contains non-object entry")
                     break
-                commands = entry.get("commands_any_of")
-                packages = entry.get("arch_packages_any_of")
+                if not isinstance(entry.get("id"), str):
+                    errors.append(f"invalid {class_name} dependency id")
+                    break
+
+                command_selectors = [
+                    key
+                    for key in ("commands_any_of", "commands_all_of")
+                    if isinstance(entry.get(key), list) and entry.get(key)
+                ]
+                package_selectors = [
+                    key
+                    for key in ("arch_packages_any_of", "arch_packages_all_of")
+                    if isinstance(entry.get(key), list) and entry.get(key)
+                ]
+
+                if len(command_selectors) != 1 or len(package_selectors) != 1:
+                    errors.append(f"invalid selector contract: {entry.get('id')!r}")
+                    break
+
+                commands = entry[command_selectors[0]]
+                packages = entry[package_selectors[0]]
                 if (
-                    not isinstance(entry.get("id"), str)
-                    or not isinstance(commands, list)
-                    or not commands
-                    or not all(isinstance(value, str) and value for value in commands)
-                    or not isinstance(packages, list)
-                    or not packages
+                    not all(isinstance(value, str) and value for value in commands)
                     or not all(isinstance(value, str) and value for value in packages)
                 ):
                     errors.append(f"invalid {class_name} entry: {entry.get('id')!r}")
                     break
-
         if errors:
             self.add(
                 "dependencies.contract",
@@ -589,18 +604,40 @@ class Doctor:
 
     @staticmethod
     def _dependency_result(entry: dict[str, Any]) -> dict[str, Any]:
-        commands = list(entry["commands_any_of"])
+        if isinstance(entry.get("commands_all_of"), list):
+            command_mode = "all"
+            commands = list(entry["commands_all_of"])
+        else:
+            command_mode = "any"
+            commands = list(entry["commands_any_of"])
+
+        if isinstance(entry.get("arch_packages_all_of"), list):
+            package_mode = "all"
+            packages = list(entry["arch_packages_all_of"])
+        else:
+            package_mode = "any"
+            packages = list(entry["arch_packages_any_of"])
+
         found = [
             {"command": command, "path": path}
             for command in commands
             if (path := shutil.which(command)) is not None
         ]
+        found_names = {item["command"] for item in found}
+        missing_commands = [
+            command for command in commands if command not in found_names
+        ]
+        satisfied = bool(found) if command_mode == "any" else not missing_commands
+
         return {
             "id": entry["id"],
-            "satisfied": bool(found),
-            "commands_any_of": commands,
+            "satisfied": satisfied,
+            "command_mode": command_mode,
+            "commands": commands,
             "found": found,
-            "arch_packages_any_of": list(entry["arch_packages_any_of"]),
+            "missing_commands": missing_commands,
+            "package_mode": package_mode,
+            "package_hints": packages,
             **(
                 {"feature": entry["feature"]}
                 if isinstance(entry.get("feature"), str)
@@ -612,12 +649,13 @@ class Doctor:
     def _missing_dependency_detail(items: list[dict[str, Any]]) -> str:
         parts = []
         for item in items[:10]:
-            commands = "/".join(item["commands_any_of"])
-            packages = "/".join(item["arch_packages_any_of"])
+            joiner = "+" if item["command_mode"] == "all" else "/"
+            commands = joiner.join(item["commands"])
+            package_joiner = "+" if item["package_mode"] == "all" else "/"
+            packages = package_joiner.join(item["package_hints"])
             parts.append(f"{item['id']} ({commands}; package hint: {packages})")
         suffix = "" if len(items) <= 10 else f"; +{len(items) - 10} more"
         return ", ".join(parts) + suffix
-
     def check_dependencies(self) -> None:
         if self.dependency_contract is None:
             self.dependency_report["required"]["status"] = "SKIP"

@@ -2,8 +2,9 @@
 
 Nyvorel targets an existing **Arch Linux + Hyprland + Quickshell** desktop.
 
-The canonical machine-readable contract is [`dependencies/arch.json`](dependencies/arch.json).
-This document explains the policy around it.
+The canonical machine-readable contract is
+[`dependencies/arch.json`](dependencies/arch.json). This document explains the
+policy around it.
 
 ## Classification
 
@@ -16,48 +17,65 @@ or the safe update/recovery lifecycle.
 A missing required dependency means the machine does not satisfy the supported
 Nyvorel baseline.
 
-The current required baseline is intentionally small:
-
-- Bash and standard GNU userland used by lifecycle/runtime scripts;
-- Python 3;
-- Hyprland (`hyprctl`);
-- Quickshell (`qs` or `quickshell`);
-- systemd user services;
-- D-Bus session environment integration;
-- Git for the safe updater source contract.
-
-Quickshell is provider-based: either the repository package name `quickshell`
-or the development provider `quickshell-git` may satisfy the package hint,
-while runtime detection is based on the executable.
+The core includes Bash/GNU userland, Python 3, Hyprland, Quickshell, systemd
+user services, D-Bus session integration, and Git for the safe updater.
 
 ### Optional
 
 `optional` entries belong to bounded features such as clipboard history,
 screenshots, OCR, recording, media controls, appearance processing, keyring,
-fingerprint, WARP and other integrations.
+fingerprint, WARP, and other integrations.
 
-A missing optional dependency must not make unrelated Nyvorel functionality
-unsupported. Phase 5B will expose these as feature-level diagnostics rather
-than core failures.
+A missing optional dependency does not make unrelated Nyvorel functionality
+unsupported. `nyvorel doctor` reports it as a feature-level warning.
 
 ### Test-only
 
 `test-only` entries are release/validation infrastructure. They are not user
-runtime dependencies. For example, Podman/Docker is used by the pristine-Arch
-clean-machine regression.
+runtime dependencies. Podman/Docker, for example, is used by pristine-Arch
+regressions.
 
-## Package names are hints, commands are the runtime truth
+## Command and package group semantics
 
-The contract keeps runtime executables separate from Arch package-provider
-hints. This matters for provider variants such as Quickshell and for tools
-whose package origin can differ between official repositories and the AUR.
+Schema 2 distinguishes alternatives from sets that must all exist:
 
-Phase 5A does **not** install packages and does not mutate the live desktop.
+- `commands_any_of`: one executable is enough, such as `qs` or `quickshell`;
+- `commands_all_of`: every listed executable is required by that dependency
+  group, such as both `grim` and `slurp`;
+- `arch_packages_any_of`: provider alternatives; the planner selects the first
+  package visible through the configured pacman repositories;
+- `arch_packages_all_of`: every listed package is required for that group.
+
+Runtime command detection remains the truth. Package names are planning hints.
 
 ## Bootstrap policy
 
-Automatic dependency installation is deliberately disabled in schema 1.
+Nyvorel bootstrap is deliberately **plan-only**.
 
-The next phases will use this contract to add read-only preflight diagnostics,
-then explicitly decide which packages Nyvorel may offer to bootstrap. No
-package-manager mutation is implied by this file.
+```sh
+nyvorel bootstrap
+nyvorel bootstrap --json
+nyvorel bootstrap --optional screenshots
+nyvorel bootstrap --optional screenshots --optional ocr --json
+```
+
+The default scope contains only missing required dependencies. Optional
+dependencies are included only when their exact contract IDs are requested.
+
+The planner may perform the read-only repository probe `pacman -Si` to
+distinguish packages available through the user's configured pacman
+repositories from providers that need a manual decision.
+
+Nyvorel bootstrap does **not**:
+
+- install or remove packages;
+- run `pacman -S`, `pacman -Sy`, or `pacman -Syu`;
+- refresh the pacman sync database;
+- invoke AUR helpers such as `yay` or `paru`;
+- modify Nyvorel configuration or the desktop session.
+
+The output is a reviewable package plan. Install reviewed packages through the
+machine's normal Arch full-upgrade/package-management workflow, then rerun
+`nyvorel doctor --dependencies`.
+
+Automatic package installation remains disabled.

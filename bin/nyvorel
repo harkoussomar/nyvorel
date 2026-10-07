@@ -9,12 +9,14 @@ Nyvorel command line
 
 Usage:
   nyvorel doctor [options]
+  nyvorel bootstrap [options]
   nyvorel update [options]
   nyvorel settings
   nyvorel help
 
 Commands:
   doctor    Run read-only Nyvorel installation/session diagnostics.
+  bootstrap Build a read-only Arch dependency package plan.
   update    Safely update the manifest-backed Nyvorel installation.
   settings  Open Nyvorel Settings.
   help      Show this help.
@@ -23,6 +25,8 @@ Examples:
   nyvorel doctor
   nyvorel doctor --deep
   nyvorel doctor --json
+  nyvorel bootstrap
+  nyvorel bootstrap --optional screenshots
   nyvorel update --dry-run
   nyvorel update --fetch --yes
 EOF
@@ -32,6 +36,10 @@ case "${1:-help}" in
   doctor)
     shift
     exec "$BIN_DIR/nyvorel-doctor" "$@"
+    ;;
+  bootstrap)
+    shift
+    exec "$BIN_DIR/nyvorel-bootstrap" "$@"
     ;;
   update)
     shift
