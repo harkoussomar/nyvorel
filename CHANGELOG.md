@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 6D
+- Added a deterministic synthetic `0.1.0 -> 0.1.1` stable patch-upgrade matrix with stable no-op and downgrade-policy coverage.
+- Added same-version development/stable switching assertions and original-backup recovery proof across multiple updates.
+- Added the same upgrade/recovery matrix to pristine Arch validation and closed the Phase 6 release/update infrastructure contract.
+
 ### Post-release infrastructure — Phase 6C2
 - Added explicit plan-first stable release publication tooling gated by exact main CI and tagged-commit CI.
 - Added resumable partial-publication handling while refusing all existing-tag movement or release retargeting.

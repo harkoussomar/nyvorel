@@ -41,6 +41,8 @@ required_files=(
   scripts/release/preflight.sh
   scripts/ci/test-release-publication.sh
   scripts/release/publish.sh
+  scripts/ci/test-upgrade-matrix.sh
+  scripts/ci/test-upgrade-matrix-clean-machine.sh
 )
 
 required_dirs=(

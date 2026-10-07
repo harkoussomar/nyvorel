@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "product": "Nyvorel",
-  "policy_status": "release-tooling-implemented",
+  "policy_status": "phase6-complete",
   "channels": {
     "stable": {
       "user_default": true,
@@ -75,7 +75,7 @@
     "development_channel_opt_in": "implemented-6B",
     "release_preflight_automation": "candidate-preflight-implemented-6C1",
     "installer_general_version_support": "implemented-6C1",
-    "upgrade_path_matrix": "pending-6D",
+    "upgrade_path_matrix": "implemented-6D",
     "release_publication_tooling": "implemented-6C2"
   },
   "legacy_behavior": {
@@ -113,5 +113,18 @@
     "authoritative_source": "GitHub Releases API",
     "selection": "highest non-draft, non-prerelease strict semver tag",
     "source_tree_pins_current_stable": false
+  },
+  "upgrade_validation": {
+    "implementation_phase": "6D",
+    "synthetic_path": "0.1.0 -> 0.1.1",
+    "stable_patch_upgrade": "proven",
+    "stable_post_upgrade_noop": "proven",
+    "stable_remote_downgrade": "refused",
+    "explicit_source_downgrade": "explicit-override-only",
+    "development_same_version_commit": "allowed",
+    "development_to_stable_same_version_different_commit": "refused",
+    "original_backup_continuity_after_multi_step_update": "proven",
+    "uninstall_recovery_after_upgrade": "proven",
+    "pristine_arch_matrix": "proven"
   }
 }

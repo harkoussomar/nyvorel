@@ -444,12 +444,14 @@ A dedicated Nyvorel documentation website is planned as the project grows.
 `v0.1.0` establishes the public source, release model, portability boundary,
 installer, and recovery lifecycle.
 
+Post-release infrastructure now includes deterministic dependency/bootstrap
+validation, stable/development update channels, release preflight/publication
+tooling, and pristine-Arch install/upgrade/recovery regression coverage.
+
 Next focus areas include:
 
 - richer visual showcase and project website;
 - complete user and technical documentation;
-- automated release and installer validation;
-- clean-machine installation testing;
 - packaging and distribution improvements.
 
 ## Contributing

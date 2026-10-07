@@ -149,6 +149,23 @@ to the exact candidate commit. If code must change after an immutable tag has
 been published, prepare a new semantic version rather than retargeting the old
 tag.
 
+## Upgrade-path guarantees
+
+Phase 6D proves the release/update lifecycle with a synthetic `v0.1.0` to
+`v0.1.1` path without publishing a real `v0.1.1`.
+
+The matrix covers:
+
+- stable patch upgrade from `0.1.0` to `0.1.1`;
+- stable post-upgrade no-op/idempotence;
+- remote stable downgrade refusal;
+- explicit-source downgrade only with the explicit override;
+- development same-version commit updates;
+- refusal to reinterpret a development same-version commit as stable;
+- original pre-Nyvorel backup continuity across multiple updates;
+- uninstall/recovery after the upgraded/development state;
+- the same matrix inside a pristine Arch userspace.
+
 ## Release invariants
 
 A future stable release is invalid if any of these disagree:
@@ -173,4 +190,8 @@ Phase 6 is intentionally split:
 - **6C1** — generic installer VERSION support + deterministic, non-publishing release candidate preflight — **closed**;
 - **6C2A** — safe publication engine + isolated publication regression — **closed**;
 - **6C2B** — machine-readable publication policy + maintainer documentation — **closed**;
-- **6D** — prove upgrade, downgrade, channel, clean-machine, and recovery paths.
+- **6D** — upgrade/downgrade/channel/clean-machine/recovery matrix — **closed**.
+
+**Phase 6 is closed.** The release/update contract, stable/development
+resolution, release candidate validation, publication engine, and synthetic
+upgrade/recovery paths are all covered by deterministic regression tests.

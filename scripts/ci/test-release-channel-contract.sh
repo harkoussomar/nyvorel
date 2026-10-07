@@ -23,7 +23,7 @@ policy = json.loads(Path(sys.argv[1]).read_text())
 
 assert policy["schema"] == 2
 assert policy["product"] == "Nyvorel"
-assert policy["policy_status"] == "release-tooling-implemented"
+assert policy["policy_status"] == "phase6-complete"
 assert "current_stable" not in policy
 
 anchors = policy["immutable_release_anchors"]
@@ -83,7 +83,7 @@ assert status == {
     "development_channel_opt_in": "implemented-6B",
     "release_preflight_automation": "candidate-preflight-implemented-6C1",
     "installer_general_version_support": "implemented-6C1",
-    "upgrade_path_matrix": "pending-6D",
+    "upgrade_path_matrix": "implemented-6D",
     "release_publication_tooling": "implemented-6C2",
 }
 
@@ -102,6 +102,21 @@ assert "next_patch" not in maintenance
 assert maintenance["next_patch_policy"] == "increment-highest-stable-patch"
 assert maintenance["existing_release_tags_may_move"] is False
 assert maintenance["existing_github_releases_may_be_retargeted"] is False
+
+upgrade = policy["upgrade_validation"]
+assert upgrade == {
+    "implementation_phase": "6D",
+    "synthetic_path": "0.1.0 -> 0.1.1",
+    "stable_patch_upgrade": "proven",
+    "stable_post_upgrade_noop": "proven",
+    "stable_remote_downgrade": "refused",
+    "explicit_source_downgrade": "explicit-override-only",
+    "development_same_version_commit": "allowed",
+    "development_to_stable_same_version_different_commit": "refused",
+    "original_backup_continuity_after_multi_step_update": "proven",
+    "uninstall_recovery_after_upgrade": "proven",
+    "pristine_arch_matrix": "proven",
+}
 
 tooling = policy["release_tooling"]
 assert tooling["candidate_preflight"] == "scripts/release/preflight.sh"
@@ -127,6 +142,8 @@ print("publication_confirmation=--publish --yes")
 print("main_ci_required=true")
 print("tag_ci_required=true")
 print("maintenance_line=0.1.x")
+print("upgrade_matrix=implemented-6D")
+print("phase6_status=complete")
 PY
 
 VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
