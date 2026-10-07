@@ -1,10 +1,35 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+PACKAGE_MODE=0
+PACKAGE_LIB_ROOT="${NYVOREL_PACKAGE_LIB_ROOT:-/usr/lib/nyvorel}"
+PACKAGE_SHARE_ROOT="${NYVOREL_PACKAGE_SOURCE_ROOT:-/usr/share/nyvorel}"
+PACKAGE_HELPER_ROOT="${NYVOREL_PACKAGE_HELPER_ROOT:-$PACKAGE_LIB_ROOT/bin}"
+PACKAGE_UNIT_ROOT="${NYVOREL_PACKAGE_UNIT_ROOT:-/usr/lib/systemd/user}"
+PACKAGE_DEPENDENCY_CONTRACT="${NYVOREL_PACKAGE_DEPENDENCY_CONTRACT:-$PACKAGE_SHARE_ROOT/dependencies/arch.json}"
+
+if [[ "${NYVOREL_PACKAGE_MODE:-0}" == "1" || "$SCRIPT_PATH" == "/usr/bin/nyvorel" ]]; then
+  PACKAGE_MODE=1
+  HELPER_DIR="$PACKAGE_HELPER_ROOT"
+
+  export NYVOREL_PACKAGE_MODE=1
+  export NYVOREL_SOURCE_KIND=package
+  export NYVOREL_SOURCE_ROOT="$PACKAGE_SHARE_ROOT"
+  export NYVOREL_PACKAGE_SOURCE_ROOT="$PACKAGE_SHARE_ROOT"
+  export NYVOREL_PACKAGE_LIB_ROOT="$PACKAGE_LIB_ROOT"
+  export NYVOREL_PACKAGE_HELPER_ROOT="$PACKAGE_HELPER_ROOT"
+  export NYVOREL_PACKAGE_UNIT_ROOT="$PACKAGE_UNIT_ROOT"
+  export NYVOREL_PACKAGE_DEPENDENCY_CONTRACT="$PACKAGE_DEPENDENCY_CONTRACT"
+  export NYVOREL_PACKAGE_PUBLIC_CLI="/usr/bin/nyvorel"
+else
+  HELPER_DIR="$BIN_DIR"
+fi
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Nyvorel command line
 
 Usage:
@@ -12,43 +37,62 @@ Usage:
   nyvorel bootstrap [options]
   nyvorel update [options]
   nyvorel settings
+  nyvorel install [options]       # package mode
+  nyvorel uninstall [options]     # package mode
   nyvorel help
 
 Commands:
-  doctor    Run read-only Nyvorel installation/session diagnostics.
-  bootstrap Build a read-only Arch dependency package plan.
-  update    Safely update the manifest-backed Nyvorel installation.
-  settings  Open Nyvorel Settings.
-  help      Show this help.
+  doctor      Run read-only Nyvorel installation/session diagnostics.
+  bootstrap   Build a read-only Arch dependency package plan.
+  update      Update user materialization. Package mode never mutates /usr.
+  settings    Open Nyvorel Settings.
+  install     Materialize/sync packaged Nyvorel into the current user HOME.
+  uninstall   Recover/remove user materialization; package files stay pacman-owned.
+  help        Show this help.
 
-Examples:
-  nyvorel doctor
-  nyvorel doctor --deep
-  nyvorel doctor --json
-  nyvorel bootstrap
-  nyvorel bootstrap --list-optional
-  nyvorel bootstrap --optional screenshots
-  nyvorel update --dry-run
-  nyvorel update --fetch --yes
-EOF
+Package migration:
+  /usr/bin/nyvorel install --migrate-source-clone --yes
+
+Package updates:
+  pacman/AUR updates /usr first; then run `nyvorel update --dry-run` and
+  `nyvorel update --yes` to explicitly sync the user materialization.
+USAGE
+}
+
+require_package_mode() {
+  if (( ! PACKAGE_MODE )); then
+    printf 'ERROR: %s is available from the Arch package CLI.\n' "$1" >&2
+    printf 'Source-clone installations continue to use ./install.sh and ./uninstall.sh.\n' >&2
+    exit 2
+  fi
 }
 
 case "${1:-help}" in
   doctor)
     shift
-    exec "$BIN_DIR/nyvorel-doctor" "$@"
+    exec "$HELPER_DIR/nyvorel-doctor" "$@"
     ;;
   bootstrap)
     shift
-    exec "$BIN_DIR/nyvorel-bootstrap" "$@"
+    exec "$HELPER_DIR/nyvorel-bootstrap" "$@"
     ;;
   update)
     shift
-    exec "$BIN_DIR/nyvorel-update" "$@"
+    exec "$HELPER_DIR/nyvorel-update" "$@"
     ;;
   settings)
     shift
-    exec "$BIN_DIR/nyvorel-settings" "$@"
+    exec "$HELPER_DIR/nyvorel-settings" "$@"
+    ;;
+  install)
+    shift
+    require_package_mode install
+    exec "$HELPER_DIR/nyvorel-package-install" "$@"
+    ;;
+  uninstall)
+    shift
+    require_package_mode uninstall
+    exec "$PACKAGE_LIB_ROOT/uninstall.sh" "$@"
     ;;
   help|-h|--help)
     usage

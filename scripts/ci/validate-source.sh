@@ -27,6 +27,11 @@ required_files=(
   release/channel-policy.json
   PACKAGING.md
   packaging/ownership-contract.json
+  packaging/package-layout.json
+  packaging/nyvorel-package-install
+  PKGBUILD
+  .SRCINFO
+  nyvorel.install
   assets/nyvorel.svg
   quickshell/shell.qml
   bin/nyvorel
@@ -46,6 +51,8 @@ required_files=(
   scripts/ci/test-upgrade-matrix.sh
   scripts/ci/test-upgrade-matrix-clean-machine.sh
   scripts/ci/test-packaging-ownership-contract.sh
+  scripts/ci/test-package-layout.sh
+  scripts/ci/test-package-lifecycle.sh
 )
 
 required_dirs=(

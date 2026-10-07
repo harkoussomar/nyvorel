@@ -449,14 +449,17 @@ Post-release infrastructure now includes deterministic dependency/bootstrap
 validation, stable/development update channels, release preflight/publication
 tooling, and pristine-Arch install/upgrade/recovery regression coverage.
 
-Phase 7A locks the Arch packaging ownership boundary: package-managed
-immutable files belong under `/usr`, while user configuration, manifests,
-backups, and runtime state remain under the recoverable per-user lifecycle.
-Package implementation begins in Phase 7B.
+Phase 7B implements the Arch package boundary: `PKGBUILD`, `.SRCINFO`,
+package-owned `/usr` payload, package-aware user materialization, explicit
+source-clone migration, package sync, and pristine-Arch package lifecycle
+regression are now part of the repository.
+
+The package is not published to AUR yet and no real `v0.1.1` release is
+created by Phase 7B.
 
 Next focus areas include:
 
-- Phase 7B Arch package filesystem map and `PKGBUILD`;
+- package installation UX and release-distribution polish;
 - richer visual showcase and project website;
 - complete user and technical documentation.
 

@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SOURCE_ROOT="${NYVOREL_SOURCE_ROOT:-/usr/share/nyvorel}"
+LIB_ROOT="${NYVOREL_PACKAGE_LIB_ROOT:-/usr/lib/nyvorel}"
+HELPER_ROOT="${NYVOREL_PACKAGE_HELPER_ROOT:-$LIB_ROOT/bin}"
+
+TARGET_HOME="${HOME:?HOME is not set}"
+MIGRATE=0
+PASSTHROUGH=()
+
+usage() {
+  cat <<'USAGE'
+Nyvorel package user-materialization command
+
+Usage:
+  nyvorel install [options]
+
+Options:
+  --target-home PATH       Operate on another home (testing/staging).
+  --migrate-source-clone   Explicitly convert an existing source-clone
+                           installation to package ownership.
+  --yes                    Confirm materialization/update.
+  --dry-run                Preview only.
+  --force-changed          Archive changed managed files when syncing/migrating.
+  --activate               Activate/restart user services.
+  --no-activate            Do not touch user services.
+  -h, --help               Show this help.
+
+Fresh package installation uses the package-owned payload.
+Existing package installations are explicitly synced through the manifest
+transaction. Source-clone installations are never migrated implicitly.
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --target-home)
+      (($# >= 2)) || { echo "ERROR: --target-home requires PATH" >&2; exit 2; }
+      TARGET_HOME="$2"
+      PASSTHROUGH+=("$1" "$2")
+      shift 2
+      ;;
+    --migrate-source-clone)
+      MIGRATE=1
+      shift
+      ;;
+    --yes|--dry-run|--force-changed|--activate|--no-activate)
+      PASSTHROUGH+=("$1")
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+TARGET_HOME="$(python3 - "$TARGET_HOME" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).expanduser().resolve(strict=False))
+PY
+)"
+
+[[ "$TARGET_HOME" != "/" ]] || { echo "ERROR: refusing / as target home" >&2; exit 1; }
+[[ -d "$SOURCE_ROOT" ]] || { echo "ERROR: package payload missing: $SOURCE_ROOT" >&2; exit 1; }
+[[ -x "$LIB_ROOT/install.sh" ]] || { echo "ERROR: package lifecycle installer missing" >&2; exit 1; }
+[[ -x "$HELPER_ROOT/nyvorel-update" ]] || { echo "ERROR: package updater helper missing" >&2; exit 1; }
+
+POINTER="$TARGET_HOME/.local/state/nyvorel/current-install"
+
+if [[ ! -s "$POINTER" ]]; then
+  (( MIGRATE == 0 )) || {
+    echo "ERROR: --migrate-source-clone requested, but no current Nyvorel installation exists." >&2
+    exit 1
+  }
+
+  export NYVOREL_SOURCE_KIND=package
+  export NYVOREL_SOURCE_ROOT="$SOURCE_ROOT"
+  exec "$LIB_ROOT/install.sh" "${PASSTHROUGH[@]}"
+fi
+
+SOURCE_KIND="$(
+  python3 - "$POINTER" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+pointer=Path(sys.argv[1])
+raw=pointer.read_text().strip()
+state=Path(raw).expanduser()
+if not state.is_absolute():
+    state=(pointer.parent/state).resolve(strict=False)
+manifest=state/"manifest.json" if state.is_dir() else state
+if manifest.name!="manifest.json":
+    manifest=state/"manifest.json"
+data=json.loads(manifest.read_text())
+print(data.get("source_kind") or "source-clone")
+PY
+)"
+
+case "$SOURCE_KIND" in
+  package)
+    (( MIGRATE == 0 )) || {
+      echo "ERROR: installation is already package-owned; remove --migrate-source-clone." >&2
+      exit 2
+    }
+    exec "$HELPER_ROOT/nyvorel-update" \
+      --package-source "$SOURCE_ROOT" \
+      "${PASSTHROUGH[@]}"
+    ;;
+
+  source-clone)
+    (( MIGRATE == 1 )) || {
+      cat >&2 <<'MSG'
+ERROR: an existing source-clone installation was detected.
+Package conversion is intentionally explicit.
+
+Review first:
+  /usr/bin/nyvorel install --migrate-source-clone --dry-run
+
+Then migrate:
+  /usr/bin/nyvorel install --migrate-source-clone --yes
+MSG
+      exit 3
+    }
+
+    exec "$HELPER_ROOT/nyvorel-update" \
+      --package-source "$SOURCE_ROOT" \
+      --migrate-to-package \
+      "${PASSTHROUGH[@]}"
+    ;;
+
+  *)
+    echo "ERROR: unsupported current source_kind: $SOURCE_KIND" >&2
+    exit 1
+    ;;
+esac

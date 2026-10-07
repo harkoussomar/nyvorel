@@ -92,6 +92,19 @@ class Doctor:
         self.checks: list[Check] = []
         self.manifest: dict[str, Any] | None = None
         self.manifest_path: Path | None = None
+        self.source_kind = "source-clone"
+        self.package_public_cli = Path(
+            os.environ.get("NYVOREL_PACKAGE_PUBLIC_CLI", "/usr/bin/nyvorel")
+        )
+        self.package_helper_root = Path(
+            os.environ.get("NYVOREL_PACKAGE_HELPER_ROOT", "/usr/lib/nyvorel/bin")
+        )
+        self.package_unit_root = Path(
+            os.environ.get("NYVOREL_PACKAGE_UNIT_ROOT", "/usr/lib/systemd/user")
+        )
+        self.package_dependency_contract = os.environ.get(
+            "NYVOREL_PACKAGE_DEPENDENCY_CONTRACT"
+        )
         self.dependency_contract: dict[str, Any] | None = None
         self.dependency_report: dict[str, Any] = {
             "enabled": dependency_checks,
@@ -162,56 +175,135 @@ class Doctor:
 
     def check_installation_files(self) -> None:
         shell = self.home / ".config/quickshell/nyvorel/shell.qml"
-        cli = self.home / ".local/bin/nyvorel"
-        doctor = self.home / ".local/bin/nyvorel-doctor"
-        updater = self.home / ".local/bin/nyvorel-update"
-        bootstrap = self.home / ".local/bin/nyvorel-bootstrap"
 
-        missing = [
-            str(path.relative_to(self.home))
-            for path in (shell, cli, doctor, updater, bootstrap)
-            if not path.is_file()
-        ]
+        if self.source_kind == "package":
+            required = [
+                shell,
+                self.package_public_cli,
+                self.package_helper_root / "nyvorel-doctor",
+                self.package_helper_root / "nyvorel-update",
+                self.package_helper_root / "nyvorel-bootstrap",
+                self.package_helper_root / "nyvorel-settings",
+                self.package_helper_root / "nyvorel-package-install",
+            ]
+            missing = [str(path) for path in required if not path.is_file()]
 
-        if missing:
+            if missing:
+                self.add(
+                    "install.core",
+                    "FAIL",
+                    "Installed core",
+                    "Missing package/user core: " + ", ".join(missing),
+                    "Reinstall the Nyvorel Arch package, then sync user materialization.",
+                )
+            else:
+                self.add(
+                    "install.core",
+                    "PASS",
+                    "Installed core",
+                    "Package CLI/helpers and user shell materialization are present.",
+                )
+
+            expected = [
+                "nyvorel-quickshell.service",
+                "nyvorel-operations-monitor.service",
+                *PATH_UNITS,
+            ]
+            absent = [
+                name for name in expected
+                if not (self.package_unit_root / name).is_file()
+            ]
+            if absent:
+                self.add(
+                    "install.systemd-files",
+                    "FAIL",
+                    "systemd unit files",
+                    f"{len(absent)} package-provided user unit(s) missing: "
+                    + ", ".join(absent),
+                    "Reinstall the Nyvorel Arch package.",
+                )
+            else:
+                self.add(
+                    "install.systemd-files",
+                    "PASS",
+                    "systemd unit files",
+                    f"All {len(expected)} package-provided user units are present.",
+                )
+
+            local_bin = self.home / ".local/bin"
+            stale = [self.home / ".local/bin/nyvorel"]
+            if local_bin.is_dir():
+                stale.extend(sorted(local_bin.glob("nyvorel-*")))
+            stale = [path for path in stale if path.exists()]
+
             self.add(
-                "install.core",
-                "FAIL",
-                "Installed core",
-                "Missing: " + ", ".join(missing),
-                "Install/reinstall Nyvorel from the public source tree.",
+                "package.shadowing",
+                "WARN" if stale else "PASS",
+                "Package CLI shadowing",
+                (
+                    "Legacy user helpers can shadow package-owned /usr paths: "
+                    + ", ".join(str(path) for path in stale[:8])
+                    if stale
+                    else "No legacy ~/.local/bin/nyvorel* helpers shadow package ownership."
+                ),
+                (
+                    "Use `/usr/bin/nyvorel install --migrate-source-clone --yes` "
+                    "for an explicit source-clone migration."
+                    if stale
+                    else None
+                ),
             )
         else:
-            self.add(
-                "install.core",
-                "PASS",
-                "Installed core",
-                "Shell, CLI, doctor, update helper, and bootstrap planner are present.",
-            )
+            cli = self.home / ".local/bin/nyvorel"
+            doctor = self.home / ".local/bin/nyvorel-doctor"
+            updater = self.home / ".local/bin/nyvorel-update"
+            bootstrap = self.home / ".local/bin/nyvorel-bootstrap"
 
-        systemd_dir = self.home / ".config/systemd/user"
-        expected = [
-            "nyvorel-quickshell.service",
-            "nyvorel-operations-monitor.service",
-            *PATH_UNITS,
-        ]
-        absent = [name for name in expected if not (systemd_dir / name).is_file()]
+            missing = [
+                str(path.relative_to(self.home))
+                for path in (shell, cli, doctor, updater, bootstrap)
+                if not path.is_file()
+            ]
 
-        if absent:
-            self.add(
-                "install.systemd-files",
-                "FAIL",
-                "systemd unit files",
-                f"{len(absent)} required unit file(s) missing: " + ", ".join(absent),
-                "Reinstall Nyvorel to rematerialize the systemd user units.",
-            )
-        else:
-            self.add(
-                "install.systemd-files",
-                "PASS",
-                "systemd unit files",
-                f"All {len(expected)} required user-unit files are present.",
-            )
+            if missing:
+                self.add(
+                    "install.core",
+                    "FAIL",
+                    "Installed core",
+                    "Missing: " + ", ".join(missing),
+                    "Install/reinstall Nyvorel from the public source tree.",
+                )
+            else:
+                self.add(
+                    "install.core",
+                    "PASS",
+                    "Installed core",
+                    "Shell, CLI, doctor, update helper, and bootstrap planner are present.",
+                )
+
+            systemd_dir = self.home / ".config/systemd/user"
+            expected = [
+                "nyvorel-quickshell.service",
+                "nyvorel-operations-monitor.service",
+                *PATH_UNITS,
+            ]
+            absent = [name for name in expected if not (systemd_dir / name).is_file()]
+
+            if absent:
+                self.add(
+                    "install.systemd-files",
+                    "FAIL",
+                    "systemd unit files",
+                    f"{len(absent)} required unit file(s) missing: " + ", ".join(absent),
+                    "Reinstall Nyvorel to rematerialize the systemd user units.",
+                )
+            else:
+                self.add(
+                    "install.systemd-files",
+                    "PASS",
+                    "systemd unit files",
+                    f"All {len(expected)} required user-unit files are present.",
+                )
 
         config_dir = self.home / ".config/nyvorel"
         self.add(
@@ -307,15 +399,27 @@ class Doctor:
             )
             return
 
+        source_kind = str(data.get("source_kind") or "source-clone")
+        if source_kind not in {"source-clone", "package"}:
+            self.add(
+                "manifest.source-kind",
+                "FAIL",
+                "Installation source kind",
+                f"Unsupported source_kind={source_kind!r}.",
+                "Repair/reinstall using a supported Nyvorel lifecycle.",
+            )
+            return
+
         self.manifest = data
         self.manifest_path = manifest
+        self.source_kind = source_kind
         source_commit = data.get("source_commit") or "unknown"
 
         self.add(
             "manifest.state",
             "PASS",
             "Installation manifest",
-            f"{len(entries)} managed entries; source commit {source_commit}.",
+            f"{len(entries)} managed entries; source kind {source_kind}; source commit {source_commit}.",
         )
 
     def _entry_matches(self, entry: dict[str, Any]) -> tuple[str, str]:
@@ -371,13 +475,21 @@ class Doctor:
             selected = list(by_destination.values())
             scope = "all managed entries"
         else:
+            critical_destinations = (
+                [
+                    ".config/quickshell/nyvorel/shell.qml",
+                    ".config/hypr/hyprland.conf",
+                ]
+                if self.source_kind == "package"
+                else CRITICAL_DESTINATIONS
+            )
             selected = [
                 by_destination[path]
-                for path in CRITICAL_DESTINATIONS
+                for path in critical_destinations
                 if path in by_destination
             ]
             missing_contract = [
-                path for path in CRITICAL_DESTINATIONS if path not in by_destination
+                path for path in critical_destinations if path not in by_destination
             ]
             if missing_contract:
                 self.add(
@@ -393,7 +505,7 @@ class Doctor:
                     "manifest.contract",
                     "PASS",
                     "Manifest critical entries",
-                    f"All {len(CRITICAL_DESTINATIONS)} critical destinations are recorded.",
+                    f"All {len(critical_destinations)} critical destinations are recorded.",
                 )
             scope = "critical managed entries"
 
@@ -500,7 +612,15 @@ class Doctor:
             )
 
     def load_dependency_contract(self) -> None:
-        path = self.home / DEPENDENCY_CONTRACT_DESTINATION
+        path = (
+            Path(self.package_dependency_contract).expanduser().resolve(strict=False)
+            if self.source_kind == "package" and self.package_dependency_contract
+            else (
+                Path(str(self.manifest.get("source_root"))) / "dependencies/arch.json"
+                if self.source_kind == "package" and self.manifest is not None
+                else self.home / DEPENDENCY_CONTRACT_DESTINATION
+            )
+        )
         self.dependency_report["contract"] = {
             "status": "FAIL",
             "path": str(path),
@@ -989,10 +1109,10 @@ class Doctor:
 
     def run(self) -> None:
         self.check_platform()
+        self.load_manifest()
         self.check_installation_files()
         self.load_dependency_contract()
         self.check_dependencies()
-        self.load_manifest()
         self.check_manifest_integrity()
         self.check_materialization()
         self.check_config()
@@ -1016,6 +1136,7 @@ class Doctor:
             "product": "Nyvorel",
             "doctor_version": DOCTOR_VERSION,
             "target_home": str(self.home),
+            "source_kind": self.source_kind,
             "deep": self.deep,
             "session_checks": self.session_checks,
             "strict": self.strict,

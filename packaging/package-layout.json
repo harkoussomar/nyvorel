@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "phase": "7B",
+  "package_name": "nyvorel",
+  "package_version_kind": "development-source-tree-candidate",
+  "public_cli": "/usr/bin/nyvorel",
+  "helper_root": "/usr/lib/nyvorel/bin",
+  "lifecycle_root": "/usr/lib/nyvorel",
+  "payload_root": "/usr/share/nyvorel",
+  "systemd_user_root": "/usr/lib/systemd/user",
+  "icon": "/usr/share/icons/hicolor/scalable/apps/nyvorel.svg",
+  "documentation_root": "/usr/share/doc/nyvorel",
+  "license_root": "/usr/share/licenses/nyvorel",
+  "payload_directories": [
+    "quickshell",
+    "hypr",
+    "integrations",
+    "dependencies",
+    "assets"
+  ],
+  "package_owned_lifecycle_files": [
+    "/usr/lib/nyvorel/install.sh",
+    "/usr/lib/nyvorel/uninstall.sh"
+  ],
+  "forbidden_package_paths": [
+    "/home",
+    "/root",
+    "/usr/local"
+  ],
+  "forbidden_package_mode_user_materialization": [
+    "~/.local/bin/nyvorel",
+    "~/.local/bin/nyvorel-*",
+    "~/.config/systemd/user/nyvorel-*.service",
+    "~/.config/systemd/user/nyvorel-*.path",
+    "~/.local/share/nyvorel/dependencies"
+  ],
+  "package_units_use_HOME_token": false,
+  "package_units_use_user_local_nyvorel_helpers": false,
+  "package_upgrade_mutates_HOME": false,
+  "package_remove_deletes_user_state": false,
+  "remote_updater_mutates_package_payload": false,
+  "source_clone_to_package_migration": "explicit-only",
+  "aur_publication": "not-in-7B"
+}

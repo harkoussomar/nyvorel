@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Packaging & distribution — Phase 7B
+- Added a real Arch `PKGBUILD`/`.SRCINFO` and package-owned `/usr` filesystem map.
+- Added package-aware user materialization, explicit source-clone migration, package sync, package-mode doctor/bootstrap, and remote-updater ownership refusal.
+- Added pristine Arch makepkg/pacman install-upgrade-remove-reinstall, zero-automatic-HOME-mutation, migration, and recovery regression coverage.
+
 ### Packaging & distribution — Phase 7A
 - Locked split ownership between pacman-managed immutable `/usr` payload and Nyvorel-managed per-user materialization/state.
 - Defined package-mode CLI, helper, payload, systemd user-unit, documentation, and license ownership roots.

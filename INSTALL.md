@@ -148,6 +148,41 @@ scripts/release/preflight.sh --version 0.1.1 --require-clean
 
 This is validation only; it does not create tags, push, or publish releases.
 
+## Arch package workflow
+
+Phase 7B provides a real local Arch package definition.
+
+```sh
+makepkg --cleanbuild
+sudo pacman -U ./nyvorel-*.pkg.tar.zst
+```
+
+Pacman installs only package-owned `/usr` content. It does not write to your
+home directory.
+
+Review and materialize the user configuration explicitly:
+
+```sh
+nyvorel install --dry-run
+nyvorel install --yes
+```
+
+After a package upgrade:
+
+```sh
+nyvorel update --dry-run
+nyvorel update --yes
+```
+
+Existing source-clone installations require explicit migration:
+
+```sh
+/usr/bin/nyvorel install --migrate-source-clone --dry-run
+/usr/bin/nyvorel install --migrate-source-clone --yes
+```
+
+Package removal preserves user configuration, installation state, and backups.
+
 ## Install and activate
 
 ```sh

@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SOURCE_KIND="${NYVOREL_SOURCE_KIND:-source-clone}"
+ROOT="${NYVOREL_SOURCE_ROOT:-$SCRIPT_ROOT}"
+PACKAGE_HELPER_ROOT="${NYVOREL_PACKAGE_HELPER_ROOT:-/usr/lib/nyvorel/bin}"
+
+case "$SOURCE_KIND" in
+  source-clone|package) ;;
+  *)
+    echo "ERROR: unsupported NYVOREL_SOURCE_KIND: $SOURCE_KIND" >&2
+    exit 2
+    ;;
+esac
+
 VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
 
 TARGET_HOME="${HOME:?HOME is not set}"
@@ -111,7 +123,8 @@ echo "============================================================"
 echo "NYVOREL INSTALLER"
 echo "============================================================"
 echo "Version      : $VERSION"
-echo "Source       : $ROOT"
+echo "Source kind  : $SOURCE_KIND"
+echo "Source root  : $ROOT"
 echo "Target home  : $TARGET_HOME"
 echo "Mode         : $MODE"
 echo "Activate     : $([[ $ACTIVATE -eq 1 ]] && echo yes || echo no)"
@@ -123,7 +136,9 @@ python3 - \
   "$STATE" \
   "$VERSION" \
   "$ASSUME_YES" \
-  "$DRY_RUN" <<'PYINSTALL'
+  "$DRY_RUN" \
+  "$SOURCE_KIND" \
+  "$PACKAGE_HELPER_ROOT" <<'PYINSTALL'
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -143,6 +158,8 @@ state = Path(sys.argv[3])
 version = sys.argv[4]
 assume_yes = sys.argv[5] == "1"
 dry_run = sys.argv[6] == "1"
+source_kind = sys.argv[7]
+package_helper_root = Path(sys.argv[8]).resolve(strict=False)
 
 @dataclass(frozen=True)
 class Item:
@@ -179,39 +196,52 @@ items: list[Item] = []
 
 add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
 add_tree(items, root / "hypr", Path(".config/hypr"))
-add_tree(items, root / "bin", Path(".local/bin"))
-add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))
 
 for name in ("fish", "kitty"):
     src = root / "integrations" / name
     if src.is_dir():
         add_tree(items, src, Path(f".config/{name}"))
 
-systemd_root = root / "systemd"
-if not systemd_root.is_dir():
-    raise SystemExit("required source directory missing: systemd")
+if source_kind == "source-clone":
+    add_tree(items, root / "bin", Path(".local/bin"))
+    add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))
 
-for src in sorted(systemd_root.rglob("*")):
-    if src.is_dir():
-        continue
-    if not (src.is_file() or src.is_symlink()):
-        continue
-    rel_inside = src.relative_to(systemd_root)
-    name = rel_inside.name
-    if name.endswith(".in"):
-        name = name[:-3]
-    dest_inside = rel_inside.with_name(name)
-    items.append(Item(src=src, rel=Path(".config/systemd/user") / dest_inside))
+    systemd_root = root / "systemd"
+    if not systemd_root.is_dir():
+        raise SystemExit("required source directory missing: systemd")
 
-logo = root / "assets" / "nyvorel.svg"
-if not logo.is_file():
-    raise SystemExit("required Nyvorel logo missing")
-items.append(
-    Item(
-        src=logo,
-        rel=Path(".local/share/icons/hicolor/scalable/apps/nyvorel.svg"),
+    for src in sorted(systemd_root.rglob("*")):
+        if src.is_dir():
+            continue
+        if not (src.is_file() or src.is_symlink()):
+            continue
+        rel_inside = src.relative_to(systemd_root)
+        name = rel_inside.name
+        if name.endswith(".in"):
+            name = name[:-3]
+        dest_inside = rel_inside.with_name(name)
+        items.append(Item(src=src, rel=Path(".config/systemd/user") / dest_inside))
+
+    logo = root / "assets" / "nyvorel.svg"
+    if not logo.is_file():
+        raise SystemExit("required Nyvorel logo missing")
+    items.append(
+        Item(
+            src=logo,
+            rel=Path(".local/share/icons/hicolor/scalable/apps/nyvorel.svg"),
+        )
     )
-)
+else:
+    package_meta = root / "package-metadata.json"
+    if not package_meta.is_file():
+        raise SystemExit(f"required package metadata missing: {package_meta}")
+    package_data = json.loads(package_meta.read_text())
+    if package_data.get("schema") != 1 or package_data.get("source_kind") != "package":
+        raise SystemExit("invalid Nyvorel package metadata")
+    if package_data.get("source_home_token_occurrences") != 29:
+        raise SystemExit(
+            "package metadata does not preserve the 29-token source contract"
+        )
 
 # Plan safety.
 seen: dict[str, Path] = {}
@@ -261,7 +291,7 @@ print(f"Existing replacements  : {len(existing)}")
 print(f"@HOME@ template files  : {token_files}")
 print(f"@HOME@ occurrences     : {token_occurrences}")
 
-if token_occurrences != 29:
+if source_kind == "source-clone" and token_occurrences != 29:
     raise SystemExit(
         f"portable source contract expects 29 @HOME@ occurrences, found {token_occurrences}"
     )
@@ -272,8 +302,12 @@ if dry_run:
     print("Install roots:")
     print(f"  {home / '.config/quickshell/nyvorel'}")
     print(f"  {home / '.config/hypr'}")
-    print(f"  {home / '.local/bin'}")
-    print(f"  {home / '.config/systemd/user'}")
+    if source_kind == "source-clone":
+        print(f"  {home / '.local/bin'}")
+        print(f"  {home / '.config/systemd/user'}")
+    else:
+        print("  package-owned helpers: " + str(package_helper_root))
+        print("  package-owned user units: /usr/lib/systemd/user")
     print(f"  {home / '.config/fish'}")
     print(f"  {home / '.config/kitty'}")
     print(f"  {home / '.local/share/icons/hicolor/scalable/apps/nyvorel.svg'}")
@@ -301,20 +335,28 @@ backup_root.mkdir(parents=True, exist_ok=True)
 
 def write_manifest(status: str) -> None:
     commit = ""
-    try:
-        commit = subprocess.check_output(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except Exception:
-        pass
+    if source_kind == "package":
+        try:
+            package_data = json.loads((root / "package-metadata.json").read_text())
+            commit = str(package_data.get("source_commit") or "")
+        except Exception:
+            commit = ""
+    else:
+        try:
+            commit = subprocess.check_output(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except Exception:
+            pass
 
     payload = {
         "schema": 1,
         "product": "Nyvorel",
         "version": version,
         "status": status,
+        "source_kind": source_kind,
         "source_root": str(root),
         "source_commit": commit,
         "target_home": str(home),

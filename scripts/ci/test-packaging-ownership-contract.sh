@@ -21,10 +21,10 @@ import sys
 
 data=json.loads(Path(sys.argv[1]).read_text())
 
-assert data["schema"]==1
+assert data["schema"]==2
 assert data["product"]=="Nyvorel"
-assert data["phase"]=="7A"
-assert data["status"]=="locked"
+assert data["phase"]=="7B"
+assert data["status"]=="package-implemented"
 assert data["target_distribution"]=="Arch Linux"
 assert data["package_manager"]=="pacman"
 assert data["architecture"]=="split-package-and-user-lifecycle-ownership"
@@ -84,7 +84,7 @@ assert update["source_clone_mode_remote_channels_remain_supported_during_transit
 
 migration=data["migration_policy"]
 assert migration["legacy_source_clone_mode"]=="supported-during-7B-transition"
-assert migration["package_mode"]=="pending-7B"
+assert migration["package_mode"]=="implemented-7B"
 assert migration["source_kind_must_be_explicit_in_future_install_state"] is True
 assert migration["source_clone_to_package_conversion_requires_explicit_migration"] is True
 assert migration["dual_public_cli_ownership_allowed"] is False
@@ -139,26 +139,39 @@ assert audit["existing_arch_package_surface"]=="none"
 status=data["implementation_status"]
 assert status=={
     "ownership_contract":"implemented-7A",
-    "pkgbuild":"pending-7B",
-    "srcinfo":"pending-7B",
-    "package_payload_layout":"pending-7B",
-    "package_mode_installer":"pending-7B",
-    "package_migration":"pending-7B",
-    "package_lifecycle_regression":"pending-7C-or-later",
+    "pkgbuild":"implemented-7B",
+    "srcinfo":"implemented-7B",
+    "package_payload_layout":"implemented-7B",
+    "package_mode_installer":"implemented-7B",
+    "package_migration":"implemented-7B",
+    "package_lifecycle_regression":"implemented-7B",
 }
 
-print("packaging_contract_schema=1")
-print("phase7a_status=locked")
+implementation=data["package_implementation"]
+assert implementation["pkgbuild"]=="PKGBUILD"
+assert implementation["srcinfo"]==".SRCINFO"
+assert implementation["install_hook"]=="nyvorel.install"
+assert implementation["layout_contract"]=="packaging/package-layout.json"
+assert implementation["package_user_command"]=="nyvorel install"
+assert implementation["package_sync_command"]=="nyvorel update"
+assert implementation["package_remove_preserves_user_state"] is True
+assert implementation["package_upgrade_automatic_home_mutation"] is False
+assert implementation["aur_published"] is False
+assert implementation["real_v0.1.1_published"] is False
+
+print("packaging_contract_schema=2")
+print("phase7b_status=package-implemented")
 print("architecture=split-ownership")
 print("package_home_mutation=false")
 print("public_cli=/usr/bin/nyvorel")
 print("systemd_user_units=/usr/lib/systemd/user")
 print("package_payload_updates=pacman")
-print("phase7b_status=pending")
+print("pkgbuild=implemented")
+print("package_lifecycle=implemented")
 PY
 
-for path in PKGBUILD .SRCINFO nyvorel.install packaging/PKGBUILD packaging/.SRCINFO; do
-  [[ ! -e "$path" ]] || die "Arch package implementation appeared during policy-only Phase 7A: $path"
+for path in PKGBUILD .SRCINFO nyvorel.install packaging/package-layout.json packaging/nyvorel-package-install; do
+  [[ -s "$path" ]] || die "Phase 7B package implementation missing: $path"
 done
 
 grep -qF 'split ownership' PACKAGING.md \

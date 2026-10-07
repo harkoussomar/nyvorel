@@ -34,6 +34,9 @@ jobs:
       - name: Validate packaging ownership contract
         run: bash scripts/ci/test-packaging-ownership-contract.sh
 
+      - name: Validate Arch package layout
+        run: bash scripts/ci/test-package-layout.sh
+
       - name: Validate release candidate preflight
         run: bash scripts/ci/test-release-preflight.sh
 
@@ -102,6 +105,12 @@ jobs:
           NYVOREL_CONTAINER_RUNTIME: docker
           NYVOREL_UPGRADE_MATRIX_IMAGE: archlinux:base
         run: bash scripts/ci/test-upgrade-matrix-clean-machine.sh
+
+      - name: Validate pristine Arch package lifecycle
+        env:
+          NYVOREL_CONTAINER_RUNTIME: docker
+          NYVOREL_PACKAGE_IMAGE: archlinux:base
+        run: bash scripts/ci/test-package-lifecycle.sh
 
   bootstrap-plan:
     name: Bootstrap planning

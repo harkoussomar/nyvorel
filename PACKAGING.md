@@ -241,3 +241,78 @@ Before Nyvorel can claim a working Arch package, Phase 7B must prove:
 
 Phase 7A is complete when this contract and its machine-readable validator are
 green. It does **not** create or publish a package.
+
+## Phase 7B implementation
+
+Phase 7B implements the package boundary defined above.
+
+The source tree now contains:
+
+```text
+PKGBUILD
+.SRCINFO
+nyvorel.install
+packaging/package-layout.json
+packaging/nyvorel-package-install
+```
+
+The package is currently a **development source-tree package candidate**. It is
+real and installable with `makepkg`/`pacman`, but Phase 7B does not publish it
+to AUR and does not create a new stable Nyvorel release.
+
+### Package user flow
+
+Build locally:
+
+```sh
+makepkg --cleanbuild
+```
+
+Install the built package with pacman, then review the user materialization:
+
+```sh
+nyvorel install --dry-run
+nyvorel install --yes
+nyvorel doctor
+```
+
+After a package upgrade, pacman changes only package-owned `/usr` content.
+User configuration is deliberately untouched until the user reviews:
+
+```sh
+nyvorel update --dry-run
+nyvorel update --yes
+```
+
+`nyvorel update --fetch` is refused for package-owned installations because
+pacman/AUR owns package payload updates.
+
+### Existing source-clone users
+
+Migration is never implicit. With the Arch package installed, use the
+package-owned CLI explicitly:
+
+```sh
+/usr/bin/nyvorel install --migrate-source-clone --dry-run
+/usr/bin/nyvorel install --migrate-source-clone --yes
+```
+
+The migration uses the same manifest transaction and carries the original
+pre-Nyvorel backup baseline forward while retiring source-clone-owned helpers,
+dependency copies, icon copies, and user-unit definitions that are package
+owned in the new architecture.
+
+### Package removal
+
+Removing the Arch package removes `/usr` package content only.
+
+It does not delete:
+
+- `~/.config/quickshell/nyvorel`
+- Nyvorel-managed Hyprland user configuration
+- `~/.config/nyvorel`
+- `~/.local/state/nyvorel`
+- manifests, original backups, or archived changed files
+
+Reinstall the package to regain the CLI, then use `nyvorel uninstall` if you
+want the manifest-backed user recovery operation.

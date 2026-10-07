@@ -474,10 +474,15 @@ def main() -> int:
         if args.home
         else Path.home().resolve(strict=False)
     )
+    package_contract = os.environ.get("NYVOREL_PACKAGE_DEPENDENCY_CONTRACT")
     contract_path = (
         Path(args.contract).expanduser().resolve(strict=False)
         if args.contract
-        else home / CONTRACT_DESTINATION
+        else (
+            Path(package_contract).expanduser().resolve(strict=False)
+            if package_contract
+            else home / CONTRACT_DESTINATION
+        )
     )
 
     try:

@@ -110,48 +110,53 @@ def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
         items.append(Item(src=src, rel=dest_root / rel_inside))
 
 
-def build_items(root: Path) -> list[Item]:
+def build_items(root: Path, source_kind: str = "source-clone") -> list[Item]:
+    if source_kind not in {"source-clone", "package"}:
+        raise UpdateError(f"unsupported source kind: {source_kind}")
+
     items: list[Item] = []
 
     add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
     add_tree(items, root / "hypr", Path(".config/hypr"))
-    add_tree(items, root / "bin", Path(".local/bin"))
-    add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))
 
     for name in ("fish", "kitty"):
         src = root / "integrations" / name
         if src.is_dir():
             add_tree(items, src, Path(f".config/{name}"))
 
-    systemd_root = root / "systemd"
-    if not systemd_root.is_dir():
-        raise UpdateError("required source directory missing: systemd")
+    if source_kind == "source-clone":
+        add_tree(items, root / "bin", Path(".local/bin"))
+        add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))
 
-    for src in sorted(systemd_root.rglob("*")):
-        if src.is_dir():
-            continue
-        if not (src.is_file() or src.is_symlink()):
-            continue
-        if "__pycache__" in src.parts or src.suffix in {".pyc", ".pyo"}:
-            continue
+        systemd_root = root / "systemd"
+        if not systemd_root.is_dir():
+            raise UpdateError("required source directory missing: systemd")
 
-        rel_inside = src.relative_to(systemd_root)
-        name = rel_inside.name
-        if name.endswith(".in"):
-            name = name[:-3]
-        dest_inside = rel_inside.with_name(name)
-        items.append(Item(src=src, rel=Path(".config/systemd/user") / dest_inside))
+        for src in sorted(systemd_root.rglob("*")):
+            if src.is_dir():
+                continue
+            if not (src.is_file() or src.is_symlink()):
+                continue
+            if "__pycache__" in src.parts or src.suffix in {".pyc", ".pyo"}:
+                continue
 
-    logo = root / "assets" / "nyvorel.svg"
-    if not logo.is_file():
-        raise UpdateError("required Nyvorel logo missing")
+            rel_inside = src.relative_to(systemd_root)
+            name = rel_inside.name
+            if name.endswith(".in"):
+                name = name[:-3]
+            dest_inside = rel_inside.with_name(name)
+            items.append(Item(src=src, rel=Path(".config/systemd/user") / dest_inside))
 
-    items.append(
-        Item(
-            src=logo,
-            rel=Path(".local/share/icons/hicolor/scalable/apps/nyvorel.svg"),
+        logo = root / "assets" / "nyvorel.svg"
+        if not logo.is_file():
+            raise UpdateError("required Nyvorel logo missing")
+
+        items.append(
+            Item(
+                src=logo,
+                rel=Path(".local/share/icons/hicolor/scalable/apps/nyvorel.svg"),
+            )
         )
-    )
 
     seen: dict[str, Path] = {}
     for item in items:
@@ -204,16 +209,30 @@ def live_state(path: Path, expected: dict[str, Any]) -> str:
     return "invalid"
 
 
-def validate_source(root: Path, version: str, items: list[Item]) -> tuple[int, int]:
-    required = [
-        root / "install.sh",
-        root / "uninstall.sh",
-        root / "bin/nyvorel",
-        root / "bin/nyvorel-doctor",
-        root / "bin/nyvorel-update",
-        root / "quickshell/shell.qml",
-        root / "assets/nyvorel.svg",
-    ]
+def validate_source(
+    root: Path,
+    version: str,
+    items: list[Item],
+    source_kind: str = "source-clone",
+) -> tuple[int, int]:
+    if source_kind == "package":
+        required = [
+            root / "VERSION",
+            root / "package-metadata.json",
+            root / "quickshell/shell.qml",
+            root / "hypr/hyprland.conf",
+            root / "dependencies/arch.json",
+        ]
+    else:
+        required = [
+            root / "install.sh",
+            root / "uninstall.sh",
+            root / "bin/nyvorel",
+            root / "bin/nyvorel-doctor",
+            root / "bin/nyvorel-update",
+            root / "quickshell/shell.qml",
+            root / "assets/nyvorel.svg",
+        ]
 
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -231,12 +250,38 @@ def validate_source(root: Path, version: str, items: list[Item]) -> tuple[int, i
             token_files += 1
             token_count += count
 
-    if token_count != 29:
-        raise UpdateError(
-            f"portable source contract expects 29 install tokens, found {token_count}"
-        )
+    if source_kind == "source-clone":
+        if token_count != 29:
+            raise UpdateError(
+                f"portable source contract expects 29 install tokens, found {token_count}"
+            )
+    else:
+        try:
+            metadata = json.loads((root / "package-metadata.json").read_text())
+        except Exception as exc:
+            raise UpdateError(f"cannot parse package metadata: {exc}") from exc
+
+        if metadata.get("schema") != 1 or metadata.get("source_kind") != "package":
+            raise UpdateError("invalid Nyvorel package metadata")
+        if metadata.get("upstream_version") != version:
+            raise UpdateError(
+                "package metadata upstream_version does not match VERSION"
+            )
+        if metadata.get("source_home_token_occurrences") != 29:
+            raise UpdateError(
+                "package metadata does not preserve the 29-token source contract"
+            )
 
     return token_files, token_count
+
+
+def package_source_commit(root: Path) -> str:
+    try:
+        metadata = json.loads((root / "package-metadata.json").read_text())
+    except Exception:
+        return ""
+    value = metadata.get("source_commit")
+    return str(value) if isinstance(value, str) else ""
 
 
 def read_manifest(home: Path) -> tuple[Path, Path, dict[str, Any]]:
@@ -556,6 +601,22 @@ def parse_args() -> argparse.Namespace:
         help="Candidate Nyvorel source tree. Defaults to the current manifest source_root.",
     )
     parser.add_argument(
+        "--package-source",
+        metavar="PATH",
+        help=(
+            "Use an immutable pacman-owned Nyvorel payload. "
+            "Normally supplied automatically by /usr/bin/nyvorel."
+        ),
+    )
+    parser.add_argument(
+        "--migrate-to-package",
+        action="store_true",
+        help=(
+            "Explicitly migrate a source-clone manifest to package ownership. "
+            "Requires --package-source."
+        ),
+    )
+    parser.add_argument(
         "--fetch",
         action="store_true",
         help=(
@@ -619,6 +680,10 @@ def main() -> int:
 
     pointer, old_state, old_manifest = read_manifest(home)
 
+    old_source_kind = str(old_manifest.get("source_kind") or "source-clone")
+    if old_source_kind not in {"source-clone", "package"}:
+        raise UpdateError(f"unsupported current source_kind: {old_source_kind!r}")
+
     if args.channel and not args.fetch:
         raise UpdateError("--channel requires --fetch")
     if args.fetch and args.source:
@@ -631,32 +696,77 @@ def main() -> int:
         raise UpdateError(
             "--allow-downgrade is not permitted for stable/development remote channels"
         )
-
-    source_value = args.source or old_manifest.get("source_root")
-    if not source_value:
+    if args.package_source and (args.fetch or args.source):
+        raise UpdateError("--package-source cannot be combined with --fetch/--source")
+    if args.migrate_to_package and not args.package_source:
+        raise UpdateError("--migrate-to-package requires --package-source")
+    if old_source_kind == "package" and args.fetch:
         raise UpdateError(
-            "no source tree is available; use --source /path/to/nyvorel"
+            "package-owned Nyvorel is updated by pacman/AUR; "
+            "remote --fetch must not mutate package-owned /usr content"
+        )
+    if old_source_kind == "package" and args.source:
+        raise UpdateError(
+            "package-owned Nyvorel refuses implicit conversion to an explicit source tree"
         )
 
-    source_root = Path(str(source_value)).expanduser().resolve(strict=False)
-    if not source_root.is_dir():
-        raise UpdateError(f"candidate source directory missing: {source_root}")
+    package_env = os.environ.get("NYVOREL_PACKAGE_SOURCE_ROOT")
 
-    source = source_root
-    channel = "explicit-source" if args.source else "recorded-source"
-    resolved_ref = str(source_root)
+    source_kind = "source-clone"
     stable_version: str | None = None
     stable_temp = None
 
-    if args.fetch:
-        channel = args.channel or "stable"
-        if channel == "stable":
-            stable_temp, source, resolved_ref, stable_version = clone_stable_candidate(
-                source_root
+    if args.package_source:
+        source_kind = "package"
+        if old_source_kind == "source-clone" and not args.migrate_to_package:
+            raise UpdateError(
+                "source-clone -> package conversion requires --migrate-to-package"
             )
-        else:
-            resolved_ref = fetch_development_source(source_root)
-            source = source_root
+        source_root = Path(args.package_source).expanduser().resolve(strict=False)
+        source = source_root
+        channel = "package"
+        resolved_ref = str(source_root)
+    elif old_source_kind == "package":
+        if not package_env:
+            raise UpdateError(
+                "package installation requires NYVOREL_PACKAGE_SOURCE_ROOT; "
+                "run the package-owned /usr/bin/nyvorel CLI"
+            )
+        source_kind = "package"
+        source_root = Path(package_env).expanduser().resolve(strict=False)
+        source = source_root
+        channel = "package"
+        resolved_ref = str(source_root)
+    else:
+        if package_env and not args.source and not args.fetch:
+            raise UpdateError(
+                "source-clone installation detected under package CLI; "
+                "use `nyvorel install --migrate-source-clone` explicitly"
+            )
+
+        source_value = args.source or old_manifest.get("source_root")
+        if not source_value:
+            raise UpdateError(
+                "no source tree is available; use --source /path/to/nyvorel"
+            )
+
+        source_root = Path(str(source_value)).expanduser().resolve(strict=False)
+        source = source_root
+        channel = "explicit-source" if args.source else "recorded-source"
+        resolved_ref = str(source_root)
+
+        if args.fetch:
+            channel = args.channel or "stable"
+            if channel == "stable":
+                stable_temp, source, resolved_ref, stable_version = clone_stable_candidate(
+                    source_root
+                )
+            else:
+                resolved_ref = fetch_development_source(source_root)
+                source = source_root
+
+    if not source_root.is_dir():
+        raise UpdateError(f"candidate source directory missing: {source_root}")
 
     if (source / ".git").exists():
         dirty = git_output(source, "status", "--porcelain")
@@ -687,10 +797,19 @@ def main() -> int:
             "use --allow-downgrade only when intentional"
         )
 
-    items = build_items(source)
-    token_files, token_count = validate_source(source, candidate_version, items)
+    items = build_items(source, source_kind)
+    token_files, token_count = validate_source(
+        source,
+        candidate_version,
+        items,
+        source_kind,
+    )
 
-    source_commit = git_output(source, "rev-parse", "HEAD")
+    source_commit = (
+        package_source_commit(source)
+        if source_kind == "package"
+        else git_output(source, "rev-parse", "HEAD")
+    )
     old_commit = str(old_manifest.get("source_commit") or "")
 
     if (
@@ -929,6 +1048,7 @@ def main() -> int:
             "product": "Nyvorel",
             "version": candidate_version,
             "status": status_value,
+            "source_kind": source_kind,
             "source_root": str(source_root),
             "source_commit": source_commit,
             "source_channel": channel,
@@ -939,6 +1059,8 @@ def main() -> int:
                 "from_state": str(old_state),
                 "from_version": old_version,
                 "from_commit": old_commit,
+                "from_source_kind": old_source_kind,
+                "to_source_kind": source_kind,
                 "channel": channel,
                 "resolved_ref": resolved_ref,
                 "resolved_commit": source_commit,

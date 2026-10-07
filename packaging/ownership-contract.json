@@ -1,8 +1,8 @@
 {
-  "schema": 1,
+  "schema": 2,
   "product": "Nyvorel",
-  "phase": "7A",
-  "status": "locked",
+  "phase": "7B",
+  "status": "package-implemented",
   "target_distribution": "Arch Linux",
   "package_manager": "pacman",
   "architecture": "split-package-and-user-lifecycle-ownership",
@@ -60,7 +60,7 @@
   },
   "migration_policy": {
     "legacy_source_clone_mode": "supported-during-7B-transition",
-    "package_mode": "pending-7B",
+    "package_mode": "implemented-7B",
     "source_kind_must_be_explicit_in_future_install_state": true,
     "source_clone_to_package_conversion_requires_explicit_migration": true,
     "dual_public_cli_ownership_allowed": false,
@@ -115,11 +115,24 @@
   },
   "implementation_status": {
     "ownership_contract": "implemented-7A",
-    "pkgbuild": "pending-7B",
-    "srcinfo": "pending-7B",
-    "package_payload_layout": "pending-7B",
-    "package_mode_installer": "pending-7B",
-    "package_migration": "pending-7B",
-    "package_lifecycle_regression": "pending-7C-or-later"
+    "pkgbuild": "implemented-7B",
+    "srcinfo": "implemented-7B",
+    "package_payload_layout": "implemented-7B",
+    "package_mode_installer": "implemented-7B",
+    "package_migration": "implemented-7B",
+    "package_lifecycle_regression": "implemented-7B"
+  },
+  "package_implementation": {
+    "pkgbuild": "PKGBUILD",
+    "srcinfo": ".SRCINFO",
+    "install_hook": "nyvorel.install",
+    "layout_contract": "packaging/package-layout.json",
+    "package_user_command": "nyvorel install",
+    "package_sync_command": "nyvorel update",
+    "source_clone_migration_command": "/usr/bin/nyvorel install --migrate-source-clone",
+    "package_remove_preserves_user_state": true,
+    "package_upgrade_automatic_home_mutation": false,
+    "aur_published": false,
+    "real_v0.1.1_published": false
   }
 }
