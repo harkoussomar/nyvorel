@@ -23,6 +23,8 @@ required_files=(
   CONTRIBUTING.md
   assets/nyvorel.svg
   quickshell/shell.qml
+  bin/nyvorel
+  bin/nyvorel-doctor
 )
 
 required_dirs=(
@@ -49,6 +51,7 @@ VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
 
 [[ -x install.sh ]] || die "install.sh is not executable"
 [[ -x uninstall.sh ]] || die "uninstall.sh is not executable"
+[[ -x bin/nyvorel ]] || die "bin/nyvorel is not executable"
 
 while IFS= read -r -d '' path; do
   [[ -x "$path" ]] || die "Nyvorel helper is not executable: $path"
@@ -200,6 +203,8 @@ for root in roots:
         continue
     for path in root.rglob("*"):
         if not path.is_file() or path.is_symlink():
+            continue
+        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
             continue
         data = path.read_bytes()
         n = data.count(b"@HOME@")

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+Nyvorel command line
+
+Usage:
+  nyvorel doctor [options]
+  nyvorel settings
+  nyvorel help
+
+Commands:
+  doctor    Run read-only Nyvorel installation/session diagnostics.
+  settings  Open Nyvorel Settings.
+  help      Show this help.
+
+Examples:
+  nyvorel doctor
+  nyvorel doctor --deep
+  nyvorel doctor --json
+EOF
+}
+
+case "${1:-help}" in
+  doctor)
+    shift
+    exec "$BIN_DIR/nyvorel-doctor" "$@"
+    ;;
+  settings)
+    shift
+    exec "$BIN_DIR/nyvorel-settings" "$@"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    printf 'ERROR: unknown Nyvorel command: %s\n\n' "$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

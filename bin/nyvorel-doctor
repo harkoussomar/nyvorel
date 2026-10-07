@@ -1,0 +1,843 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+from dataclasses import asdict, dataclass
+from typing import Any
+
+SCHEMA = 1
+DOCTOR_VERSION = 1
+HOME_TOKEN = "@" + "HOME" + "@"
+
+PATH_UNITS = [
+    "nyvorel-btop-style-sync.path",
+    "nyvorel-dolphin-theme-sync.path",
+    "nyvorel-fuzzel-style-sync.path",
+    "nyvorel-kde-app-style-sync.path",
+    "nyvorel-terminal-theme-sync.path",
+    "nyvorel-zed-theme-sync.path",
+    "nyvorel-zen-code-style-sync.path",
+]
+
+CRITICAL_DESTINATIONS = [
+    ".config/quickshell/nyvorel/shell.qml",
+    ".local/bin/nyvorel",
+    ".local/bin/nyvorel-doctor",
+    ".local/bin/nyvorel-settings",
+    ".config/systemd/user/nyvorel-quickshell.service",
+    ".config/systemd/user/nyvorel-operations-monitor.service",
+    *[f".config/systemd/user/{unit}" for unit in PATH_UNITS],
+]
+
+TEXT_SUFFIXES = {
+    "",
+    ".bash",
+    ".conf",
+    ".fish",
+    ".ini",
+    ".json",
+    ".path",
+    ".py",
+    ".qml",
+    ".service",
+    ".sh",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
+
+VALID_STATUS = {"PASS", "WARN", "FAIL", "SKIP"}
+
+
+@dataclass
+class Check:
+    id: str
+    status: str
+    title: str
+    detail: str
+    fix: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.status not in VALID_STATUS:
+            raise ValueError(f"invalid check status: {self.status}")
+
+
+class Doctor:
+    def __init__(
+        self,
+        home: Path,
+        *,
+        deep: bool,
+        session_checks: bool,
+        strict: bool,
+    ) -> None:
+        self.home = home
+        self.deep = deep
+        self.session_checks = session_checks
+        self.strict = strict
+        self.checks: list[Check] = []
+        self.manifest: dict[str, Any] | None = None
+        self.manifest_path: Path | None = None
+
+    def add(
+        self,
+        check_id: str,
+        status: str,
+        title: str,
+        detail: str,
+        fix: str | None = None,
+    ) -> None:
+        self.checks.append(Check(check_id, status, title, detail, fix))
+
+    @staticmethod
+    def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            args,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
+    @staticmethod
+    def sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @staticmethod
+    def lexists(path: Path) -> bool:
+        return os.path.lexists(path)
+
+    def check_platform(self) -> None:
+        os_release = Path("/etc/os-release")
+        distro = "unknown"
+        if os_release.is_file():
+            values: dict[str, str] = {}
+            for raw in os_release.read_text(errors="replace").splitlines():
+                if "=" not in raw:
+                    continue
+                key, value = raw.split("=", 1)
+                values[key] = value.strip().strip('"')
+            distro = values.get("ID", "unknown")
+
+        if distro == "arch":
+            self.add(
+                "platform.arch",
+                "PASS",
+                "Target platform",
+                "Arch Linux detected.",
+            )
+        else:
+            self.add(
+                "platform.arch",
+                "WARN",
+                "Target platform",
+                f"Detected {distro}; Nyvorel targets Arch Linux.",
+                "Run Nyvorel on its supported Arch Linux target for production use.",
+            )
+
+    def check_installation_files(self) -> None:
+        shell = self.home / ".config/quickshell/nyvorel/shell.qml"
+        cli = self.home / ".local/bin/nyvorel"
+        doctor = self.home / ".local/bin/nyvorel-doctor"
+
+        missing = [
+            str(path.relative_to(self.home))
+            for path in (shell, cli, doctor)
+            if not path.is_file()
+        ]
+
+        if missing:
+            self.add(
+                "install.core",
+                "FAIL",
+                "Installed core",
+                "Missing: " + ", ".join(missing),
+                "Install/reinstall Nyvorel from the public source tree.",
+            )
+        else:
+            self.add(
+                "install.core",
+                "PASS",
+                "Installed core",
+                "Shell, CLI, and doctor helper are present.",
+            )
+
+        systemd_dir = self.home / ".config/systemd/user"
+        expected = [
+            "nyvorel-quickshell.service",
+            "nyvorel-operations-monitor.service",
+            *PATH_UNITS,
+        ]
+        absent = [name for name in expected if not (systemd_dir / name).is_file()]
+
+        if absent:
+            self.add(
+                "install.systemd-files",
+                "FAIL",
+                "systemd unit files",
+                f"{len(absent)} required unit file(s) missing: " + ", ".join(absent),
+                "Reinstall Nyvorel to rematerialize the systemd user units.",
+            )
+        else:
+            self.add(
+                "install.systemd-files",
+                "PASS",
+                "systemd unit files",
+                f"All {len(expected)} required user-unit files are present.",
+            )
+
+        config_dir = self.home / ".config/nyvorel"
+        self.add(
+            "runtime.config-dir",
+            "PASS" if config_dir.is_dir() else "WARN",
+            "Runtime config directory",
+            (
+                f"{config_dir} exists."
+                if config_dir.is_dir()
+                else f"{config_dir} is missing."
+            ),
+            None if config_dir.is_dir() else "Start/install Nyvorel once so runtime config can be initialized.",
+        )
+
+    def load_manifest(self) -> None:
+        current = self.home / ".local/state/nyvorel/current-install"
+
+        if not current.is_file():
+            self.add(
+                "manifest.pointer",
+                "WARN",
+                "Installation manifest pointer",
+                f"{current} does not exist.",
+                "Install Nyvorel through install.sh so recovery state is recorded.",
+            )
+            return
+
+        raw = current.read_text(errors="replace").strip()
+        if not raw:
+            self.add(
+                "manifest.pointer",
+                "FAIL",
+                "Installation manifest pointer",
+                "current-install is empty.",
+                "Repair or reinstall the Nyvorel installation state.",
+            )
+            return
+
+        manifest = Path(raw).expanduser()
+        if not manifest.is_absolute():
+            manifest = (current.parent / manifest).resolve(strict=False)
+        if manifest.is_dir():
+            manifest = manifest / "manifest.json"
+
+        if not manifest.is_file():
+            self.add(
+                "manifest.pointer",
+                "FAIL",
+                "Installation manifest pointer",
+                f"Manifest is missing: {manifest}",
+                "Recover the referenced state directory or reinstall Nyvorel.",
+            )
+            return
+
+        try:
+            data = json.loads(manifest.read_text())
+        except Exception as exc:
+            self.add(
+                "manifest.parse",
+                "FAIL",
+                "Installation manifest",
+                f"Cannot parse {manifest}: {exc}",
+                "Restore a valid manifest or reinstall Nyvorel.",
+            )
+            return
+
+        errors: list[str] = []
+        if data.get("schema") != 1:
+            errors.append(f"schema={data.get('schema')!r}")
+        if data.get("product") != "Nyvorel":
+            errors.append(f"product={data.get('product')!r}")
+        if data.get("status") != "installed":
+            errors.append(f"status={data.get('status')!r}")
+
+        try:
+            target = Path(str(data.get("target_home", ""))).resolve(strict=False)
+        except Exception:
+            target = Path("/")
+        if target != self.home:
+            errors.append(f"target_home={target}")
+
+        entries = data.get("entries")
+        if not isinstance(entries, list) or not entries:
+            errors.append("entries missing/empty")
+
+        if errors:
+            self.add(
+                "manifest.state",
+                "FAIL",
+                "Installation manifest",
+                "Invalid state: " + "; ".join(errors),
+                "Use the installation/recovery tooling to repair the recorded state.",
+            )
+            return
+
+        self.manifest = data
+        self.manifest_path = manifest
+        source_commit = data.get("source_commit") or "unknown"
+
+        self.add(
+            "manifest.state",
+            "PASS",
+            "Installation manifest",
+            f"{len(entries)} managed entries; source commit {source_commit}.",
+        )
+
+    def _entry_matches(self, entry: dict[str, Any]) -> tuple[str, str]:
+        rel = Path(str(entry.get("destination", "")))
+        if rel.is_absolute() or ".." in rel.parts:
+            return "invalid", rel.as_posix()
+
+        dest = self.home / rel
+        installed = entry.get("installed")
+        if not isinstance(installed, dict):
+            return "invalid", rel.as_posix()
+
+        if not self.lexists(dest):
+            return "missing", rel.as_posix()
+
+        kind = installed.get("kind")
+        expected = installed.get("value")
+
+        if kind == "symlink":
+            if dest.is_symlink() and os.readlink(dest) == expected:
+                return "ok", rel.as_posix()
+            return "changed", rel.as_posix()
+
+        if kind == "file":
+            if (
+                dest.is_file()
+                and not dest.is_symlink()
+                and self.sha256_file(dest) == expected
+            ):
+                return "ok", rel.as_posix()
+            return "changed", rel.as_posix()
+
+        return "invalid", rel.as_posix()
+
+    def check_manifest_integrity(self) -> None:
+        if self.manifest is None:
+            self.add(
+                "manifest.integrity",
+                "SKIP",
+                "Managed-file integrity",
+                "No valid installed manifest is available.",
+            )
+            return
+
+        entries = self.manifest["entries"]
+        by_destination = {
+            str(entry.get("destination")): entry
+            for entry in entries
+            if isinstance(entry, dict)
+        }
+
+        if self.deep:
+            selected = list(by_destination.values())
+            scope = "all managed entries"
+        else:
+            selected = [
+                by_destination[path]
+                for path in CRITICAL_DESTINATIONS
+                if path in by_destination
+            ]
+            missing_contract = [
+                path for path in CRITICAL_DESTINATIONS if path not in by_destination
+            ]
+            if missing_contract:
+                self.add(
+                    "manifest.contract",
+                    "FAIL",
+                    "Manifest critical entries",
+                    "Critical destination(s) absent from manifest: "
+                    + ", ".join(missing_contract),
+                    "Reinstall Nyvorel from a complete source tree.",
+                )
+            else:
+                self.add(
+                    "manifest.contract",
+                    "PASS",
+                    "Manifest critical entries",
+                    f"All {len(CRITICAL_DESTINATIONS)} critical destinations are recorded.",
+                )
+            scope = "critical managed entries"
+
+        states = {"ok": [], "changed": [], "missing": [], "invalid": []}
+        for entry in selected:
+            status, rel = self._entry_matches(entry)
+            states[status].append(rel)
+
+        if states["invalid"]:
+            self.add(
+                "manifest.integrity",
+                "FAIL",
+                "Managed-file integrity",
+                f"{len(states['invalid'])} invalid manifest entry/entries.",
+                "Repair the installation state before recovery or updating.",
+            )
+            return
+
+        if states["missing"]:
+            detail = (
+                f"{len(states['missing'])} missing, "
+                f"{len(states['changed'])} changed across {scope}."
+            )
+            self.add(
+                "manifest.integrity",
+                "FAIL",
+                "Managed-file integrity",
+                detail + " Missing: " + ", ".join(states["missing"][:8]),
+                "Reinstall/repair missing managed files; review user edits before recovery.",
+            )
+            return
+
+        if states["changed"]:
+            self.add(
+                "manifest.integrity",
+                "WARN",
+                "Managed-file integrity",
+                (
+                    f"{len(states['changed'])} changed across {scope}; "
+                    f"{len(states['ok'])} still match. Changed: "
+                    + ", ".join(states["changed"][:8])
+                ),
+                "Review intentional edits before uninstall/update; recovery will protect them.",
+            )
+            return
+
+        self.add(
+            "manifest.integrity",
+            "PASS",
+            "Managed-file integrity",
+            f"{len(states['ok'])} {scope} match the installation manifest.",
+        )
+
+    def check_materialization(self) -> None:
+        if self.manifest is None:
+            self.add(
+                "install.materialization",
+                "SKIP",
+                "Install-time materialization",
+                "No valid manifest is available.",
+            )
+            return
+
+        unresolved: list[str] = []
+        inspected = 0
+
+        for entry in self.manifest["entries"]:
+            if not isinstance(entry, dict):
+                continue
+            rel = Path(str(entry.get("destination", "")))
+            if rel.is_absolute() or ".." in rel.parts:
+                continue
+            dest = self.home / rel
+            if (
+                not dest.is_file()
+                or dest.is_symlink()
+                or dest.suffix.lower() not in TEXT_SUFFIXES
+            ):
+                continue
+
+            try:
+                data = dest.read_bytes()
+            except OSError:
+                continue
+
+            inspected += 1
+            if HOME_TOKEN.encode() in data:
+                unresolved.append(rel.as_posix())
+
+        if unresolved:
+            self.add(
+                "install.materialization",
+                "FAIL",
+                "Install-time materialization",
+                f"Unresolved {HOME_TOKEN} token(s): " + ", ".join(unresolved[:8]),
+                "Reinstall from a valid Nyvorel source tree.",
+            )
+        else:
+            self.add(
+                "install.materialization",
+                "PASS",
+                "Install-time materialization",
+                f"No unresolved home token found across {inspected} text-like managed files.",
+            )
+
+    def check_config(self) -> None:
+        config = self.home / ".config/nyvorel/config.json"
+        if not config.exists():
+            self.add(
+                "runtime.config-json",
+                "WARN",
+                "Runtime configuration",
+                f"{config} does not exist yet.",
+                "Open/start Nyvorel so its runtime configuration can be created.",
+            )
+            return
+
+        try:
+            data = json.loads(config.read_text())
+        except Exception as exc:
+            self.add(
+                "runtime.config-json",
+                "FAIL",
+                "Runtime configuration",
+                f"Invalid JSON: {exc}",
+                "Repair config.json or restore a known-good runtime configuration.",
+            )
+            return
+
+        if not isinstance(data, dict):
+            self.add(
+                "runtime.config-json",
+                "FAIL",
+                "Runtime configuration",
+                "config.json root is not a JSON object.",
+                "Repair config.json.",
+            )
+            return
+
+        self.add(
+            "runtime.config-json",
+            "PASS",
+            "Runtime configuration",
+            f"Valid JSON object with {len(data)} top-level key(s).",
+        )
+
+    def check_session(self) -> None:
+        if not self.session_checks:
+            self.add(
+                "session.environment",
+                "SKIP",
+                "Desktop session",
+                "Session checks disabled or alternate home is being inspected.",
+            )
+            self.add(
+                "session.systemd",
+                "SKIP",
+                "systemd user services",
+                "Session checks disabled or alternate home is being inspected.",
+            )
+            self.add(
+                "session.hyprland",
+                "SKIP",
+                "Hyprland",
+                "Session checks disabled or alternate home is being inspected.",
+            )
+            return
+
+        session_type = os.environ.get("XDG_SESSION_TYPE", "")
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+        signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+
+        env_parts = [
+            f"XDG_SESSION_TYPE={session_type or '<unset>'}",
+            f"XDG_CURRENT_DESKTOP={desktop or '<unset>'}",
+            f"HYPRLAND_INSTANCE_SIGNATURE={'set' if signature else 'unset'}",
+        ]
+
+        if session_type == "wayland" and (
+            "hyprland" in desktop.lower() or bool(signature)
+        ):
+            self.add(
+                "session.environment",
+                "PASS",
+                "Desktop session",
+                "; ".join(env_parts),
+            )
+        else:
+            self.add(
+                "session.environment",
+                "WARN",
+                "Desktop session",
+                "; ".join(env_parts),
+                "Run doctor inside the active Hyprland/Wayland session for full diagnostics.",
+            )
+
+        qs_binary = shutil.which("qs") or shutil.which("quickshell")
+        if qs_binary:
+            self.add(
+                "session.quickshell-binary",
+                "PASS",
+                "Quickshell binary",
+                qs_binary,
+            )
+        else:
+            self.add(
+                "session.quickshell-binary",
+                "FAIL",
+                "Quickshell binary",
+                "Neither qs nor quickshell is available on PATH.",
+                "Install Quickshell and ensure its executable is on PATH.",
+            )
+
+        systemctl = shutil.which("systemctl")
+        if not systemctl:
+            self.add(
+                "session.systemd",
+                "FAIL",
+                "systemd user services",
+                "systemctl is unavailable.",
+                "Use Nyvorel on its supported systemd-based Arch Linux target.",
+            )
+        else:
+            probe = self.run_command([systemctl, "--user", "show-environment"])
+            if probe.returncode != 0:
+                self.add(
+                    "session.systemd",
+                    "WARN",
+                    "systemd user services",
+                    "User manager is not reachable from this context.",
+                    "Run doctor from the logged-in graphical user session.",
+                )
+            else:
+                quickshell = self.run_command(
+                    [systemctl, "--user", "is-active", "nyvorel-quickshell.service"]
+                )
+                monitor = self.run_command(
+                    [systemctl, "--user", "is-active", "nyvorel-operations-monitor.service"]
+                )
+
+                q_state = quickshell.stdout.strip() or "unknown"
+                m_state = monitor.stdout.strip() or "unknown"
+
+                enabled = 0
+                active = 0
+                for unit in PATH_UNITS:
+                    if (
+                        self.run_command(
+                            [systemctl, "--user", "is-enabled", unit]
+                        ).stdout.strip()
+                        == "enabled"
+                    ):
+                        enabled += 1
+                    if (
+                        self.run_command(
+                            [systemctl, "--user", "is-active", unit]
+                        ).stdout.strip()
+                        == "active"
+                    ):
+                        active += 1
+
+                status = (
+                    "PASS"
+                    if q_state == "active"
+                    and m_state == "active"
+                    and enabled == len(PATH_UNITS)
+                    and active == len(PATH_UNITS)
+                    else "WARN"
+                )
+                self.add(
+                    "session.systemd",
+                    status,
+                    "systemd user services",
+                    (
+                        f"quickshell={q_state}; operations-monitor={m_state}; "
+                        f"path-units enabled={enabled}/{len(PATH_UNITS)}, "
+                        f"active={active}/{len(PATH_UNITS)}"
+                    ),
+                    (
+                        None
+                        if status == "PASS"
+                        else "Activate Nyvorel services or inspect systemctl --user status for inactive units."
+                    ),
+                )
+
+        hyprctl = shutil.which("hyprctl")
+        if not hyprctl:
+            self.add(
+                "session.hyprland",
+                "FAIL",
+                "Hyprland",
+                "hyprctl is unavailable on PATH.",
+                "Install Hyprland and run doctor in the target desktop environment.",
+            )
+        elif not signature:
+            self.add(
+                "session.hyprland",
+                "WARN",
+                "Hyprland",
+                "hyprctl exists, but no active Hyprland instance signature is visible.",
+                "Run doctor inside the active Hyprland session.",
+            )
+        else:
+            proc = self.run_command([hyprctl, "configerrors"])
+            errors = proc.stdout.strip()
+
+            if proc.returncode != 0:
+                self.add(
+                    "session.hyprland",
+                    "WARN",
+                    "Hyprland",
+                    f"hyprctl configerrors exited {proc.returncode}: {errors[:300]}",
+                    "Check the active Hyprland session and socket environment.",
+                )
+            elif errors:
+                self.add(
+                    "session.hyprland",
+                    "FAIL",
+                    "Hyprland",
+                    "Configuration errors reported: " + errors[:500],
+                    "Resolve Hyprland configuration errors before continuing.",
+                )
+            else:
+                self.add(
+                    "session.hyprland",
+                    "PASS",
+                    "Hyprland",
+                    "No configuration errors reported.",
+                )
+
+    def run(self) -> None:
+        self.check_platform()
+        self.check_installation_files()
+        self.load_manifest()
+        self.check_manifest_integrity()
+        self.check_materialization()
+        self.check_config()
+        self.check_session()
+
+    def payload(self) -> dict[str, Any]:
+        counts = {
+            status: sum(1 for check in self.checks if check.status == status)
+            for status in ("PASS", "WARN", "FAIL", "SKIP")
+        }
+
+        if counts["FAIL"]:
+            result = "FAIL"
+        elif counts["WARN"]:
+            result = "WARN"
+        else:
+            result = "PASS"
+
+        return {
+            "schema": SCHEMA,
+            "product": "Nyvorel",
+            "doctor_version": DOCTOR_VERSION,
+            "target_home": str(self.home),
+            "deep": self.deep,
+            "session_checks": self.session_checks,
+            "strict": self.strict,
+            "summary": counts,
+            "result": result,
+            "checks": [asdict(check) for check in self.checks],
+        }
+
+    def exit_code(self) -> int:
+        payload = self.payload()
+        if payload["summary"]["FAIL"]:
+            return 1
+        if self.strict and payload["summary"]["WARN"]:
+            return 1
+        return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="nyvorel doctor",
+        description="Read-only Nyvorel installation and desktop diagnostics.",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="Hash-check every managed manifest entry instead of only critical files.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON only.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when warnings are present.",
+    )
+    parser.add_argument(
+        "--home",
+        metavar="PATH",
+        help="Inspect another home directory (session checks are skipped).",
+    )
+    parser.add_argument(
+        "--no-session",
+        action="store_true",
+        help="Skip live Hyprland/systemd/Quickshell session checks.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    real_home = Path.home().resolve(strict=False)
+    target_home = (
+        Path(args.home).expanduser().resolve(strict=False)
+        if args.home
+        else real_home
+    )
+
+    session_checks = not args.no_session and target_home == real_home
+
+    doctor = Doctor(
+        target_home,
+        deep=args.deep,
+        session_checks=session_checks,
+        strict=args.strict,
+    )
+    doctor.run()
+    payload = doctor.payload()
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        mode = "deep" if args.deep else "standard"
+        print("============================================================")
+        print("NYVOREL DOCTOR")
+        print("============================================================")
+        print(f"Target home    : {target_home}")
+        print(f"Mode           : {mode}")
+        print(f"Session checks : {'yes' if session_checks else 'no'}")
+        print()
+
+        for check in doctor.checks:
+            print(f"{check.status:<4}  {check.title}")
+            print(f"      {check.detail}")
+            if check.fix:
+                print(f"      Fix: {check.fix}")
+
+        counts = payload["summary"]
+        print()
+        print(
+            "Summary: "
+            f"PASS={counts['PASS']} "
+            f"WARN={counts['WARN']} "
+            f"FAIL={counts['FAIL']} "
+            f"SKIP={counts['SKIP']}"
+        )
+        print(f"RESULT: {payload['result']}")
+
+    return doctor.exit_code()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

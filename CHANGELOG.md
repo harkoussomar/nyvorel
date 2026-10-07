@@ -2,6 +2,14 @@
 
 All notable Nyvorel changes intended for public releases are recorded here.
 
+## [Unreleased]
+
+### Added
+
+- `nyvorel doctor` read-only diagnostics for installation manifests, managed-file integrity, install-time materialization, runtime configuration, systemd user services, Quickshell, and Hyprland health.
+- JSON, deep-scan, strict, and alternate-home diagnostic modes.
+- GitHub Actions regression coverage for clean doctor state, managed-file drift, and missing-file failures.
+
 ## [0.1.0] - 2026-10-06
 
 Initial public Nyvorel source release.

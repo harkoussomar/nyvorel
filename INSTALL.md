@@ -33,6 +33,25 @@ The installer:
 
 The installer does not activate services unless requested.
 
+## Verify the installation
+
+After installation, run the read-only diagnostic command:
+
+```sh
+nyvorel doctor
+```
+
+For a complete manifest checksum pass:
+
+```sh
+nyvorel doctor --deep
+```
+
+Machine-readable output is available with `nyvorel doctor --json`. The doctor
+reports installation state, managed-file drift, unresolved install templates,
+runtime configuration health, systemd user-service state, Quickshell
+availability, and Hyprland configuration errors without changing the system.
+
 ## Install and activate
 
 ```sh

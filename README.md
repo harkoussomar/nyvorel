@@ -231,6 +231,35 @@ When you explicitly choose forced recovery, changed files are archived first:
 
 Runtime/user state under `~/.config/nyvorel` is intentionally retained.
 
+## Diagnose Nyvorel
+
+Nyvorel includes a read-only doctor command for installation and session health:
+
+```sh
+nyvorel doctor
+```
+
+Use a full managed-file checksum pass when investigating drift:
+
+```sh
+nyvorel doctor --deep
+```
+
+For scripts and support reports:
+
+```sh
+nyvorel doctor --json
+```
+
+The doctor checks the installed shell/CLI, installation manifest, managed-file
+integrity, install-time path materialization, runtime JSON configuration,
+systemd user services, Quickshell availability, the Hyprland session, and
+Hyprland configuration errors. It does not modify files or restart services.
+
+Warnings do not change the normal exit code; `--strict` makes warnings
+non-zero. `--home PATH --no-session` can inspect an alternate installation
+without touching the live desktop session.
+
 ## How it fits together
 
 ```mermaid
@@ -324,7 +353,6 @@ Next focus areas include:
 - complete user and technical documentation;
 - automated release and installer validation;
 - clean-machine installation testing;
-- Nyvorel diagnostics / doctor workflow;
 - update workflow;
 - packaging and distribution improvements.
 
