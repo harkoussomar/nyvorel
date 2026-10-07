@@ -231,9 +231,9 @@ def validate_source(root: Path, version: str, items: list[Item]) -> tuple[int, i
             token_files += 1
             token_count += count
 
-    if version == "0.1.0" and token_count != 29:
+    if token_count != 29:
         raise UpdateError(
-            f"v0.1.0 source contract expects 29 install tokens, found {token_count}"
+            f"portable source contract expects 29 install tokens, found {token_count}"
         )
 
     return token_files, token_count

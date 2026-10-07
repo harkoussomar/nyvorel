@@ -73,8 +73,8 @@ status = policy["implementation_status"]
 assert status == {
     "stable_channel_resolution": "implemented-6B",
     "development_channel_opt_in": "implemented-6B",
-    "release_preflight_automation": "pending-6C",
-    "installer_general_version_support": "pending-6C",
+    "release_preflight_automation": "candidate-preflight-implemented-6C1",
+    "installer_general_version_support": "implemented-6C1",
     "upgrade_path_matrix": "pending-6D",
 }
 
@@ -119,9 +119,11 @@ grep -q 'stable channel refuses a same-version different-commit update' \
 grep -q 'NYVOREL_GITHUB_API_BASE' bin/nyvorel-update \
   || die "GitHub API endpoint contract missing"
 
-# v0.1.1 cannot be published until installer generalization in Phase 6C.
-grep -Fq '[[ "$VERSION" == "0.1.0" ]]' install.sh \
-  || die "installer version gate changed without Phase 6C"
+grep -q 'invalid semantic VERSION' install.sh \
+  || die "installer strict semantic VERSION gate missing"
+
+grep -q 'scripts/release/preflight.sh' release/channel-policy.json \
+  || die "release candidate preflight policy missing"
 
 grep -qF '**Stable is the user-default remote update channel.**' RELEASES.md \
   || die "RELEASES.md stable default missing"

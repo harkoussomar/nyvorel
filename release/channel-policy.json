@@ -81,8 +81,8 @@
   "implementation_status": {
     "stable_channel_resolution": "implemented-6B",
     "development_channel_opt_in": "implemented-6B",
-    "release_preflight_automation": "pending-6C",
-    "installer_general_version_support": "pending-6C",
+    "release_preflight_automation": "candidate-preflight-implemented-6C1",
+    "installer_general_version_support": "implemented-6C1",
     "upgrade_path_matrix": "pending-6D"
   },
   "legacy_behavior": {
@@ -90,5 +90,12 @@
     "stable_fetch_default": "--fetch",
     "development_replacement": "--fetch --channel development",
     "history_rewrite_required": false
+  },
+  "release_tooling": {
+    "candidate_preflight": "scripts/release/preflight.sh",
+    "preflight_mutates_repository": false,
+    "preflight_publishes_release": false,
+    "publication_tooling": "pending-6C2",
+    "publication_requires_explicit_action": true
   }
 }

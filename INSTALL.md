@@ -137,6 +137,17 @@ Files removed from a newer Nyvorel source are retired safely: the updater
 restores the original pre-Nyvorel file when one existed, otherwise it removes
 the file that Nyvorel originally created.
 
+## Maintainer release preflight
+
+The installer accepts strict semantic `MAJOR.MINOR.PATCH` versions rather than
+being tied to `0.1.0`. Maintainers can test a prepared release candidate with:
+
+```sh
+scripts/release/preflight.sh --version 0.1.1 --require-clean
+```
+
+This is validation only; it does not create tags, push, or publish releases.
+
 ## Install and activate
 
 ```sh

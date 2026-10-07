@@ -72,8 +72,8 @@ command -v python3 >/dev/null 2>&1 || {
   exit 1
 }
 
-[[ "$VERSION" == "0.1.0" ]] || {
-  echo "ERROR: unsupported/invalid VERSION: $VERSION" >&2
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo "ERROR: invalid semantic VERSION: $VERSION" >&2
   exit 1
 }
 
@@ -263,7 +263,7 @@ print(f"@HOME@ occurrences     : {token_occurrences}")
 
 if token_occurrences != 29:
     raise SystemExit(
-        f"expected 29 @HOME@ occurrences in v0.1.0 source, found {token_occurrences}"
+        f"portable source contract expects 29 @HOME@ occurrences, found {token_occurrences}"
     )
 
 if dry_run:

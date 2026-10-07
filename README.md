@@ -398,6 +398,17 @@ release tags. Development is opt-in and tracks `origin/main`.
 `nyvorel update --fetch` resolves stable releases; development/main requires
 `--channel development`.
 
+## Release candidate preflight
+
+Maintainers can validate a prepared semantic-version release candidate without
+publishing anything:
+
+```sh
+scripts/release/preflight.sh --version 0.1.1 --require-clean
+```
+
+See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage preflight.
+
 ## Documentation
 
 | Guide | Purpose |

@@ -95,6 +95,25 @@ There is no separate `release/0.1` branch requirement yet. When multiple minor
 lines need simultaneous maintenance, a branch such as `release/0.1` may be
 introduced explicitly; this policy does not create it automatically.
 
+## Release candidate preflight
+
+Before creating a new `v0.1.x` tag, prepare the candidate VERSION and exact
+CHANGELOG release heading, then run:
+
+```sh
+scripts/release/preflight.sh --version 0.1.1 --require-clean
+```
+
+After creating the intended tag locally, require that it peels to the exact
+candidate HEAD:
+
+```sh
+scripts/release/preflight.sh --version 0.1.1 --require-clean --require-tag
+```
+
+Preflight is read-only. It never creates a tag, pushes, or publishes a GitHub
+Release. Phase 6C2 owns explicit publication tooling.
+
 ## Release invariants
 
 A future stable release is invalid if any of these disagree:
@@ -116,5 +135,6 @@ Phase 6 is intentionally split:
 
 - **6A** — define this contract — **closed**;
 - **6B** — implement stable vs development resolution in `nyvorel update` — **closed**;
-- **6C** — add deterministic `v0.1.x` release preflight/publication tooling;
+- **6C1** — generic installer VERSION support + deterministic, non-publishing release candidate preflight — **closed**;
+- **6C2** — explicit release publication tooling and remote release/CI verification;
 - **6D** — prove upgrade, downgrade, channel, clean-machine, and recovery paths.

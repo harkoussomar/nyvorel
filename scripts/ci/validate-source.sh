@@ -37,6 +37,8 @@ required_files=(
   scripts/ci/test-phase5-readiness.sh
   scripts/ci/test-release-channel-contract.sh
   scripts/ci/test-update-channels.sh
+  scripts/ci/test-release-preflight.sh
+  scripts/release/preflight.sh
 )
 
 required_dirs=(
@@ -228,10 +230,8 @@ print(count)
 PY
 )"
 
-if [[ "$VERSION_VALUE" == "0.1.0" ]]; then
-  [[ "$TOKEN_COUNT" == "29" ]] \
-    || die "v0.1.0 portability contract expects 29 @HOME@ occurrences, found $TOKEN_COUNT"
-fi
+[[ "$TOKEN_COUNT" == "29" ]] \
+  || die "portable source contract expects 29 @HOME@ occurrences, found $TOKEN_COUNT"
 
 if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
   [[ "${GITHUB_REF_NAME:-}" == "v$VERSION_VALUE" ]] \

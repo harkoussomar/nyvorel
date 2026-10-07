@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 6C1
+- Generalized installer/updater source validation from a `0.1.0`-specific VERSION gate to strict semantic versions while preserving the 29-token portability contract.
+- Added deterministic release-candidate preflight for VERSION/tag/CHANGELOG/installer invariants.
+- Added explicit proof that preflight never creates tags, pushes, or publishes a release.
+
 ### Post-release infrastructure — Phase 6B
 - Made stable the default `nyvorel update --fetch` channel using non-draft/non-prerelease semantic GitHub Releases and isolated tagged checkouts.
 - Added explicit `--channel development` resolution for `origin/main`.
