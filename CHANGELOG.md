@@ -9,6 +9,8 @@ All notable Nyvorel changes intended for public releases are recorded here.
 - `nyvorel doctor` read-only diagnostics for installation manifests, managed-file integrity, install-time materialization, runtime configuration, systemd user services, Quickshell, and Hyprland health.
 - JSON, deep-scan, strict, and alternate-home diagnostic modes.
 - GitHub Actions regression coverage for clean doctor state, managed-file drift, and missing-file failures.
+- `nyvorel update` manifest-aware update workflow with dry-run planning, optional clean-source fast-forward, original-backup carry-forward, retired-file handling, explicit changed-file archival, and transaction rollback.
+- GitHub Actions update-lifecycle coverage for dry-run safety, baseline preservation, managed-file retirement, drift refusal, forced archival, and uninstall recovery after update.
 
 ## [0.1.0] - 2026-10-06
 

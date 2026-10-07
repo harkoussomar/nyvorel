@@ -1,0 +1,830 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+from datetime import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
+import time
+from typing import Any
+
+HOME_TOKEN = "@" + "HOME" + "@"
+HOME_TOKEN_BYTES = HOME_TOKEN.encode()
+
+
+@dataclass(frozen=True)
+class Item:
+    src: Path
+    rel: Path
+
+
+class UpdateError(RuntimeError):
+    pass
+
+
+def lexists(path: Path) -> bool:
+    return os.path.lexists(path)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def installed_digest(path: Path) -> dict[str, str]:
+    if path.is_symlink():
+        return {"kind": "symlink", "value": os.readlink(path)}
+    return {"kind": "file", "value": sha256_file(path)}
+
+
+def copy_path(src: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if lexists(dest):
+        if dest.is_dir() and not dest.is_symlink():
+            shutil.rmtree(dest)
+        else:
+            dest.unlink()
+
+    if src.is_symlink():
+        os.symlink(os.readlink(src), dest)
+    else:
+        shutil.copy2(src, dest, follow_symlinks=False)
+
+
+def remove_path(path: Path) -> None:
+    if not lexists(path):
+        return
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def git_output(root: Path, *args: str) -> str:
+    proc = subprocess.run(
+        ["git", "-C", str(root), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def parse_version(raw: str) -> tuple[int, int, int]:
+    parts = raw.strip().split(".")
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        raise UpdateError(f"invalid semantic VERSION: {raw!r}")
+    return tuple(int(part) for part in parts)  # type: ignore[return-value]
+
+
+def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
+    if not src_root.is_dir():
+        raise UpdateError(f"required source directory missing: {src_root}")
+
+    for src in sorted(src_root.rglob("*")):
+        if src.is_dir():
+            continue
+        if not (src.is_file() or src.is_symlink()):
+            continue
+        if "__pycache__" in src.parts or src.suffix in {".pyc", ".pyo"}:
+            continue
+        rel_inside = src.relative_to(src_root)
+        items.append(Item(src=src, rel=dest_root / rel_inside))
+
+
+def build_items(root: Path) -> list[Item]:
+    items: list[Item] = []
+
+    add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
+    add_tree(items, root / "hypr", Path(".config/hypr"))
+    add_tree(items, root / "bin", Path(".local/bin"))
+
+    for name in ("fish", "kitty"):
+        src = root / "integrations" / name
+        if src.is_dir():
+            add_tree(items, src, Path(f".config/{name}"))
+
+    systemd_root = root / "systemd"
+    if not systemd_root.is_dir():
+        raise UpdateError("required source directory missing: systemd")
+
+    for src in sorted(systemd_root.rglob("*")):
+        if src.is_dir():
+            continue
+        if not (src.is_file() or src.is_symlink()):
+            continue
+        if "__pycache__" in src.parts or src.suffix in {".pyc", ".pyo"}:
+            continue
+
+        rel_inside = src.relative_to(systemd_root)
+        name = rel_inside.name
+        if name.endswith(".in"):
+            name = name[:-3]
+        dest_inside = rel_inside.with_name(name)
+        items.append(Item(src=src, rel=Path(".config/systemd/user") / dest_inside))
+
+    logo = root / "assets" / "nyvorel.svg"
+    if not logo.is_file():
+        raise UpdateError("required Nyvorel logo missing")
+
+    items.append(
+        Item(
+            src=logo,
+            rel=Path(".local/share/icons/hicolor/scalable/apps/nyvorel.svg"),
+        )
+    )
+
+    seen: dict[str, Path] = {}
+    for item in items:
+        if item.rel.is_absolute() or ".." in item.rel.parts:
+            raise UpdateError(f"unsafe destination path: {item.rel}")
+        key = item.rel.as_posix()
+        if key in seen:
+            raise UpdateError(
+                f"duplicate destination: {item.rel} from {seen[key]} and {item.src}"
+            )
+        seen[key] = item.src
+
+        if item.src.is_symlink() and os.path.isabs(os.readlink(item.src)):
+            raise UpdateError(
+                f"absolute source symlink refused: {item.src} -> {os.readlink(item.src)}"
+            )
+
+    return items
+
+
+def rendered_digest(item: Item, home: Path) -> dict[str, str]:
+    if item.src.is_symlink():
+        return {"kind": "symlink", "value": os.readlink(item.src)}
+
+    data = item.src.read_bytes().replace(
+        HOME_TOKEN_BYTES,
+        str(home).encode("utf-8"),
+    )
+    return {
+        "kind": "file",
+        "value": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def live_state(path: Path, expected: dict[str, Any]) -> str:
+    if not lexists(path):
+        return "missing"
+
+    kind = expected.get("kind")
+    value = expected.get("value")
+
+    if kind == "symlink":
+        return "ok" if path.is_symlink() and os.readlink(path) == value else "changed"
+
+    if kind == "file":
+        if path.is_symlink() or not path.is_file():
+            return "changed"
+        return "ok" if sha256_file(path) == value else "changed"
+
+    return "invalid"
+
+
+def validate_source(root: Path, version: str, items: list[Item]) -> tuple[int, int]:
+    required = [
+        root / "install.sh",
+        root / "uninstall.sh",
+        root / "bin/nyvorel",
+        root / "bin/nyvorel-doctor",
+        root / "bin/nyvorel-update",
+        root / "quickshell/shell.qml",
+        root / "assets/nyvorel.svg",
+    ]
+
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise UpdateError("candidate source is incomplete: " + ", ".join(missing))
+
+    token_files = 0
+    token_count = 0
+
+    for item in items:
+        if item.src.is_symlink():
+            continue
+        data = item.src.read_bytes()
+        count = data.count(HOME_TOKEN_BYTES)
+        if count:
+            token_files += 1
+            token_count += count
+
+    if version == "0.1.0" and token_count != 29:
+        raise UpdateError(
+            f"v0.1.0 source contract expects 29 install tokens, found {token_count}"
+        )
+
+    return token_files, token_count
+
+
+def read_manifest(home: Path) -> tuple[Path, Path, dict[str, Any]]:
+    pointer = home / ".local/state/nyvorel/current-install"
+    if not pointer.is_file():
+        raise UpdateError(f"current installation pointer missing: {pointer}")
+
+    raw = pointer.read_text(errors="replace").strip()
+    if not raw:
+        raise UpdateError("current installation pointer is empty")
+
+    state = Path(raw).expanduser()
+    if not state.is_absolute():
+        state = (pointer.parent / state).resolve(strict=False)
+
+    manifest = state / "manifest.json" if state.is_dir() else state
+    if manifest.name == "manifest.json":
+        state = manifest.parent
+    else:
+        manifest = state / "manifest.json"
+
+    if not manifest.is_file():
+        raise UpdateError(f"installation manifest missing: {manifest}")
+
+    data = json.loads(manifest.read_text())
+
+    if data.get("schema") != 1:
+        raise UpdateError(f"unsupported manifest schema: {data.get('schema')!r}")
+    if data.get("product") != "Nyvorel":
+        raise UpdateError("current manifest is not a Nyvorel installation")
+    if data.get("status") != "installed":
+        raise UpdateError(f"current manifest is not installed: {data.get('status')!r}")
+    if Path(str(data.get("target_home", ""))).resolve(strict=False) != home:
+        raise UpdateError("manifest target_home does not match requested home")
+    if not isinstance(data.get("entries"), list) or not data["entries"]:
+        raise UpdateError("current manifest contains no entries")
+
+    return pointer, state, data
+
+
+def maybe_fetch_source(root: Path) -> None:
+    git_dir = root / ".git"
+    if not git_dir.exists():
+        raise UpdateError("--fetch requires a Git checkout")
+
+    dirty = git_output(root, "status", "--porcelain")
+    if dirty:
+        raise UpdateError("--fetch refuses a dirty source checkout")
+
+    branch = git_output(root, "branch", "--show-current")
+    if branch != "main":
+        raise UpdateError(f"--fetch requires source branch main, found {branch!r}")
+
+    remote = git_output(root, "remote", "get-url", "origin")
+    if not remote:
+        raise UpdateError("--fetch requires an origin remote")
+
+    print(f"Source remote         : {remote}")
+    print("Fetching origin/main...")
+
+    subprocess.run(
+        ["git", "-C", str(root), "fetch", "--prune", "origin", "main"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(root), "merge", "--ff-only", "origin/main"],
+        check=True,
+    )
+
+
+def activate_services(home: Path) -> None:
+    real_home = Path.home().resolve(strict=False)
+    if home != real_home:
+        raise UpdateError("--activate is only allowed for the current user's real HOME")
+
+    systemctl = shutil.which("systemctl")
+    if not systemctl:
+        raise UpdateError("systemctl is unavailable; update succeeded but activation cannot run")
+
+    path_units = [
+        "nyvorel-btop-style-sync.path",
+        "nyvorel-dolphin-theme-sync.path",
+        "nyvorel-fuzzel-style-sync.path",
+        "nyvorel-kde-app-style-sync.path",
+        "nyvorel-terminal-theme-sync.path",
+        "nyvorel-zed-theme-sync.path",
+        "nyvorel-zen-code-style-sync.path",
+    ]
+
+    subprocess.run([systemctl, "--user", "daemon-reload"], check=True)
+    subprocess.run(
+        [
+            systemctl,
+            "--user",
+            "enable",
+            "--now",
+            *path_units,
+            "nyvorel-operations-monitor.service",
+        ],
+        check=True,
+    )
+
+    env_names = [
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "HYPRLAND_INSTANCE_SIGNATURE",
+        "XDG_CURRENT_DESKTOP",
+        "XDG_SESSION_TYPE",
+    ]
+    subprocess.run(
+        [systemctl, "--user", "import-environment", *env_names],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [systemctl, "--user", "restart", "nyvorel-quickshell.service"],
+        check=True,
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="nyvorel update",
+        description="Safely update a manifest-backed Nyvorel installation.",
+    )
+    parser.add_argument(
+        "--target-home",
+        metavar="PATH",
+        default=os.environ.get("HOME"),
+        help="Update another home directory (testing/staging).",
+    )
+    parser.add_argument(
+        "--source",
+        metavar="PATH",
+        help="Candidate Nyvorel source tree. Defaults to the current manifest source_root.",
+    )
+    parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="Fast-forward a clean source checkout from origin/main before planning.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show the update plan without changing the installation.",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Apply the planned update without an interactive confirmation.",
+    )
+    parser.add_argument(
+        "--force-changed",
+        action="store_true",
+        help="Archive locally changed managed files and continue.",
+    )
+    parser.add_argument(
+        "--allow-dirty-source",
+        action="store_true",
+        help="Allow an explicit dirty Git source checkout.",
+    )
+    parser.add_argument(
+        "--allow-downgrade",
+        action="store_true",
+        help="Allow a candidate VERSION lower than the installed version.",
+    )
+    activation = parser.add_mutually_exclusive_group()
+    activation.add_argument(
+        "--activate",
+        action="store_true",
+        help="Reload/restart Nyvorel services after a successful update.",
+    )
+    activation.add_argument(
+        "--no-activate",
+        action="store_true",
+        help="Do not touch user services (default).",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    home = Path(args.target_home).expanduser().resolve(strict=False)
+    if str(home) == "/":
+        raise UpdateError("refusing to use / as target home")
+
+    pointer, old_state, old_manifest = read_manifest(home)
+
+    source_value = args.source or old_manifest.get("source_root")
+    if not source_value:
+        raise UpdateError(
+            "no source tree is available; use --source /path/to/nyvorel"
+        )
+
+    source = Path(str(source_value)).expanduser().resolve(strict=False)
+    if not source.is_dir():
+        raise UpdateError(f"candidate source directory missing: {source}")
+
+    if args.fetch:
+        maybe_fetch_source(source)
+
+    if (source / ".git").exists():
+        dirty = git_output(source, "status", "--porcelain")
+        if dirty and not args.allow_dirty_source:
+            raise UpdateError(
+                "candidate Git checkout is dirty; commit/stash it or use --allow-dirty-source"
+            )
+
+    version_file = source / "VERSION"
+    if not version_file.is_file():
+        raise UpdateError(f"candidate VERSION missing: {version_file}")
+
+    candidate_version = version_file.read_text().strip()
+    candidate_semver = parse_version(candidate_version)
+
+    old_version = str(old_manifest.get("version") or "0.0.0")
+    old_semver = parse_version(old_version)
+
+    if candidate_semver < old_semver and not args.allow_downgrade:
+        raise UpdateError(
+            f"candidate {candidate_version} is older than installed {old_version}; "
+            "use --allow-downgrade only when intentional"
+        )
+
+    items = build_items(source)
+    token_files, token_count = validate_source(source, candidate_version, items)
+
+    source_commit = git_output(source, "rev-parse", "HEAD")
+    old_commit = str(old_manifest.get("source_commit") or "")
+
+    old_entries: dict[str, dict[str, Any]] = {}
+    for entry in old_manifest["entries"]:
+        if not isinstance(entry, dict):
+            raise UpdateError("current manifest contains a non-object entry")
+        rel = Path(str(entry.get("destination", "")))
+        if rel.is_absolute() or ".." in rel.parts:
+            raise UpdateError(f"unsafe current manifest destination: {rel}")
+        key = rel.as_posix()
+        if key in old_entries:
+            raise UpdateError(f"duplicate current manifest destination: {key}")
+        if not isinstance(entry.get("installed"), dict):
+            raise UpdateError(f"current manifest entry has no installed digest: {key}")
+        old_entries[key] = entry
+
+    candidate_by_rel = {item.rel.as_posix(): item for item in items}
+
+    drift_changed: list[str] = []
+    drift_missing: list[str] = []
+    invalid: list[str] = []
+
+    for rel, entry in old_entries.items():
+        status = live_state(home / rel, entry["installed"])
+        if status == "changed":
+            drift_changed.append(rel)
+        elif status == "missing":
+            drift_missing.append(rel)
+        elif status == "invalid":
+            invalid.append(rel)
+
+    if invalid:
+        raise UpdateError(
+            "invalid current manifest digest(s): " + ", ".join(invalid[:10])
+        )
+
+    if (drift_changed or drift_missing) and not args.force_changed:
+        print("ERROR: managed installation drift detected.", file=sys.stderr)
+        if drift_changed:
+            print("Changed:", file=sys.stderr)
+            for rel in drift_changed[:30]:
+                print(f"  {rel}", file=sys.stderr)
+        if drift_missing:
+            print("Missing:", file=sys.stderr)
+            for rel in drift_missing[:30]:
+                print(f"  {rel}", file=sys.stderr)
+        print(
+            "Refusing to update. Review the edits first, or rerun with "
+            "--force-changed to archive changed files before replacement.",
+            file=sys.stderr,
+        )
+        return 3
+
+    retained = sorted(set(old_entries) & set(candidate_by_rel))
+    added = sorted(set(candidate_by_rel) - set(old_entries))
+    retired = sorted(set(old_entries) - set(candidate_by_rel))
+
+    content_changes: list[str] = []
+    unchanged: list[str] = []
+
+    for rel in retained:
+        candidate_digest = rendered_digest(candidate_by_rel[rel], home)
+        if candidate_digest == old_entries[rel]["installed"]:
+            unchanged.append(rel)
+        else:
+            content_changes.append(rel)
+
+    new_collisions: list[str] = []
+    directory_conflicts: list[str] = []
+
+    for rel in added:
+        dest = home / rel
+        if lexists(dest):
+            if dest.is_dir() and not dest.is_symlink():
+                directory_conflicts.append(rel)
+            else:
+                new_collisions.append(rel)
+
+    if directory_conflicts:
+        raise UpdateError(
+            "new managed file destinations collide with directories: "
+            + ", ".join(directory_conflicts[:20])
+        )
+
+    update_needed = bool(
+        content_changes
+        or added
+        or retired
+        or drift_changed
+        or drift_missing
+        or candidate_version != old_version
+        or (source_commit and source_commit != old_commit)
+    )
+
+    print("============================================================")
+    print("NYVOREL UPDATE")
+    print("============================================================")
+    print(f"Target home           : {home}")
+    print(f"Current version       : {old_version}")
+    print(f"Candidate version     : {candidate_version}")
+    print(f"Current commit        : {old_commit or '<unknown>'}")
+    print(f"Candidate commit      : {source_commit or '<unknown>'}")
+    print(f"Candidate source      : {source}")
+    print(f"Managed old           : {len(old_entries)}")
+    print(f"Managed candidate     : {len(items)}")
+    print(f"Changed payload       : {len(content_changes)}")
+    print(f"New managed files     : {len(added)}")
+    print(f"Retired managed files : {len(retired)}")
+    print(f"New collisions        : {len(new_collisions)}")
+    print(f"Local changed files   : {len(drift_changed)}")
+    print(f"Local missing files   : {len(drift_missing)}")
+    print(f"Template files        : {token_files}")
+    print(f"Template occurrences  : {token_count}")
+    print(f"Force changed         : {'yes' if args.force_changed else 'no'}")
+    print(f"Activate              : {'yes' if args.activate else 'no'}")
+    print()
+
+    if not update_needed:
+        print("RESULT: already up to date.")
+        return 0
+
+    if args.dry_run:
+        print("DRY RUN — no files or state changed.")
+        if content_changes:
+            print("Payload changes:")
+            for rel in content_changes[:25]:
+                print(f"  {rel}")
+        if added:
+            print("New managed files:")
+            for rel in added[:25]:
+                print(f"  {rel}")
+        if retired:
+            print("Retired managed files:")
+            for rel in retired[:25]:
+                print(f"  {rel}")
+        return 0
+
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise UpdateError(
+                "update requires confirmation; rerun with --yes after reviewing --dry-run"
+            )
+        answer = input("Apply this update? [y/N] ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("Update cancelled.")
+            return 0
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    state = home / ".local/state/nyvorel/installations" / f"{stamp}-update-{os.getpid()}"
+    backup_root = state / "backup"
+    transaction_root = state / "transaction-backup"
+    conflicts_root = state / "update-conflicts"
+    manifest_path = state / "manifest.json"
+
+    if state.exists():
+        raise UpdateError(f"update state unexpectedly exists: {state}")
+
+    state.mkdir(parents=True)
+    backup_root.mkdir(parents=True)
+    transaction_root.mkdir(parents=True)
+    conflicts_root.mkdir(parents=True)
+
+    all_destinations = sorted(set(old_entries) | set(candidate_by_rel))
+    snapshot_existing: set[str] = set()
+
+    def snapshot_live() -> None:
+        for rel in all_destinations:
+            src = home / rel
+            if not lexists(src):
+                continue
+            snapshot_existing.add(rel)
+            copy_path(src, transaction_root / rel)
+
+    def restore_transaction() -> None:
+        for rel in reversed(all_destinations):
+            dest = home / rel
+            remove_path(dest)
+            snapshot = transaction_root / rel
+            if rel in snapshot_existing and lexists(snapshot):
+                copy_path(snapshot, dest)
+
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        tmp = pointer.with_name(pointer.name + ".nyvorel-update-rollback")
+        tmp.write_text(str(old_state) + "\n")
+        os.replace(tmp, pointer)
+
+    snapshot_live()
+
+    records: list[dict[str, Any]] = []
+    archived_conflicts: list[str] = []
+    missing_conflicts = list(drift_missing)
+
+    def old_baseline_for(rel: str) -> tuple[bool, Path | None]:
+        entry = old_entries[rel]
+        preexisting = bool(entry.get("preexisting"))
+        if not preexisting:
+            return False, None
+
+        backup_value = entry.get("backup")
+        if not backup_value:
+            raise UpdateError(f"preexisting current entry has no backup: {rel}")
+
+        src = old_state / str(backup_value)
+        if not lexists(src):
+            raise UpdateError(f"baseline backup missing for {rel}: {src}")
+
+        return True, src
+
+    def write_manifest(status_value: str) -> None:
+        payload = {
+            "schema": 1,
+            "product": "Nyvorel",
+            "version": candidate_version,
+            "status": status_value,
+            "source_root": str(source),
+            "source_commit": source_commit,
+            "target_home": str(home),
+            "created_unix": int(time.time()),
+            "entries": records,
+            "update": {
+                "from_state": str(old_state),
+                "from_version": old_version,
+                "from_commit": old_commit,
+                "retired_destinations": retired,
+                "changed_files_archived": archived_conflicts,
+                "missing_changed_files": missing_conflicts,
+            },
+        }
+        manifest_path.write_text(json.dumps(payload, indent=2) + "\n")
+
+    try:
+        if args.force_changed:
+            for rel in drift_changed:
+                live = home / rel
+                if lexists(live):
+                    copy_path(live, conflicts_root / rel)
+                    archived_conflicts.append(rel)
+
+        # Carry the original pre-Nyvorel baseline into the new manifest.
+        for rel, item in sorted(candidate_by_rel.items()):
+            if rel in old_entries:
+                preexisting, baseline = old_baseline_for(rel)
+            else:
+                live = home / rel
+                preexisting = lexists(live)
+                baseline = live if preexisting else None
+
+            backup_rel: str | None = None
+            if preexisting:
+                assert baseline is not None
+                backup_rel_path = Path("backup") / rel
+                copy_path(baseline, state / backup_rel_path)
+                backup_rel = backup_rel_path.as_posix()
+
+            records.append(
+                {
+                    "destination": rel,
+                    "source": str(item.src.relative_to(source)),
+                    "preexisting": preexisting,
+                    "backup": backup_rel,
+                    "installed": None,
+                }
+            )
+
+        write_manifest("updating")
+
+        # Destinations retired by the candidate are restored to their original
+        # pre-Nyvorel baseline (or removed if Nyvorel originally created them).
+        for rel in retired:
+            dest = home / rel
+            preexisting, baseline = old_baseline_for(rel)
+            remove_path(dest)
+            if preexisting:
+                assert baseline is not None
+                copy_path(baseline, dest)
+
+        # Install candidate payload.
+        record_by_rel = {record["destination"]: record for record in records}
+
+        for rel, item in sorted(candidate_by_rel.items()):
+            dest = home / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            remove_path(dest)
+
+            if item.src.is_symlink():
+                os.symlink(os.readlink(item.src), dest)
+            else:
+                data = item.src.read_bytes().replace(
+                    HOME_TOKEN_BYTES,
+                    str(home).encode("utf-8"),
+                )
+                tmp = dest.with_name(dest.name + ".nyvorel-update-tmp")
+                remove_path(tmp)
+                with tmp.open("wb") as handle:
+                    handle.write(data)
+                os.chmod(tmp, stat.S_IMODE(item.src.stat().st_mode))
+                os.replace(tmp, dest)
+
+            record_by_rel[rel]["installed"] = installed_digest(dest)
+            write_manifest("updating")
+
+        (home / ".config/nyvorel").mkdir(parents=True, exist_ok=True)
+
+        unresolved: list[str] = []
+        for rel, item in candidate_by_rel.items():
+            if item.src.is_symlink():
+                continue
+            if HOME_TOKEN_BYTES not in item.src.read_bytes():
+                continue
+            if HOME_TOKEN_BYTES in (home / rel).read_bytes():
+                unresolved.append(rel)
+
+        if unresolved:
+            raise UpdateError(
+                "unresolved install token(s) after update: "
+                + ", ".join(unresolved[:20])
+            )
+
+        write_manifest("installed")
+
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        pointer_tmp = pointer.with_name(pointer.name + ".nyvorel-update-tmp")
+        pointer_tmp.write_text(str(state) + "\n")
+        os.replace(pointer_tmp, pointer)
+
+    except Exception:
+        try:
+            restore_transaction()
+            write_manifest("rolled-back")
+        except Exception as rollback_exc:
+            print(
+                f"ROLLBACK WARNING: {rollback_exc}",
+                file=sys.stderr,
+            )
+        raise
+
+    print("Update payload: PASS")
+    print(f"Previous state : {old_state}")
+    print(f"Current state  : {state}")
+    print(f"Manifest       : {manifest_path}")
+
+    if archived_conflicts:
+        print(f"Archived edits : {conflicts_root}")
+
+    if args.activate:
+        try:
+            activate_services(home)
+        except Exception as exc:
+            print(
+                f"WARNING: update succeeded, but activation failed: {exc}",
+                file=sys.stderr,
+            )
+            return 4
+        print("Activation     : PASS")
+    else:
+        print("Activation     : skipped")
+
+    print("RESULT: PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except UpdateError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1)

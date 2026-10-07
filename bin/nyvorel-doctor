@@ -30,6 +30,7 @@ CRITICAL_DESTINATIONS = [
     ".config/quickshell/nyvorel/shell.qml",
     ".local/bin/nyvorel",
     ".local/bin/nyvorel-doctor",
+    ".local/bin/nyvorel-update",
     ".local/bin/nyvorel-settings",
     ".config/systemd/user/nyvorel-quickshell.service",
     ".config/systemd/user/nyvorel-operations-monitor.service",
@@ -151,10 +152,11 @@ class Doctor:
         shell = self.home / ".config/quickshell/nyvorel/shell.qml"
         cli = self.home / ".local/bin/nyvorel"
         doctor = self.home / ".local/bin/nyvorel-doctor"
+        updater = self.home / ".local/bin/nyvorel-update"
 
         missing = [
             str(path.relative_to(self.home))
-            for path in (shell, cli, doctor)
+            for path in (shell, cli, doctor, updater)
             if not path.is_file()
         ]
 
@@ -171,7 +173,7 @@ class Doctor:
                 "install.core",
                 "PASS",
                 "Installed core",
-                "Shell, CLI, and doctor helper are present.",
+                "Shell, CLI, doctor, and update helper are present.",
             )
 
         systemd_dir = self.home / ".config/systemd/user"

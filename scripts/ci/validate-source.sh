@@ -25,6 +25,7 @@ required_files=(
   quickshell/shell.qml
   bin/nyvorel
   bin/nyvorel-doctor
+  bin/nyvorel-update
 )
 
 required_dirs=(

@@ -9,11 +9,13 @@ Nyvorel command line
 
 Usage:
   nyvorel doctor [options]
+  nyvorel update [options]
   nyvorel settings
   nyvorel help
 
 Commands:
   doctor    Run read-only Nyvorel installation/session diagnostics.
+  update    Safely update the manifest-backed Nyvorel installation.
   settings  Open Nyvorel Settings.
   help      Show this help.
 
@@ -21,6 +23,8 @@ Examples:
   nyvorel doctor
   nyvorel doctor --deep
   nyvorel doctor --json
+  nyvorel update --dry-run
+  nyvorel update --fetch --yes
 EOF
 }
 
@@ -28,6 +32,10 @@ case "${1:-help}" in
   doctor)
     shift
     exec "$BIN_DIR/nyvorel-doctor" "$@"
+    ;;
+  update)
+    shift
+    exec "$BIN_DIR/nyvorel-update" "$@"
     ;;
   settings)
     shift

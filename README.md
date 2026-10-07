@@ -260,6 +260,51 @@ Warnings do not change the normal exit code; `--strict` makes warnings
 non-zero. `--home PATH --no-session` can inspect an alternate installation
 without touching the live desktop session.
 
+## Update safely
+
+Nyvorel updates are manifest-aware and preserve the original pre-Nyvorel
+recovery baseline instead of treating the currently installed Nyvorel files as
+a new backup baseline.
+
+Preview an update from the source checkout recorded by the current installation:
+
+```sh
+nyvorel update --dry-run
+```
+
+Fast-forward a clean recorded source checkout from `origin/main`, review the
+plan, then apply:
+
+```sh
+nyvorel update --fetch --dry-run
+nyvorel update --fetch --yes
+```
+
+To reload the user services after the filesystem update:
+
+```sh
+nyvorel update --fetch --yes --activate
+```
+
+If a managed file was edited or removed locally, update stops before mutation.
+When you explicitly use `--force-changed`, existing edited files are archived
+under the new installation state before candidate files replace them:
+
+```sh
+nyvorel update --fetch --yes --force-changed
+```
+
+You can also update from an explicitly prepared source tree:
+
+```sh
+nyvorel update --source /path/to/nyvorel --dry-run
+```
+
+The update transaction carries forward original backups, restores or removes
+files that a newer source no longer manages, writes a fresh manifest, and
+rolls back the filesystem and `current-install` pointer if the transaction
+fails.
+
 ## How it fits together
 
 ```mermaid
@@ -353,7 +398,6 @@ Next focus areas include:
 - complete user and technical documentation;
 - automated release and installer validation;
 - clean-machine installation testing;
-- update workflow;
 - packaging and distribution improvements.
 
 ## Contributing

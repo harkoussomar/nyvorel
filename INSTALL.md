@@ -52,6 +52,38 @@ reports installation state, managed-file drift, unresolved install templates,
 runtime configuration health, systemd user-service state, Quickshell
 availability, and Hyprland configuration errors without changing the system.
 
+## Update an existing installation
+
+Preview the update first:
+
+```sh
+nyvorel update --dry-run
+```
+
+If the source checkout recorded in the current manifest is a clean `main`
+checkout, Nyvorel can fast-forward it before planning:
+
+```sh
+nyvorel update --fetch --dry-run
+nyvorel update --fetch --yes
+```
+
+Use `--activate` to reload/restart the Nyvorel user services after a successful
+update.
+
+The updater verifies the current manifest before mutation. Changed or missing
+managed files cause a refusal by default. `--force-changed` is explicit: edited
+files are archived under the new update state before replacement.
+
+Every successful update creates another timestamped state directory while
+carrying forward the **original pre-Nyvorel backups**. This keeps normal
+`uninstall.sh` recovery pointed at the true pre-Nyvorel baseline even after
+multiple updates.
+
+Files removed from a newer Nyvorel source are retired safely: the updater
+restores the original pre-Nyvorel file when one existed, otherwise it removes
+the file that Nyvorel originally created.
+
 ## Install and activate
 
 ```sh
