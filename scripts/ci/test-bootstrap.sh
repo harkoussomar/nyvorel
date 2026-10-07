@@ -39,16 +39,17 @@ pacman -Syu --noconfirm --needed \
   bash python coreutils >/dev/null
 
 echo "== Install candidate into isolated Arch HOME =="
-mkdir -p /work/home
+TARGET_HOME=/work/nyvoreltest
+mkdir -p "$TARGET_HOME"
 /src/install.sh \
-  --target-home /work/home \
+  --target-home "$TARGET_HOME" \
   --yes \
   --no-activate >/work/install.log
 
-CLI=/work/home/.local/bin/nyvorel
-CONTRACT=/work/home/.local/share/nyvorel/dependencies/arch.json
+CLI="$TARGET_HOME/.local/bin/nyvorel"
+CONTRACT="$TARGET_HOME/.local/share/nyvorel/dependencies/arch.json"
 [[ -x "$CLI" ]]
-[[ -x /work/home/.local/bin/nyvorel-bootstrap ]]
+[[ -x "$TARGET_HOME/.local/bin/nyvorel-bootstrap" ]]
 [[ -s "$CONTRACT" ]]
 
 echo "== Build deterministic command/repository fixtures =="
@@ -110,7 +111,7 @@ PACMAN
 chmod +x /work/fake-pacman
 
 COMMON_ENV=(
-  "HOME=/work/home"
+  "HOME=$TARGET_HOME"
   "NYVOREL_BOOTSTRAP_SEARCH_PATH=/work/fake-bin"
   "NYVOREL_PACMAN_BIN=/work/fake-pacman"
   "NYVOREL_TEST_PACMAN_LOG=$PACMAN_LOG"

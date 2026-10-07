@@ -70,7 +70,7 @@ import json
 import subprocess
 import sys
 
-tracked_raw = subprocess.check_output(["git", "ls-files", "-z"])
+tracked_raw = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"])
 tracked = [Path(p.decode()) for p in tracked_raw.split(b"\0") if p]
 
 bash_files = []
@@ -135,7 +135,7 @@ PY
 # self-tests. The placeholder is not a maintainer path and carries no machine
 # identity. Any other literal /home/<name>/ remains a CI failure.
 HOME_PATH_HITS="$(
-  git grep -nEI '/home/[A-Za-z0-9._-]+/' -- \
+  git grep --untracked -nEI '/home/[A-Za-z0-9._-]+/' -- \
     ':!scripts/ci/validate-source.sh' \
     ':!assets/showcase/**' \
     || true
@@ -163,7 +163,7 @@ fi
 
 # Basic secret/private-material gate. Exclude this validator because it contains
 # the detection expressions themselves.
-if git grep -nEI -- \
+if git grep --untracked -nEI -- \
   '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' \
   ':!scripts/ci/validate-source.sh' >/tmp/nyvorel-ci-private.$$ 2>/dev/null; then
   cat /tmp/nyvorel-ci-private.$$
@@ -173,7 +173,7 @@ fi
 rm -f /tmp/nyvorel-ci-private.$$ || true
 
 TOKEN_PATTERN='(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|sk-[A-Za-z0-9]{32,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16})'
-if git grep -nEI "$TOKEN_PATTERN" -- \
+if git grep --untracked -nEI "$TOKEN_PATTERN" -- \
   ':!scripts/ci/validate-source.sh' >/tmp/nyvorel-ci-tokens.$$ 2>/dev/null; then
   cat /tmp/nyvorel-ci-tokens.$$
   rm -f /tmp/nyvorel-ci-tokens.$$
