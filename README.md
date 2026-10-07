@@ -444,3 +444,7 @@ Built around Hyprland. Shaped into its own system.
 [Contributing](./CONTRIBUTING.md)
 
 </div>
+
+### Clean-machine regression
+
+CI also validates Nyvorel from a pristine Arch Linux container using a brand-new non-root home. The regression covers installation, manifest confinement, template materialization, the installed CLI and Doctor, non-mutating update planning, and recovery.

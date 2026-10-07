@@ -66,3 +66,18 @@ jobs:
 
       - name: Exercise safe update lifecycle
         run: bash scripts/ci/test-update.sh
+
+  clean-machine:
+    name: Clean-machine Arch install
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate pristine Arch installation lifecycle
+        env:
+          NYVOREL_CONTAINER_RUNTIME: docker
+          NYVOREL_CLEAN_MACHINE_IMAGE: archlinux:base
+        run: bash scripts/ci/test-clean-machine.sh

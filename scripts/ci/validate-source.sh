@@ -26,6 +26,7 @@ required_files=(
   bin/nyvorel
   bin/nyvorel-doctor
   bin/nyvorel-update
+  scripts/ci/test-clean-machine.sh
 )
 
 required_dirs=(

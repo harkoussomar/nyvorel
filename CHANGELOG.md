@@ -34,3 +34,7 @@ Initial public Nyvorel source release.
 
 - Nyvorel remains derived from `end-4/dots-hyprland`; upstream attribution and applicable third-party notices are preserved.
 - v0.1.0 includes a manifest-backed installer, portable `@HOME@` materialization, safe backup recovery, and an uninstaller that protects post-install user changes.
+
+### Post-release infrastructure — Phase 4
+- Added pristine Arch Linux clean-machine installation validation in an isolated container.
+- CI now proves non-root install, manifest/materialization integrity, installed CLI/doctor behavior, update dry-run immutability, and uninstall recovery without touching the runner's real home.

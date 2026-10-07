@@ -170,3 +170,15 @@ with:
 
 The source tree itself remains portable: `@HOME@` is rendered only in installed
 copies.
+
+## Clean-machine validation
+
+Nyvorel CI includes a pristine Arch Linux container regression. It creates a brand-new non-root home, installs with service activation disabled, validates the installation manifest and materialized files, runs the installed CLI and Doctor in `--no-session` mode, proves update/uninstall dry-runs are non-mutating, and exercises recovery.
+
+Run the same validation locally with Podman or Docker:
+
+```bash
+bash scripts/ci/test-clean-machine.sh
+```
+
+The test is isolated from the caller's real home and does not activate Nyvorel services.
