@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 6A
+- Defined stable, development, and explicit-source update semantics in a versioned release-channel contract.
+- Defined stable same-version commit refusal, development same-version commit allowance, immutable release invariants, and the `0.1.x` maintenance policy.
+- Documented the existing `--fetch -> origin/main` behavior as legacy development behavior pending Phase 6B.
+
 ### Post-release infrastructure — Phase 5D
 - Added discoverable optional-dependency catalog UX with human and JSON output.
 - Added actionable invalid-ID guidance without package-manager probing or mutation.

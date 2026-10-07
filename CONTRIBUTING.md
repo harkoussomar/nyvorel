@@ -30,6 +30,17 @@ Public source must not contain a maintainer-specific home path. Files that requi
 
 Do not commit local backup trees, generated runtime state, secrets, credentials, tokens, or user data.
 
+## Release-sensitive changes
+
+`main` is the development line. Stable releases are immutable semantic-version
+tags/releases governed by [`RELEASES.md`](RELEASES.md) and
+`release/channel-policy.json`.
+
+Do not move or recreate an existing release tag. Changes to updater channel
+resolution, VERSION/tag behavior, or release automation must preserve the
+stable-vs-development distinction and include the relevant release-policy
+regression coverage.
+
 ## Testing
 
 At minimum, validate the files you changed.

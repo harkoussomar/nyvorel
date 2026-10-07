@@ -381,6 +381,16 @@ nyvorel/
 └── uninstall.sh
 ```
 
+## Update channels
+
+Nyvorel now has an explicit release/update policy in [`RELEASES.md`](./RELEASES.md).
+Stable is defined as the default remote channel and resolves immutable semantic
+release tags. Development is opt-in and tracks `origin/main`.
+
+**Implementation note:** Phase 6A defines that contract only. Until Phase 6B
+closes, `nyvorel update --fetch` is a development/main fetch and must not be
+treated as "latest stable".
+
 ## Documentation
 
 | Guide | Purpose |
@@ -390,6 +400,7 @@ nyvorel/
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | contribution workflow and source boundaries |
 | [`CHANGELOG.md`](./CHANGELOG.md) | public release history |
 | [`PROVENANCE.md`](./PROVENANCE.md) | upstream and source provenance |
+| [`RELEASES.md`](./RELEASES.md) | stable/development channels and release invariants |
 | [`INHERITED_ASSETS.md`](./INHERITED_ASSETS.md) | inherited asset policy |
 | [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) | third-party notices |
 | [`TRADEMARKS.md`](./TRADEMARKS.md) | trademark and affiliation notices |

@@ -98,8 +98,13 @@ Preview the update first:
 nyvorel update --dry-run
 ```
 
-If the source checkout recorded in the current manifest is a clean `main`
-checkout, Nyvorel can fast-forward it before planning:
+The stable/development channel contract is documented in
+[`RELEASES.md`](RELEASES.md).
+
+Phase 6A is policy-only: the current legacy `--fetch` behavior still
+fast-forwards a clean `main` checkout from `origin/main`, so it is classified
+as a **development** fetch until Phase 6B implements explicit channel
+selection.
 
 ```sh
 nyvorel update --fetch --dry-run

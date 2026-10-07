@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "policy_status": "defined-not-fully-implemented",
+  "current_stable": {
+    "version": "0.1.0",
+    "tag": "v0.1.0",
+    "commit": "76e1d24c3b1fb6d68e51795a48dd0fb8d2f88e02",
+    "immutable": true,
+    "github_release_required": true,
+    "prerelease": false
+  },
+  "channels": {
+    "stable": {
+      "user_default": true,
+      "remote_ref_kind": "immutable-semver-tag",
+      "tag_pattern": "v{version}",
+      "github_release_required": true,
+      "prerelease_allowed": false,
+      "same_version_different_commit": "refuse",
+      "downgrade": "refuse",
+      "mutable": false
+    },
+    "development": {
+      "user_default": false,
+      "opt_in_required": true,
+      "remote": "origin",
+      "branch": "main",
+      "remote_ref_kind": "branch",
+      "same_version_different_commit": "allow",
+      "downgrade": "refuse",
+      "mutable": true
+    },
+    "explicit-source": {
+      "user_default": false,
+      "opt_in_required": true,
+      "remote_ref_kind": "local-source-tree",
+      "same_version_different_commit": "allow",
+      "downgrade": "explicit-override-only",
+      "dirty_source": "explicit-override-only",
+      "mutable": true
+    }
+  },
+  "update_cli_target": {
+    "fetch_default_channel": "stable",
+    "development_channel": "explicit-opt-in",
+    "explicit_source_is_not_a_remote_channel": true,
+    "implementation_phase": "6B"
+  },
+  "same_version_policy": {
+    "stable": "A stable version identifies one immutable release commit; a different commit with the same VERSION is invalid for stable updates.",
+    "development": "main may advance through multiple commits before VERSION is bumped; same-version commit updates are permitted only on the explicitly selected development channel.",
+    "explicit-source": "An explicitly supplied local source may carry the same VERSION at another commit; the user selected that source directly."
+  },
+  "release_invariants": {
+    "version_format": "MAJOR.MINOR.PATCH",
+    "tag_format": "v{version}",
+    "tag_must_match_version": true,
+    "tag_must_be_immutable": true,
+    "stable_release_must_not_be_draft": true,
+    "stable_release_must_not_be_prerelease": true,
+    "changelog_release_heading_required": true,
+    "changelog_release_heading_format": "## [{version}] - YYYY-MM-DD",
+    "release_commit_must_be_clean": true,
+    "release_ci_must_be_green": true,
+    "unreleased_section_retained_after_release": true
+  },
+  "maintenance": {
+    "current_line": "0.1.x",
+    "versioning": "semver-patch",
+    "next_patch": "0.1.1",
+    "release_source": "reviewed-clean-main-commit",
+    "existing_release_tags_may_move": false,
+    "existing_github_releases_may_be_retargeted": false,
+    "separate_maintenance_branch_required_now": false,
+    "future_backport_branch_pattern": "release/{major}.{minor}"
+  },
+  "implementation_status": {
+    "stable_channel_resolution": "pending-6B",
+    "development_channel_opt_in": "pending-6B",
+    "release_preflight_automation": "pending-6C",
+    "installer_general_version_support": "pending-6C",
+    "upgrade_path_matrix": "pending-6D"
+  },
+  "legacy_behavior": {
+    "fetch_currently_tracks": "origin/main",
+    "classification": "development",
+    "temporary_until": "6B",
+    "must_not_be_documented_as_stable": true
+  }
+}

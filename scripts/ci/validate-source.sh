@@ -23,6 +23,8 @@ required_files=(
   TRADEMARKS.md
   PORTABILITY.md
   CONTRIBUTING.md
+  RELEASES.md
+  release/channel-policy.json
   assets/nyvorel.svg
   quickshell/shell.qml
   bin/nyvorel
@@ -33,6 +35,7 @@ required_files=(
   scripts/ci/test-dependency-contract.sh
   scripts/ci/test-bootstrap.sh
   scripts/ci/test-phase5-readiness.sh
+  scripts/ci/test-release-channel-contract.sh
 )
 
 required_dirs=(
@@ -250,5 +253,7 @@ grep -q 'DRY RUN — no files changed.' "$TMP/dry-run.log" \
   || die "installer dry-run completion marker missing"
 
 bash scripts/ci/test-dependency-contract.sh
+
+bash scripts/ci/test-release-channel-contract.sh
 
 pass "source structure, syntax, portability, secrets, and installer dry-run"
