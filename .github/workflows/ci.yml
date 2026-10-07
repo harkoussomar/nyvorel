@@ -34,6 +34,9 @@ jobs:
       - name: Validate release candidate preflight
         run: bash scripts/ci/test-release-preflight.sh
 
+      - name: Validate release publication engine
+        run: bash scripts/ci/test-release-publication.sh
+
   installer-recovery:
     name: Installer & recovery sandbox
     runs-on: ubuntu-latest

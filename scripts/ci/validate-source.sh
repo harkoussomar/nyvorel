@@ -39,6 +39,8 @@ required_files=(
   scripts/ci/test-update-channels.sh
   scripts/ci/test-release-preflight.sh
   scripts/release/preflight.sh
+  scripts/ci/test-release-publication.sh
+  scripts/release/publish.sh
 )
 
 required_dirs=(
