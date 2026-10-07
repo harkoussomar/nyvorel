@@ -77,14 +77,18 @@ Nyvorel provides a read-only bootstrap planner:
 ```sh
 nyvorel bootstrap
 nyvorel bootstrap --json
+nyvorel bootstrap --list-optional
+nyvorel bootstrap --list-optional --json
 nyvorel bootstrap --optional screenshots
 ```
 
 The default plan covers missing required dependency groups only. Optional
-groups are opt-in by exact dependency ID. The planner uses `pacman -Si` only
-to probe configured repositories. It never installs packages, refreshes sync
-databases, or invokes `yay`/`paru`. Review the plan and use the machine's
-normal Arch full-upgrade/package workflow for any installation.
+groups are opt-in by exact dependency ID. `--list-optional` is a metadata-only
+catalog and performs no pacman probe, so users can discover feature IDs before
+planning. Normal planning uses `pacman -Si` only to probe configured
+repositories. It never installs packages, refreshes sync databases, or invokes
+`yay`/`paru`. Review the plan and use the machine's normal Arch
+full-upgrade/package workflow for any installation.
 
 ## Update an existing installation
 

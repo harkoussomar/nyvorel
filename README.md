@@ -180,8 +180,9 @@ live-session diagnostics. Use `nyvorel doctor --no-session --dependencies` for
 an explicit read-only dependency preflight outside the graphical session.
 
 `nyvorel bootstrap` turns missing required dependencies into a read-only Arch
-package plan. Optional feature groups must be selected explicitly with
-`--optional ID`. Bootstrap never installs packages or invokes an AUR helper.
+package plan. Run `nyvorel bootstrap --list-optional` to discover feature IDs,
+then select only the features you want with `--optional ID`. Bootstrap never
+installs packages or invokes an AUR helper.
 
 ### 2. Clone
 

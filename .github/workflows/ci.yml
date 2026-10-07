@@ -96,3 +96,6 @@ jobs:
           NYVOREL_CONTAINER_RUNTIME: docker
           NYVOREL_BOOTSTRAP_IMAGE: archlinux:base
         run: bash scripts/ci/test-bootstrap.sh
+
+      - name: Validate Phase 5 dependency UX and compatibility
+        run: bash scripts/ci/test-phase5-readiness.sh

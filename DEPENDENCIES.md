@@ -55,12 +55,18 @@ Nyvorel bootstrap is deliberately **plan-only**.
 ```sh
 nyvorel bootstrap
 nyvorel bootstrap --json
+nyvorel bootstrap --list-optional
+nyvorel bootstrap --list-optional --json
 nyvorel bootstrap --optional screenshots
 nyvorel bootstrap --optional screenshots --optional ocr --json
 ```
 
 The default scope contains only missing required dependencies. Optional
 dependencies are included only when their exact contract IDs are requested.
+Use `nyvorel bootstrap --list-optional` to discover every supported optional
+ID, its feature description, command semantics, and Arch package hints. Catalog
+mode is metadata-only: it does not require an Arch session and does not probe
+pacman.
 
 The planner may perform the read-only repository probe `pacman -Si` to
 distinguish packages available through the user's configured pacman

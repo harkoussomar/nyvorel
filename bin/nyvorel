@@ -26,6 +26,7 @@ Examples:
   nyvorel doctor --deep
   nyvorel doctor --json
   nyvorel bootstrap
+  nyvorel bootstrap --list-optional
   nyvorel bootstrap --optional screenshots
   nyvorel update --dry-run
   nyvorel update --fetch --yes

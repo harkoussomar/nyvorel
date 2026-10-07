@@ -11,7 +11,7 @@ import subprocess
 import sys
 from typing import Any
 
-BOOTSTRAP_VERSION = 1
+BOOTSTRAP_VERSION = 2
 CONTRACT_SCHEMA = 2
 CONTRACT_DESTINATION = Path(".local/share/nyvorel/dependencies/arch.json")
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9@._+-]+$")
@@ -189,6 +189,70 @@ def package_plan(entry: dict[str, Any], pacman: str) -> dict[str, Any]:
     }
 
 
+def optional_catalog(contract: dict[str, Any]) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+
+    for entry in contract["optional"]:
+        command_mode, commands = selector(
+            entry,
+            "commands_any_of",
+            "commands_all_of",
+        )
+        package_mode, packages = selector(
+            entry,
+            "arch_packages_any_of",
+            "arch_packages_all_of",
+        )
+        items.append(
+            {
+                "id": entry["id"],
+                "feature": entry["feature"],
+                "command_mode": command_mode,
+                "commands": commands,
+                "package_mode": package_mode,
+                "package_hints": packages,
+            }
+        )
+
+    return {
+        "schema": 1,
+        "product": "Nyvorel",
+        "bootstrap_version": BOOTSTRAP_VERSION,
+        "mode": "optional-catalog",
+        "mutation_performed": False,
+        "optional_count": len(items),
+        "optional": items,
+    }
+
+
+def print_optional_catalog(catalog: dict[str, Any]) -> None:
+    print("============================================================")
+    print("NYVOREL OPTIONAL DEPENDENCY CATALOG")
+    print("============================================================")
+    print(f"Optional groups: {catalog['optional_count']}")
+    print("Use an ID with: nyvorel bootstrap --optional ID")
+    print()
+
+    for item in catalog["optional"]:
+        command_joiner = "+" if item["command_mode"] == "all" else "/"
+        package_joiner = "+" if item["package_mode"] == "all" else "/"
+        print(f"{item['id']}")
+        print(f"  Feature : {item['feature']}")
+        print(
+            "  Commands: "
+            + command_joiner.join(item["commands"])
+            + f" ({item['command_mode']})"
+        )
+        print(
+            "  Packages: "
+            + package_joiner.join(item["package_hints"])
+            + f" ({item['package_mode']} hint)"
+        )
+
+    print()
+    print("Catalog only — no repository probe or package mutation was performed.")
+
+
 def build_plan(
     contract: dict[str, Any],
     optional_ids: list[str],
@@ -199,8 +263,12 @@ def build_plan(
 
     unknown = sorted(set(optional_ids) - set(optional_by_id))
     if unknown:
+        available = ", ".join(sorted(optional_by_id))
         raise BootstrapError(
-            "unknown optional dependency id(s): " + ", ".join(unknown)
+            "unknown optional dependency id(s): "
+            + ", ".join(unknown)
+            + ". Available IDs: "
+            + available
         )
 
     selected_optional = [
@@ -368,6 +436,14 @@ def parse_args() -> argparse.Namespace:
         help="Use an explicit dependency contract path.",
     )
     parser.add_argument(
+        "--list-optional",
+        action="store_true",
+        help=(
+            "List optional dependency IDs/features without probing pacman. "
+            "Works independently of the active Linux distribution."
+        ),
+    )
+    parser.add_argument(
         "--optional",
         metavar="ID",
         action="append",
@@ -382,22 +458,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Emit machine-readable JSON only.",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {BOOTSTRAP_VERSION}",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-
-    os_release = Path(
-        os.environ.get("NYVOREL_BOOTSTRAP_OS_RELEASE", "/etc/os-release")
-    )
-    distro = parse_os_release(os_release)
-    if distro != "arch":
-        print(
-            f"ERROR: Nyvorel bootstrap planning supports Arch Linux; detected {distro}.",
-            file=sys.stderr,
-        )
-        return 2
 
     home = (
         Path(args.home).expanduser().resolve(strict=False)
@@ -412,7 +482,37 @@ def main() -> int:
 
     try:
         contract = load_contract(contract_path)
+    except BootstrapError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
+    if args.list_optional:
+        if args.optional:
+            print(
+                "ERROR: --list-optional cannot be combined with --optional.",
+                file=sys.stderr,
+            )
+            return 2
+
+        catalog = optional_catalog(contract)
+        if args.json:
+            print(json.dumps(catalog, indent=2))
+        else:
+            print_optional_catalog(catalog)
+        return 0
+
+    os_release = Path(
+        os.environ.get("NYVOREL_BOOTSTRAP_OS_RELEASE", "/etc/os-release")
+    )
+    distro = parse_os_release(os_release)
+    if distro != "arch":
+        print(
+            f"ERROR: Nyvorel bootstrap planning supports Arch Linux; detected {distro}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
         pacman = os.environ.get("NYVOREL_PACMAN_BIN") or shutil.which("pacman")
         if not pacman:
             raise BootstrapError("pacman is unavailable on the supported Arch target")

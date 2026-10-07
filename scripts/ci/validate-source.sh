@@ -32,6 +32,7 @@ required_files=(
   scripts/ci/test-clean-machine.sh
   scripts/ci/test-dependency-contract.sh
   scripts/ci/test-bootstrap.sh
+  scripts/ci/test-phase5-readiness.sh
 )
 
 required_dirs=(

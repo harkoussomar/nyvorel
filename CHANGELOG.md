@@ -4,6 +4,12 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 5D
+- Added discoverable optional-dependency catalog UX with human and JSON output.
+- Added actionable invalid-ID guidance without package-manager probing or mutation.
+- Added Phase 5 doctor/bootstrap compatibility and documentation readiness regression coverage.
+- Closed the Phase 5 dependency/bootstrap contract after full lifecycle and GitHub Actions validation.
+
 ### Post-release infrastructure — Phase 5C
 - Added a plan-only `nyvorel bootstrap` command for required and explicitly selected optional dependencies.
 - Upgraded the dependency contract to schema 2 with explicit any/all command and package semantics.
