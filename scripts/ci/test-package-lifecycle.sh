@@ -208,8 +208,27 @@ runuser -u builder -- env \
   NYVOREL_PKG_SOURCE=/work/source-v2 \
   bash -lc "cd /work/source-v2 && makepkg --nodeps --cleanbuild --force --noconfirm"
 
-PKG2="$(find /work/source-v2 -maxdepth 1 -type f -name "nyvorel-*.pkg.tar.*" | head -n1)"
-[[ -s "$PKG2" ]]
+# The v2 build directory is cloned from v1, so it may contain both archives.
+# Select pkgrel=2 unambiguously; never reinstall a copied pkgrel=1 archive.
+mapfile -t PKG2_MATCHES < <(
+  find /work/source-v2 -maxdepth 1 -type f     -name "nyvorel-*-2-any.pkg.tar.zst" -print | sort
+)
+[[ "${#PKG2_MATCHES[@]}" -eq 1 ]] || {
+  printf "ERROR: expected exactly one pkgrel=2 archive; found %s\\n" "${#PKG2_MATCHES[@]}" >&2
+  printf "%s\\n" "${PKG2_MATCHES[@]}" >&2
+  exit 1
+}
+PKG2="${PKG2_MATCHES[0]}"
+[[ -s "$PKG2" ]] || { echo "ERROR: pkgrel=2 archive is empty" >&2; exit 1; }
+
+# Validate metadata before pacman can install an accidentally stale archive.
+EXPECTED_PKGVER="$(sed -n "s/^pkgver=//p" /work/source-v2/PKGBUILD)-2"
+PACKAGE_METADATA="$(pacman -Qp "$PKG2")"
+[[ "$PACKAGE_METADATA" == "nyvorel $EXPECTED_PKGVER" ]] || {
+  echo "ERROR: expected nyvorel $EXPECTED_PKGVER; got $PACKAGE_METADATA" >&2
+  exit 1
+}
+echo "upgrade_package=$PKG2"
 
 HOME_BEFORE_UPGRADE="$(find $TEST_HOME -xdev -printf "%P %y %s %T@\n" | sort | sha256sum | awk "{print \$1}")"
 pacman -Udd --noconfirm "$PKG2" >/dev/null
