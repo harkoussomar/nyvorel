@@ -53,7 +53,22 @@ nyvorel doctor --deep
 Machine-readable output is available with `nyvorel doctor --json`. The doctor
 reports installation state, managed-file drift, unresolved install templates,
 runtime configuration health, systemd user-service state, Quickshell
-availability, and Hyprland configuration errors without changing the system.
+availability, Hyprland configuration errors, and the installed dependency
+contract without changing the system.
+
+Normal live-session diagnostics also probe required and optional runtime
+dependencies. For a dependency-only/preflight-style check outside the live
+session, use:
+
+```sh
+nyvorel doctor --no-session --dependencies
+nyvorel doctor --no-session --dependencies --json
+```
+
+Missing required dependency groups are failures. Missing optional dependency
+groups are warnings and identify only feature-level capabilities; they do not
+make unrelated Nyvorel functionality unsupported. Package names are reported
+as Arch provider hints. The doctor never installs packages.
 
 ## Update an existing installation
 

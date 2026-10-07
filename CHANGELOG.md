@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 5B
+- Installed the canonical Arch dependency contract as managed Nyvorel state.
+- Added read-only required/optional dependency preflight diagnostics to `nyvorel doctor`.
+- Added structured dependency results to doctor JSON and deterministic missing-required/optional regression coverage.
+
 ### Post-release infrastructure — Phase 5A
 - Added a versioned Arch dependency contract with required, optional, and test-only classifications.
 - Added semantic dependency-contract validation and source-integrity enforcement.

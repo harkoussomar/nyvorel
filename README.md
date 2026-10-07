@@ -175,6 +175,10 @@ and Git for the safe update lifecycle.
 Feature-specific applications are classified as optional. Missing optional
 dependencies do not make unrelated Nyvorel functionality unsupported.
 
+After installation, `nyvorel doctor` checks the dependency contract as part of
+live-session diagnostics. Use `nyvorel doctor --no-session --dependencies` for
+an explicit read-only dependency preflight outside the graphical session.
+
 ### 2. Clone
 
 ```sh

@@ -13,8 +13,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 SCHEMA = 1
-DOCTOR_VERSION = 1
+DOCTOR_VERSION = 2
 HOME_TOKEN = "@" + "HOME" + "@"
+DEPENDENCY_CONTRACT_DESTINATION = ".local/share/nyvorel/dependencies/arch.json"
 
 PATH_UNITS = [
     "nyvorel-btop-style-sync.path",
@@ -32,6 +33,7 @@ CRITICAL_DESTINATIONS = [
     ".local/bin/nyvorel-doctor",
     ".local/bin/nyvorel-update",
     ".local/bin/nyvorel-settings",
+    DEPENDENCY_CONTRACT_DESTINATION,
     ".config/systemd/user/nyvorel-quickshell.service",
     ".config/systemd/user/nyvorel-operations-monitor.service",
     *[f".config/systemd/user/{unit}" for unit in PATH_UNITS],
@@ -78,15 +80,24 @@ class Doctor:
         *,
         deep: bool,
         session_checks: bool,
+        dependency_checks: bool,
         strict: bool,
     ) -> None:
         self.home = home
         self.deep = deep
         self.session_checks = session_checks
+        self.dependency_checks = dependency_checks
         self.strict = strict
         self.checks: list[Check] = []
         self.manifest: dict[str, Any] | None = None
         self.manifest_path: Path | None = None
+        self.dependency_contract: dict[str, Any] | None = None
+        self.dependency_report: dict[str, Any] = {
+            "enabled": dependency_checks,
+            "contract": {"status": "unknown"},
+            "required": {"status": "unknown", "total": 0, "satisfied": 0, "missing": []},
+            "optional": {"status": "unknown", "total": 0, "satisfied": 0, "missing": []},
+        }
 
     def add(
         self,
@@ -486,6 +497,233 @@ class Doctor:
                 f"No unresolved home token found across {inspected} text-like managed files.",
             )
 
+    def load_dependency_contract(self) -> None:
+        path = self.home / DEPENDENCY_CONTRACT_DESTINATION
+        self.dependency_report["contract"] = {
+            "status": "FAIL",
+            "path": str(path),
+            "schema": None,
+        }
+
+        if not path.is_file():
+            self.add(
+                "dependencies.contract",
+                "FAIL",
+                "Dependency contract",
+                f"Installed dependency contract is missing: {path}",
+                "Update/reinstall Nyvorel so the versioned dependency contract is installed.",
+            )
+            return
+
+        try:
+            data = json.loads(path.read_text())
+        except Exception as exc:
+            self.add(
+                "dependencies.contract",
+                "FAIL",
+                "Dependency contract",
+                f"Cannot parse {path}: {exc}",
+                "Update/reinstall Nyvorel from a source tree with a valid dependency contract.",
+            )
+            return
+
+        errors: list[str] = []
+        if data.get("schema") != 1:
+            errors.append(f"schema={data.get('schema')!r}")
+        if data.get("product") != "Nyvorel":
+            errors.append(f"product={data.get('product')!r}")
+
+        for class_name in ("required", "optional", "test-only"):
+            entries = data.get(class_name)
+            if not isinstance(entries, list) or not entries:
+                errors.append(f"{class_name} missing/empty")
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    errors.append(f"{class_name} contains non-object entry")
+                    break
+                commands = entry.get("commands_any_of")
+                packages = entry.get("arch_packages_any_of")
+                if (
+                    not isinstance(entry.get("id"), str)
+                    or not isinstance(commands, list)
+                    or not commands
+                    or not all(isinstance(value, str) and value for value in commands)
+                    or not isinstance(packages, list)
+                    or not packages
+                    or not all(isinstance(value, str) and value for value in packages)
+                ):
+                    errors.append(f"invalid {class_name} entry: {entry.get('id')!r}")
+                    break
+
+        if errors:
+            self.add(
+                "dependencies.contract",
+                "FAIL",
+                "Dependency contract",
+                "Invalid contract: " + "; ".join(errors[:8]),
+                "Update/reinstall Nyvorel from a source tree with a valid dependency contract.",
+            )
+            return
+
+        self.dependency_contract = data
+        counts = {
+            class_name: len(data[class_name])
+            for class_name in ("required", "optional", "test-only")
+        }
+        self.dependency_report["contract"] = {
+            "status": "PASS",
+            "path": str(path),
+            "schema": data["schema"],
+            "counts": counts,
+        }
+        self.add(
+            "dependencies.contract",
+            "PASS",
+            "Dependency contract",
+            (
+                f"schema={data['schema']}; required={counts['required']}; "
+                f"optional={counts['optional']}; test-only={counts['test-only']}."
+            ),
+        )
+
+    @staticmethod
+    def _dependency_result(entry: dict[str, Any]) -> dict[str, Any]:
+        commands = list(entry["commands_any_of"])
+        found = [
+            {"command": command, "path": path}
+            for command in commands
+            if (path := shutil.which(command)) is not None
+        ]
+        return {
+            "id": entry["id"],
+            "satisfied": bool(found),
+            "commands_any_of": commands,
+            "found": found,
+            "arch_packages_any_of": list(entry["arch_packages_any_of"]),
+            **(
+                {"feature": entry["feature"]}
+                if isinstance(entry.get("feature"), str)
+                else {"reason": entry.get("reason", "")}
+            ),
+        }
+
+    @staticmethod
+    def _missing_dependency_detail(items: list[dict[str, Any]]) -> str:
+        parts = []
+        for item in items[:10]:
+            commands = "/".join(item["commands_any_of"])
+            packages = "/".join(item["arch_packages_any_of"])
+            parts.append(f"{item['id']} ({commands}; package hint: {packages})")
+        suffix = "" if len(items) <= 10 else f"; +{len(items) - 10} more"
+        return ", ".join(parts) + suffix
+
+    def check_dependencies(self) -> None:
+        if self.dependency_contract is None:
+            self.dependency_report["required"]["status"] = "SKIP"
+            self.dependency_report["optional"]["status"] = "SKIP"
+            self.add(
+                "dependencies.required",
+                "SKIP",
+                "Required dependencies",
+                "Dependency checks unavailable because the installed contract is invalid/missing.",
+            )
+            self.add(
+                "dependencies.optional",
+                "SKIP",
+                "Optional feature dependencies",
+                "Dependency checks unavailable because the installed contract is invalid/missing.",
+            )
+            return
+
+        required_entries = self.dependency_contract["required"]
+        optional_entries = self.dependency_contract["optional"]
+
+        if not self.dependency_checks:
+            self.dependency_report["required"] = {
+                "status": "SKIP",
+                "total": len(required_entries),
+                "satisfied": 0,
+                "missing": [],
+            }
+            self.dependency_report["optional"] = {
+                "status": "SKIP",
+                "total": len(optional_entries),
+                "satisfied": 0,
+                "missing": [],
+            }
+            self.add(
+                "dependencies.required",
+                "SKIP",
+                "Required dependencies",
+                "Runtime dependency probing is disabled for this diagnostic mode.",
+                "Run `nyvorel doctor --dependencies` to force a read-only dependency preflight.",
+            )
+            self.add(
+                "dependencies.optional",
+                "SKIP",
+                "Optional feature dependencies",
+                "Runtime dependency probing is disabled for this diagnostic mode.",
+                "Run `nyvorel doctor --dependencies` to inspect optional feature availability.",
+            )
+            return
+
+        required = [self._dependency_result(entry) for entry in required_entries]
+        optional = [self._dependency_result(entry) for entry in optional_entries]
+        missing_required = [item for item in required if not item["satisfied"]]
+        missing_optional = [item for item in optional if not item["satisfied"]]
+
+        self.dependency_report["required"] = {
+            "status": "FAIL" if missing_required else "PASS",
+            "total": len(required),
+            "satisfied": len(required) - len(missing_required),
+            "missing": missing_required,
+        }
+        self.dependency_report["optional"] = {
+            "status": "WARN" if missing_optional else "PASS",
+            "total": len(optional),
+            "satisfied": len(optional) - len(missing_optional),
+            "missing": missing_optional,
+        }
+
+        if missing_required:
+            self.add(
+                "dependencies.required",
+                "FAIL",
+                "Required dependencies",
+                (
+                    f"{len(missing_required)}/{len(required)} required dependency "
+                    f"group(s) missing: {self._missing_dependency_detail(missing_required)}"
+                ),
+                "Install the missing required Arch package/provider(s), then rerun doctor.",
+            )
+        else:
+            self.add(
+                "dependencies.required",
+                "PASS",
+                "Required dependencies",
+                f"All {len(required)} required dependency groups are available on PATH.",
+            )
+
+        if missing_optional:
+            self.add(
+                "dependencies.optional",
+                "WARN",
+                "Optional feature dependencies",
+                (
+                    f"{len(missing_optional)}/{len(optional)} optional dependency "
+                    f"group(s) unavailable: {self._missing_dependency_detail(missing_optional)}"
+                ),
+                "Install only the optional package(s) for features you intend to use.",
+            )
+        else:
+            self.add(
+                "dependencies.optional",
+                "PASS",
+                "Optional feature dependencies",
+                f"All {len(optional)} optional dependency groups are available on PATH.",
+            )
+
     def check_config(self) -> None:
         config = self.home / ".config/nyvorel/config.json"
         if not config.exists():
@@ -714,6 +952,8 @@ class Doctor:
     def run(self) -> None:
         self.check_platform()
         self.check_installation_files()
+        self.load_dependency_contract()
+        self.check_dependencies()
         self.load_manifest()
         self.check_manifest_integrity()
         self.check_materialization()
@@ -741,6 +981,8 @@ class Doctor:
             "deep": self.deep,
             "session_checks": self.session_checks,
             "strict": self.strict,
+            "dependency_checks": self.dependency_checks,
+            "dependencies": self.dependency_report,
             "summary": counts,
             "result": result,
             "checks": [asdict(check) for check in self.checks],
@@ -781,6 +1023,11 @@ def parse_args() -> argparse.Namespace:
         help="Inspect another home directory (session checks are skipped).",
     )
     parser.add_argument(
+        "--dependencies",
+        action="store_true",
+        help="Force read-only required/optional dependency probing even when session checks are skipped.",
+    )
+    parser.add_argument(
         "--no-session",
         action="store_true",
         help="Skip live Hyprland/systemd/Quickshell session checks.",
@@ -799,11 +1046,13 @@ def main() -> int:
     )
 
     session_checks = not args.no_session and target_home == real_home
+    dependency_checks = session_checks or args.dependencies
 
     doctor = Doctor(
         target_home,
         deep=args.deep,
         session_checks=session_checks,
+        dependency_checks=dependency_checks,
         strict=args.strict,
     )
     doctor.run()
@@ -819,6 +1068,7 @@ def main() -> int:
         print(f"Target home    : {target_home}")
         print(f"Mode           : {mode}")
         print(f"Session checks : {'yes' if session_checks else 'no'}")
+        print(f"Dependency checks: {'yes' if dependency_checks else 'no'}")
         print()
 
         for check in doctor.checks:

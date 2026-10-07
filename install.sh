@@ -180,6 +180,7 @@ items: list[Item] = []
 add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
 add_tree(items, root / "hypr", Path(".config/hypr"))
 add_tree(items, root / "bin", Path(".local/bin"))
+add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))
 
 for name in ("fish", "kitty"):
     src = root / "integrations" / name

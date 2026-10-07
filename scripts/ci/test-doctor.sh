@@ -51,10 +51,98 @@ for check_id in (
 ):
     assert checks[check_id]["status"] == "PASS", (check_id, checks[check_id])
 
+assert checks["dependencies.contract"]["status"] == "PASS"
+assert checks["dependencies.required"]["status"] == "SKIP"
+assert checks["dependencies.optional"]["status"] == "SKIP"
+assert data["dependency_checks"] is False
+assert data["dependencies"]["contract"]["status"] == "PASS"
+
 assert checks["session.environment"]["status"] == "SKIP"
 assert checks["session.systemd"]["status"] == "SKIP"
 assert checks["session.hyprland"]["status"] == "SKIP"
 PY
+
+echo "== Dependency preflight contract =="
+DOCTOR="$HOME_SANDBOX/.local/bin/nyvorel-doctor"
+CONTRACT="$HOME_SANDBOX/.local/share/nyvorel/dependencies/arch.json"
+
+[[ -x "$DOCTOR" ]] || die "installed doctor missing"
+[[ -s "$CONTRACT" ]] || die "installed dependency contract missing"
+
+FAKE_BIN="$TMP/dependency-path"
+mkdir -p "$FAKE_BIN"
+
+REAL_PYTHON="$(command -v python3)"
+ln -s "$REAL_PYTHON" "$FAKE_BIN/python3"
+
+python3 - "$CONTRACT" <<'PYDEPS' >"$TMP/required-commands.txt"
+from pathlib import Path
+import json
+import sys
+
+data = json.loads(Path(sys.argv[1]).read_text())
+for entry in data["required"]:
+    commands = entry["commands_any_of"]
+    print(commands[0])
+PYDEPS
+
+while IFS= read -r command; do
+  [[ -n "$command" ]] || continue
+  [[ "$command" == "python3" ]] && continue
+  ln -sf /bin/true "$FAKE_BIN/$command"
+done <"$TMP/required-commands.txt"
+
+PATH="$FAKE_BIN" "$DOCTOR" \
+  --home "$HOME_SANDBOX" \
+  --no-session \
+  --dependencies \
+  --json >"$TMP/dependencies-ok.json"
+
+python3 - "$TMP/dependencies-ok.json" <<'PYDEPS'
+from pathlib import Path
+import json
+import sys
+
+data = json.loads(Path(sys.argv[1]).read_text())
+checks = {item["id"]: item for item in data["checks"]}
+
+assert data["doctor_version"] == 2
+assert data["dependency_checks"] is True
+assert checks["dependencies.contract"]["status"] == "PASS"
+assert checks["dependencies.required"]["status"] == "PASS"
+assert checks["dependencies.optional"]["status"] == "WARN"
+assert data["dependencies"]["required"]["missing"] == []
+assert data["dependencies"]["required"]["satisfied"] == data["dependencies"]["required"]["total"]
+assert len(data["dependencies"]["optional"]["missing"]) > 0
+PYDEPS
+
+rm -f "$FAKE_BIN/hyprctl"
+
+set +e
+PATH="$FAKE_BIN" "$DOCTOR" \
+  --home "$HOME_SANDBOX" \
+  --no-session \
+  --dependencies \
+  --json >"$TMP/dependencies-missing-required.json"
+DEPENDENCY_CODE=$?
+set -e
+
+[[ "$DEPENDENCY_CODE" == "1" ]] \
+  || die "doctor should fail when a required dependency is missing, got $DEPENDENCY_CODE"
+
+python3 - "$TMP/dependencies-missing-required.json" <<'PYDEPS'
+from pathlib import Path
+import json
+import sys
+
+data = json.loads(Path(sys.argv[1]).read_text())
+checks = {item["id"]: item for item in data["checks"]}
+
+assert data["result"] == "FAIL"
+assert checks["dependencies.required"]["status"] == "FAIL"
+missing = {item["id"] for item in data["dependencies"]["required"]["missing"]}
+assert "hyprland" in missing, missing
+PYDEPS
 
 echo "== Deep drift detection =="
 printf '\nci-doctor-intentional-edit\n' \
@@ -121,4 +209,4 @@ set -e
 [[ "$STRICT_CODE" == "1" ]] \
   || die "strict doctor should return non-zero with warnings/failures"
 
-pass "doctor clean state, deep drift, missing-file, JSON, and strict behavior"
+pass "doctor clean state, dependency preflight, deep drift, missing-file, JSON, and strict behavior"
