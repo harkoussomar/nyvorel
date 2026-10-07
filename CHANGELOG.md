@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 6C2
+- Added explicit plan-first stable release publication tooling gated by exact main CI and tagged-commit CI.
+- Added resumable partial-publication handling while refusing all existing-tag movement or release retargeting.
+- Promoted stable-state authority to dynamic GitHub Releases while retaining immutable historical release anchors.
+
 ### Post-release infrastructure — Phase 6C1
 - Generalized installer/updater source validation from a `0.1.0`-specific VERSION gate to strict semantic versions while preserving the 29-token portability contract.
 - Added deterministic release-candidate preflight for VERSION/tag/CHANGELOG/installer invariants.

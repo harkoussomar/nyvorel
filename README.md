@@ -409,6 +409,20 @@ scripts/release/preflight.sh --version 0.1.1 --require-clean
 
 See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage preflight.
 
+## Release publication
+
+Maintainers should plan a release before allowing any mutation:
+
+```sh
+scripts/release/publish.sh --version 0.1.1
+```
+
+Actual publication requires `--publish --yes`. The publisher verifies exact
+`origin/main`, the full main CI suite, an immutable release tag, the full tag CI
+suite, and only then creates/verifies the stable GitHub Release.
+
+See [`RELEASES.md`](./RELEASES.md) for resume and immutability rules.
+
 ## Documentation
 
 | Guide | Purpose |

@@ -29,8 +29,13 @@ For stable updates:
 - downgrades are refused by default;
 - the release commit must have the complete CI suite green.
 
-The current stable release remains `v0.1.0` at its existing immutable commit.
-Phase 6 never moves, recreates, or retargets that release.
+Stable state is resolved dynamically from GitHub Releases: the highest strict
+semantic-version release that is neither draft nor prerelease is the current
+stable release. Source policy therefore does not hard-code a mutable "current
+stable" value.
+
+`v0.1.0` remains recorded as an immutable historical release anchor and is
+never moved, recreated, or retargeted.
 
 ## Development
 
@@ -74,8 +79,8 @@ The channel determines whether a same-version commit change is valid:
 | Development (`main`) | Allow |
 | Explicit local source | Allow because the source was explicitly selected |
 
-This distinction is necessary today because `main` is ahead of `v0.1.0` while
-the development tree still carries `VERSION=0.1.0`.
+This distinction allows `main` to advance through unreleased commits without
+turning a mutable development commit into a stable release identity.
 
 ## v0.1.x maintenance policy
 
@@ -114,6 +119,36 @@ scripts/release/preflight.sh --version 0.1.1 --require-clean --require-tag
 Preflight is read-only. It never creates a tag, pushes, or publishes a GitHub
 Release. Phase 6C2 owns explicit publication tooling.
 
+## Release publication
+
+Publication is maintainer-triggered and never automatic.
+
+First inspect the prepared candidate without mutation:
+
+```sh
+scripts/release/publish.sh --version 0.1.1
+```
+
+Actual publication requires both explicit confirmation flags:
+
+```sh
+scripts/release/publish.sh --version 0.1.1 --publish --yes
+```
+
+The publisher requires a clean `main` checkout whose HEAD exactly matches
+`origin/main`. It verifies the complete six-job `CI` workflow on that exact
+commit before creating an annotated release tag.
+
+After the tag is pushed, the publisher waits for a second complete `CI` run for
+the same tagged commit. The GitHub Release is created only after tag CI is
+green, and its notes are extracted from the matching CHANGELOG release section.
+
+Existing tags are never moved. If publication stops after a tag is pushed,
+rerunning the same command is resumable only when the existing tag still peels
+to the exact candidate commit. If code must change after an immutable tag has
+been published, prepare a new semantic version rather than retargeting the old
+tag.
+
 ## Release invariants
 
 A future stable release is invalid if any of these disagree:
@@ -136,5 +171,6 @@ Phase 6 is intentionally split:
 - **6A** — define this contract — **closed**;
 - **6B** — implement stable vs development resolution in `nyvorel update` — **closed**;
 - **6C1** — generic installer VERSION support + deterministic, non-publishing release candidate preflight — **closed**;
-- **6C2** — explicit release publication tooling and remote release/CI verification;
+- **6C2A** — safe publication engine + isolated publication regression — **closed**;
+- **6C2B** — machine-readable publication policy + maintainer documentation — **closed**;
 - **6D** — prove upgrade, downgrade, channel, clean-machine, and recovery paths.

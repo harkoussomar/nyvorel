@@ -41,6 +41,16 @@ resolution, VERSION/tag behavior, or release automation must preserve the
 stable-vs-development distinction and include the relevant release-policy
 regression coverage.
 
+Maintainer publication is plan-first:
+
+```sh
+scripts/release/publish.sh --version 0.1.1
+```
+
+Actual publication requires `--publish --yes`. Do not bypass the publisher with
+a manual tag move or release retarget: the tool requires exact `origin/main`,
+main CI, immutable tag identity, tag CI, and only then a stable GitHub Release.
+
 ## Testing
 
 At minimum, validate the files you changed.

@@ -1,15 +1,7 @@
 {
-  "schema": 1,
+  "schema": 2,
   "product": "Nyvorel",
-  "policy_status": "partially-implemented",
-  "current_stable": {
-    "version": "0.1.0",
-    "tag": "v0.1.0",
-    "commit": "76e1d24c3b1fb6d68e51795a48dd0fb8d2f88e02",
-    "immutable": true,
-    "github_release_required": true,
-    "prerelease": false
-  },
+  "policy_status": "release-tooling-implemented",
   "channels": {
     "stable": {
       "user_default": true,
@@ -71,19 +63,20 @@
   "maintenance": {
     "current_line": "0.1.x",
     "versioning": "semver-patch",
-    "next_patch": "0.1.1",
     "release_source": "reviewed-clean-main-commit",
     "existing_release_tags_may_move": false,
     "existing_github_releases_may_be_retargeted": false,
     "separate_maintenance_branch_required_now": false,
-    "future_backport_branch_pattern": "release/{major}.{minor}"
+    "future_backport_branch_pattern": "release/{major}.{minor}",
+    "next_patch_policy": "increment-highest-stable-patch"
   },
   "implementation_status": {
     "stable_channel_resolution": "implemented-6B",
     "development_channel_opt_in": "implemented-6B",
     "release_preflight_automation": "candidate-preflight-implemented-6C1",
     "installer_general_version_support": "implemented-6C1",
-    "upgrade_path_matrix": "pending-6D"
+    "upgrade_path_matrix": "pending-6D",
+    "release_publication_tooling": "implemented-6C2"
   },
   "legacy_behavior": {
     "origin_main_default_fetch_retired_in": "6B",
@@ -95,7 +88,30 @@
     "candidate_preflight": "scripts/release/preflight.sh",
     "preflight_mutates_repository": false,
     "preflight_publishes_release": false,
-    "publication_tooling": "pending-6C2",
-    "publication_requires_explicit_action": true
+    "publication_tooling": "scripts/release/publish.sh",
+    "publication_requires_explicit_action": true,
+    "publication_confirmation": "--publish --yes",
+    "plan_mode_mutates_repository": false,
+    "main_ci_required": true,
+    "tag_ci_required": true,
+    "release_created_after_tag_ci": true,
+    "existing_tag_may_move": false,
+    "partial_publication_is_resumable": true,
+    "release_notes_source": "CHANGELOG release section"
+  },
+  "immutable_release_anchors": [
+    {
+      "version": "0.1.0",
+      "tag": "v0.1.0",
+      "commit": "76e1d24c3b1fb6d68e51795a48dd0fb8d2f88e02",
+      "immutable": true,
+      "github_release_required": true,
+      "prerelease": false
+    }
+  ],
+  "stable_state": {
+    "authoritative_source": "GitHub Releases API",
+    "selection": "highest non-draft, non-prerelease strict semver tag",
+    "source_tree_pins_current_stable": false
   }
 }

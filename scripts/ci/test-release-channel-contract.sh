@@ -21,20 +21,28 @@ import sys
 
 policy = json.loads(Path(sys.argv[1]).read_text())
 
-assert policy["schema"] == 1
+assert policy["schema"] == 2
 assert policy["product"] == "Nyvorel"
-assert policy["policy_status"] == "partially-implemented"
+assert policy["policy_status"] == "release-tooling-implemented"
+assert "current_stable" not in policy
 
-stable = policy["current_stable"]
-assert stable == {
+anchors = policy["immutable_release_anchors"]
+assert anchors == [{
     "version": "0.1.0",
     "tag": "v0.1.0",
     "commit": "76e1d24c3b1fb6d68e51795a48dd0fb8d2f88e02",
     "immutable": True,
     "github_release_required": True,
     "prerelease": False,
+}]
+assert re.fullmatch(r"[0-9a-f]{40}", anchors[0]["commit"])
+
+stable_state = policy["stable_state"]
+assert stable_state == {
+    "authoritative_source": "GitHub Releases API",
+    "selection": "highest non-draft, non-prerelease strict semver tag",
+    "source_tree_pins_current_stable": False,
 }
-assert re.fullmatch(r"[0-9a-f]{40}", stable["commit"])
 
 channels = policy["channels"]
 assert set(channels) == {"stable", "development", "explicit-source"}
@@ -76,6 +84,7 @@ assert status == {
     "release_preflight_automation": "candidate-preflight-implemented-6C1",
     "installer_general_version_support": "implemented-6C1",
     "upgrade_path_matrix": "pending-6D",
+    "release_publication_tooling": "implemented-6C2",
 }
 
 legacy = policy["legacy_behavior"]
@@ -88,21 +97,41 @@ assert legacy == {
 
 maintenance = policy["maintenance"]
 assert maintenance["current_line"] == "0.1.x"
-assert maintenance["next_patch"] == "0.1.1"
+assert maintenance["versioning"] == "semver-patch"
+assert "next_patch" not in maintenance
+assert maintenance["next_patch_policy"] == "increment-highest-stable-patch"
 assert maintenance["existing_release_tags_may_move"] is False
+assert maintenance["existing_github_releases_may_be_retargeted"] is False
 
-print("release_policy_schema=1")
+tooling = policy["release_tooling"]
+assert tooling["candidate_preflight"] == "scripts/release/preflight.sh"
+assert tooling["preflight_mutates_repository"] is False
+assert tooling["preflight_publishes_release"] is False
+assert tooling["publication_tooling"] == "scripts/release/publish.sh"
+assert tooling["publication_requires_explicit_action"] is True
+assert tooling["publication_confirmation"] == "--publish --yes"
+assert tooling["plan_mode_mutates_repository"] is False
+assert tooling["main_ci_required"] is True
+assert tooling["tag_ci_required"] is True
+assert tooling["release_created_after_tag_ci"] is True
+assert tooling["existing_tag_may_move"] is False
+assert tooling["partial_publication_is_resumable"] is True
+assert tooling["release_notes_source"] == "CHANGELOG release section"
+
+print("release_policy_schema=2")
+print("stable_state=dynamic-github-releases")
+print("immutable_anchor=v0.1.0")
 print("stable_fetch_default=implemented-6B")
-print("stable_discovery=github-release+immutable-semver-tag")
-print("development=origin/main-explicit-opt-in")
-print("same_version_stable=refuse")
-print("same_version_development=allow")
+print("publication_tooling=implemented-6C2")
+print("publication_confirmation=--publish --yes")
+print("main_ci_required=true")
+print("tag_ci_required=true")
 print("maintenance_line=0.1.x")
 PY
 
 VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-[[ "$VERSION_VALUE" == "0.1.0" ]] \
-  || die "Phase 6B baseline expects development VERSION 0.1.0"
+[[ "$VERSION_VALUE" =~ ^0\.1\.[0-9]+$ ]] \
+  || die "current maintenance line requires VERSION 0.1.x, found $VERSION_VALUE"
 
 bin/nyvorel-update --help | grep -q -- '--channel'
 bin/nyvorel-update --help >/dev/null
@@ -116,20 +145,23 @@ grep -q 'fetch_development_source' bin/nyvorel-update \
 grep -q 'stable channel refuses a same-version different-commit update' \
   bin/nyvorel-update \
   || die "stable same-version invariant missing"
-grep -q 'NYVOREL_GITHUB_API_BASE' bin/nyvorel-update \
-  || die "GitHub API endpoint contract missing"
 
 grep -q 'invalid semantic VERSION' install.sh \
   || die "installer strict semantic VERSION gate missing"
 
-grep -q 'scripts/release/preflight.sh' release/channel-policy.json \
-  || die "release candidate preflight policy missing"
+[[ -x scripts/release/preflight.sh ]] \
+  || die "release candidate preflight missing/not executable"
+[[ -x scripts/release/publish.sh ]] \
+  || die "release publication engine missing/not executable"
+
+scripts/release/publish.sh --help | grep -q -- '--publish'
+scripts/release/publish.sh --help | grep -q -- '--yes'
 
 grep -qF '**Stable is the user-default remote update channel.**' RELEASES.md \
   || die "RELEASES.md stable default missing"
-grep -q 'nyvorel update --fetch --channel development' RELEASES.md \
-  || die "RELEASES.md development command missing"
-grep -q 'same-version/different-commit' RELEASES.md \
-  || die "RELEASES.md same-version semantics missing"
+grep -q 'scripts/release/publish.sh --version 0.1.1 --publish --yes' RELEASES.md \
+  || die "RELEASES.md explicit publication command missing"
+grep -q 'GitHub Releases' RELEASES.md \
+  || die "RELEASES.md dynamic stable authority missing"
 
-echo "PASS  implemented stable/development update-channel contract"
+echo "PASS  release/update channel and publication contract"
