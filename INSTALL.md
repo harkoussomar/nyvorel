@@ -1,8 +1,11 @@
 # Installing and recovering Nyvorel
 
 Nyvorel v0.1.0 targets an existing **Arch Linux + Hyprland + Quickshell**
-desktop. It does not bootstrap Arch Linux or install every optional application
-used by individual modules.
+desktop. The supported required/optional/test-only dependency policy is defined
+in [`DEPENDENCIES.md`](DEPENDENCIES.md) and `dependencies/arch.json`.
+
+The installer does not currently bootstrap Arch Linux or automatically install
+dependency packages.
 
 ## Preview
 

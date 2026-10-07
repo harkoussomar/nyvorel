@@ -1,0 +1,343 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "platform": {
+    "os_id": "arch",
+    "session_type": "wayland",
+    "compositor": "hyprland"
+  },
+  "policy": {
+    "required": "Needed for the supported Nyvorel core installation, session lifecycle, diagnostics, or safe update lifecycle.",
+    "optional": "Used by a bounded feature or integration. Absence must not make unrelated Nyvorel functionality unsupported.",
+    "test-only": "Needed only by Nyvorel validation or release infrastructure, not by an installed user's runtime.",
+    "automatic_installation": false
+  },
+  "required": [
+    {
+      "id": "bash",
+      "commands_any_of": ["bash"],
+      "arch_packages_any_of": ["bash"],
+      "reason": "Nyvorel installer, recovery, launch and integration scripts are Bash.",
+      "evidence": ["install.sh", "uninstall.sh", "bin/nyvorel"]
+    },
+    {
+      "id": "python",
+      "commands_any_of": ["python3"],
+      "arch_packages_any_of": ["python"],
+      "reason": "Installer transactions, doctor, updater and multiple runtime helpers require Python 3.",
+      "evidence": ["install.sh", "bin/nyvorel-doctor", "bin/nyvorel-update"]
+    },
+    {
+      "id": "hyprland",
+      "commands_any_of": ["hyprctl"],
+      "arch_packages_any_of": ["hyprland"],
+      "reason": "Nyvorel targets Hyprland and uses hyprctl for session control and diagnostics.",
+      "evidence": ["README.md", "hypr/hyprland.conf", "bin/nyvorel-doctor"]
+    },
+    {
+      "id": "quickshell",
+      "commands_any_of": ["qs", "quickshell"],
+      "arch_packages_any_of": ["quickshell", "quickshell-git"],
+      "reason": "Quickshell owns the primary Nyvorel desktop shell. Doctor accepts qs or quickshell.",
+      "evidence": ["README.md", "quickshell/shell.qml", "bin/nyvorel-doctor"]
+    },
+    {
+      "id": "systemd-user",
+      "commands_any_of": ["systemctl"],
+      "arch_packages_any_of": ["systemd"],
+      "reason": "Nyvorel uses systemd user services and path units for long-running shell lifecycle and sync helpers.",
+      "evidence": ["install.sh", "systemd", "bin/nyvorel-doctor"]
+    },
+    {
+      "id": "dbus-session",
+      "commands_any_of": ["dbus-update-activation-environment"],
+      "arch_packages_any_of": ["dbus"],
+      "reason": "The Hyprland session exports its Wayland environment into D-Bus and systemd user services.",
+      "evidence": ["hypr/hyprland/execs.conf"]
+    },
+    {
+      "id": "git",
+      "commands_any_of": ["git"],
+      "arch_packages_any_of": ["git"],
+      "reason": "The safe updater validates source checkout state and supports clean-source fetch/update workflows.",
+      "evidence": ["bin/nyvorel-update", "README.md"]
+    },
+    {
+      "id": "coreutils",
+      "commands_any_of": ["cp", "date", "mkdir", "mv", "rm", "tr"],
+      "arch_packages_any_of": ["coreutils"],
+      "reason": "Core install, recovery and default shell scripts rely on standard GNU core utilities.",
+      "evidence": ["install.sh", "uninstall.sh", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "findutils",
+      "commands_any_of": ["find"],
+      "arch_packages_any_of": ["findutils"],
+      "reason": "Nyvorel scripts use find for managed-file and user-content discovery.",
+      "evidence": ["scripts/ci/validate-source.sh", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "grep",
+      "commands_any_of": ["grep"],
+      "arch_packages_any_of": ["grep"],
+      "reason": "Nyvorel shell scripts use grep in normal runtime and lifecycle paths.",
+      "evidence": ["scripts/ci/validate-source.sh", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "sed",
+      "commands_any_of": ["sed"],
+      "arch_packages_any_of": ["sed"],
+      "reason": "Nyvorel scripts and fallback workflows use sed for text processing.",
+      "evidence": ["hypr/hyprland/keybinds.conf", "scripts/ci/validate-source.sh"]
+    },
+    {
+      "id": "gawk",
+      "commands_any_of": ["awk"],
+      "arch_packages_any_of": ["gawk"],
+      "reason": "Default shell workflows use awk for text processing.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    }
+  ],
+  "optional": [
+    {
+      "id": "notifications",
+      "commands_any_of": ["notify-send"],
+      "arch_packages_any_of": ["libnotify"],
+      "feature": "Desktop notifications and fallback user feedback.",
+      "evidence": ["hypr/custom/keybinds.conf", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "clipboard-wayland",
+      "commands_any_of": ["wl-copy", "wl-paste"],
+      "arch_packages_any_of": ["wl-clipboard"],
+      "feature": "Clipboard integration and clipboard history transport.",
+      "evidence": ["hypr/hyprland/execs.conf", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "clipboard-history",
+      "commands_any_of": ["cliphist"],
+      "arch_packages_any_of": ["cliphist"],
+      "feature": "Clipboard history storage and decoding.",
+      "evidence": ["hypr/hyprland/execs.conf", "hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "launcher",
+      "commands_any_of": ["fuzzel"],
+      "arch_packages_any_of": ["fuzzel"],
+      "feature": "Fallback clipboard and emoji picker UI.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "screenshots",
+      "commands_any_of": ["grim", "slurp"],
+      "arch_packages_any_of": ["grim", "slurp"],
+      "feature": "Region/fullscreen screenshot and visual selection workflows.",
+      "evidence": ["hypr/hyprland/keybinds.conf", "quickshell/modules/common/utils/TempScreenshotProcess.qml"]
+    },
+    {
+      "id": "screenshot-helper",
+      "commands_any_of": ["hyprshot"],
+      "arch_packages_any_of": ["hyprshot"],
+      "feature": "Fallback region screenshot workflow.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "color-picker",
+      "commands_any_of": ["hyprpicker"],
+      "arch_packages_any_of": ["hyprpicker"],
+      "feature": "Color picker shortcut.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "ocr",
+      "commands_any_of": ["tesseract"],
+      "arch_packages_any_of": ["tesseract"],
+      "feature": "OCR region-to-clipboard workflow.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "screen-recording",
+      "commands_any_of": ["gpu-screen-recorder"],
+      "arch_packages_any_of": ["gpu-screen-recorder"],
+      "feature": "GPU screen recording.",
+      "evidence": ["quickshell/modules/nyvorel/regionSelector/RegionSelection.qml", "quickshell/scripts/videos/record.sh"]
+    },
+    {
+      "id": "media-processing",
+      "commands_any_of": ["ffmpeg"],
+      "arch_packages_any_of": ["ffmpeg"],
+      "feature": "Video wallpaper, recording and appearance media processing.",
+      "evidence": ["quickshell/scripts/appearance-studio/appearance_studio.py", "quickshell/scripts/videos/record.sh"]
+    },
+    {
+      "id": "audio-recording",
+      "commands_any_of": ["parec"],
+      "arch_packages_any_of": ["libpulse"],
+      "feature": "Audio capture for recording workflows.",
+      "evidence": ["quickshell/scripts/videos/record.sh"]
+    },
+    {
+      "id": "audio-control",
+      "commands_any_of": ["wpctl"],
+      "arch_packages_any_of": ["wireplumber"],
+      "feature": "Volume and microphone media-key controls.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "audio-effects",
+      "commands_any_of": ["easyeffects"],
+      "arch_packages_any_of": ["easyeffects"],
+      "feature": "EasyEffects session processing and toggle.",
+      "evidence": ["hypr/hyprland/execs.conf", "hypr/custom/keybinds.conf"]
+    },
+    {
+      "id": "media-control",
+      "commands_any_of": ["playerctl"],
+      "arch_packages_any_of": ["playerctl"],
+      "feature": "Media playback keybindings.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "brightness",
+      "commands_any_of": ["brightnessctl"],
+      "arch_packages_any_of": ["brightnessctl"],
+      "feature": "Brightness media-key fallback.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "keyring",
+      "commands_any_of": ["gnome-keyring-daemon"],
+      "arch_packages_any_of": ["gnome-keyring"],
+      "feature": "Secrets keyring session component.",
+      "evidence": ["hypr/hyprland/execs.conf"]
+    },
+    {
+      "id": "network-manager",
+      "commands_any_of": ["nmcli"],
+      "arch_packages_any_of": ["networkmanager"],
+      "feature": "Network integration used by shell modules.",
+      "evidence": ["quickshell"]
+    },
+    {
+      "id": "appearance-colors",
+      "commands_any_of": ["matugen"],
+      "arch_packages_any_of": ["matugen"],
+      "feature": "Material color generation and appearance synchronization.",
+      "evidence": ["quickshell/scripts/appearance-studio/appearance_studio.py"]
+    },
+    {
+      "id": "image-processing",
+      "commands_any_of": ["magick", "convert"],
+      "arch_packages_any_of": ["imagemagick"],
+      "feature": "Wallpaper profiling and image processing.",
+      "evidence": ["quickshell/scripts/appearance-studio/wallpaper_profile.py"]
+    },
+    {
+      "id": "video-wallpaper",
+      "commands_any_of": ["mpvpaper"],
+      "arch_packages_any_of": ["mpvpaper"],
+      "feature": "Video wallpaper playback.",
+      "evidence": ["quickshell/scripts/appearance-studio/appearance_studio.py"]
+    },
+    {
+      "id": "terminal",
+      "commands_any_of": ["kitty"],
+      "arch_packages_any_of": ["kitty"],
+      "feature": "Preferred terminal and Kitty theme synchronization.",
+      "evidence": ["hypr/custom/keybinds.conf", "bin/nyvorel-terminal-theme-sync"]
+    },
+    {
+      "id": "open-files",
+      "commands_any_of": ["xdg-open"],
+      "arch_packages_any_of": ["xdg-utils"],
+      "feature": "Open URLs/files from shell modules and keybindings.",
+      "evidence": ["hypr/custom/keybinds.conf", "quickshell/scripts/operations-center/operations.py"]
+    },
+    {
+      "id": "user-dirs",
+      "commands_any_of": ["xdg-user-dir"],
+      "arch_packages_any_of": ["xdg-user-dirs"],
+      "feature": "Resolve user Pictures/Screenshots paths.",
+      "evidence": ["hypr/hyprland/keybinds.conf"]
+    },
+    {
+      "id": "process-tools",
+      "commands_any_of": ["pgrep", "pkill", "pidof"],
+      "arch_packages_any_of": ["procps-ng"],
+      "feature": "Process probing and fallback process control.",
+      "evidence": ["hypr/hyprland/scripts/start_geoclue_agent.sh", "quickshell/killDialog.qml", "quickshell/modules/nyvorel/regionSelector/RegionSelection.qml"]
+    },
+    {
+      "id": "geolocation",
+      "commands_any_of": ["geoclue"],
+      "arch_packages_any_of": ["geoclue"],
+      "feature": "GeoClue agent used by location-aware shell functionality.",
+      "evidence": ["hypr/hyprland/scripts/start_geoclue_agent.sh"]
+    },
+    {
+      "id": "fingerprint",
+      "commands_any_of": ["fprintd-list"],
+      "arch_packages_any_of": ["fprintd"],
+      "feature": "Fingerprint-aware lock/login integration.",
+      "evidence": ["quickshell/modules/common/panels/lock/LockContext.qml"]
+    },
+    {
+      "id": "cloudflare-warp",
+      "commands_any_of": ["warp-cli"],
+      "arch_packages_any_of": ["cloudflare-warp-bin"],
+      "feature": "Cloudflare WARP quick toggle.",
+      "evidence": ["quickshell/modules/common/models/quickToggles/CloudflareWarpToggle.qml"]
+    },
+    {
+      "id": "keyboard-input",
+      "commands_any_of": ["wtype"],
+      "arch_packages_any_of": ["wtype"],
+      "feature": "Wayland synthetic keyboard input for supported integrations.",
+      "evidence": ["quickshell"]
+    },
+    {
+      "id": "audio-visualizer",
+      "commands_any_of": ["cava"],
+      "arch_packages_any_of": ["cava"],
+      "feature": "Audio visualization widgets.",
+      "evidence": ["quickshell"]
+    },
+    {
+      "id": "numlock",
+      "commands_any_of": ["numlockx"],
+      "arch_packages_any_of": ["numlockx"],
+      "feature": "Num Lock startup preference.",
+      "evidence": ["hypr/custom/execs.conf"]
+    },
+    {
+      "id": "download-http",
+      "commands_any_of": ["curl"],
+      "arch_packages_any_of": ["curl"],
+      "feature": "Favicon/download and network-backed shell helpers.",
+      "evidence": ["quickshell/modules/common/widgets/Favicon.qml"]
+    },
+    {
+      "id": "file-identification",
+      "commands_any_of": ["file"],
+      "arch_packages_any_of": ["file"],
+      "feature": "Directory/file MIME inspection.",
+      "evidence": ["quickshell/modules/common/widgets/DirectoryIcon.qml"]
+    }
+  ],
+  "test-only": [
+    {
+      "id": "container-runtime",
+      "commands_any_of": ["podman", "docker"],
+      "arch_packages_any_of": ["podman", "docker"],
+      "reason": "Local pristine-Arch clean-machine validation requires one supported container runtime.",
+      "evidence": ["scripts/ci/test-clean-machine.sh"]
+    },
+    {
+      "id": "clean-machine-bootstrap",
+      "commands_any_of": ["useradd", "su"],
+      "arch_packages_any_of": ["shadow", "util-linux"],
+      "reason": "The clean-machine regression creates and enters a non-root test account inside its disposable Arch container.",
+      "evidence": ["scripts/ci/test-clean-machine.sh"]
+    }
+  ]
+}

@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 5A
+- Added a versioned Arch dependency contract with required, optional, and test-only classifications.
+- Added semantic dependency-contract validation and source-integrity enforcement.
+- Documented that Phase 5A is read-only policy: it does not automatically install packages.
+
 ### Added
 
 - `nyvorel doctor` read-only diagnostics for installation manifests, managed-file integrity, install-time materialization, runtime configuration, systemd user services, Quickshell, and Hyprland health.

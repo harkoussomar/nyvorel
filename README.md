@@ -163,17 +163,17 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 Nyvorel `v0.1.0` targets an existing **Arch Linux + Hyprland + Quickshell**
 desktop.
 
-Core requirements:
+Core requirements are defined by the versioned dependency contract:
 
-- Hyprland
-- Quickshell (`qs`)
-- systemd user services
-- Python 3
-- standard GNU/Linux userland tools
+- [`dependencies/arch.json`](dependencies/arch.json) — machine-readable contract;
+- [`DEPENDENCIES.md`](DEPENDENCIES.md) — required/optional/test-only policy.
 
-Some integrations depend on optional applications. Missing optional
-applications do not need to be installed just to inspect or use unrelated
-parts of Nyvorel.
+The supported core includes Hyprland, Quickshell (`qs` or `quickshell`),
+systemd user services, Python 3, Bash/GNU userland, D-Bus session integration
+and Git for the safe update lifecycle.
+
+Feature-specific applications are classified as optional. Missing optional
+dependencies do not make unrelated Nyvorel functionality unsupported.
 
 ### 2. Clone
 

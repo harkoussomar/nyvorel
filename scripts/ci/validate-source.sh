@@ -17,6 +17,8 @@ required_files=(
   NOTICE.md
   PROVENANCE.md
   THIRD_PARTY_NOTICES.md
+  DEPENDENCIES.md
+  dependencies/arch.json
   INHERITED_ASSETS.md
   TRADEMARKS.md
   PORTABILITY.md
@@ -27,6 +29,7 @@ required_files=(
   bin/nyvorel-doctor
   bin/nyvorel-update
   scripts/ci/test-clean-machine.sh
+  scripts/ci/test-dependency-contract.sh
 )
 
 required_dirs=(
@@ -242,5 +245,7 @@ mkdir -p "$TMP/home"
 
 grep -q 'DRY RUN — no files changed.' "$TMP/dry-run.log" \
   || die "installer dry-run completion marker missing"
+
+bash scripts/ci/test-dependency-contract.sh
 
 pass "source structure, syntax, portability, secrets, and installer dry-run"
