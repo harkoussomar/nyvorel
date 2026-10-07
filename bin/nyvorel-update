@@ -8,15 +8,20 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 HOME_TOKEN = "@" + "HOME" + "@"
 HOME_TOKEN_BYTES = HOME_TOKEN.encode()
+STABLE_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
 
 @dataclass(frozen=True)
@@ -272,7 +277,7 @@ def read_manifest(home: Path) -> tuple[Path, Path, dict[str, Any]]:
     return pointer, state, data
 
 
-def maybe_fetch_source(root: Path) -> None:
+def clean_remote_source(root: Path) -> str:
     git_dir = root / ".git"
     if not git_dir.exists():
         raise UpdateError("--fetch requires a Git checkout")
@@ -281,15 +286,194 @@ def maybe_fetch_source(root: Path) -> None:
     if dirty:
         raise UpdateError("--fetch refuses a dirty source checkout")
 
-    branch = git_output(root, "branch", "--show-current")
-    if branch != "main":
-        raise UpdateError(f"--fetch requires source branch main, found {branch!r}")
-
     remote = git_output(root, "remote", "get-url", "origin")
     if not remote:
         raise UpdateError("--fetch requires an origin remote")
 
+    return remote
+
+
+def github_repository(root: Path, remote: str) -> str:
+    configured = git_output(root, "config", "--get", "nyvorel.githubRepository")
+    if configured:
+        parts = configured.strip("/").split("/")
+        if len(parts) == 2 and all(parts):
+            return "/".join(parts)
+        raise UpdateError(
+            "git config nyvorel.githubRepository must be OWNER/REPOSITORY"
+        )
+
+    path = ""
+    if remote.startswith("git@github.com:"):
+        path = remote.split(":", 1)[1]
+    else:
+        parsed = urlparse(remote)
+        if parsed.hostname == "github.com":
+            path = parsed.path
+
+    path = path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+
+    parts = path.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise UpdateError(
+            "stable channel requires a GitHub origin remote or "
+            "`git config nyvorel.githubRepository OWNER/REPOSITORY`"
+        )
+
+    return "/".join(parts)
+
+
+def latest_stable_release(root: Path, remote: str) -> tuple[str, str]:
+    repository = github_repository(root, remote)
+    api_base = os.environ.get(
+        "NYVOREL_GITHUB_API_BASE",
+        "https://api.github.com",
+    ).rstrip("/")
+    url = f"{api_base}/repos/{repository}/releases?per_page=100"
+
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "Nyvorel-Updater",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            releases = json.load(response)
+    except Exception as exc:
+        raise UpdateError(
+            f"cannot query stable GitHub releases for {repository}: {exc}"
+        ) from exc
+
+    if not isinstance(releases, list):
+        raise UpdateError("GitHub releases response is not a list")
+
+    candidates: list[tuple[tuple[int, int, int], str]] = []
+
+    for release in releases:
+        if not isinstance(release, dict):
+            continue
+        if release.get("draft") or release.get("prerelease"):
+            continue
+
+        tag = release.get("tag_name")
+        if not isinstance(tag, str):
+            continue
+
+        match = STABLE_TAG_RE.fullmatch(tag)
+        if not match:
+            continue
+
+        candidates.append(
+            (tuple(int(value) for value in match.groups()), tag)
+        )
+
+    if not candidates:
+        raise UpdateError(
+            f"no non-draft, non-prerelease semantic release found for {repository}"
+        )
+
+    _, tag = max(candidates)
+    return tag, tag[1:]
+
+
+def clone_stable_candidate(
+    root: Path,
+) -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
+    remote = clean_remote_source(root)
+    tag, version = latest_stable_release(root, remote)
+
+    temp = tempfile.TemporaryDirectory(prefix="nyvorel-update-stable-")
+    candidate = Path(temp.name)
+
     print(f"Source remote         : {remote}")
+    print("Update channel        : stable")
+    print(f"Stable release        : {tag}")
+    print("Resolving immutable stable release checkout...")
+
+    try:
+        # Fetch the exact release-tag ref and peel it explicitly. This works
+        # for both lightweight and annotated Git tags and avoids relying on
+        # `git clone --branch <tag>` treating the tag object itself as a
+        # commit on every Git version/protocol combination.
+        subprocess.run(
+            ["git", "-C", str(candidate), "init", "--quiet"],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(candidate),
+                "remote",
+                "add",
+                "origin",
+                remote,
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(candidate),
+                "fetch",
+                "--quiet",
+                "--depth",
+                "1",
+                "origin",
+                f"refs/tags/{tag}:refs/tags/{tag}",
+            ],
+            check=True,
+        )
+
+        commit = git_output(candidate, "rev-parse", f"{tag}^{{commit}}")
+        if not commit:
+            raise UpdateError(
+                f"cannot peel stable release tag {tag} to a commit"
+            )
+
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(candidate),
+                "checkout",
+                "--quiet",
+                "--detach",
+                commit,
+            ],
+            check=True,
+        )
+
+        checked_out = git_output(candidate, "rev-parse", "HEAD")
+        if checked_out != commit:
+            raise UpdateError(
+                f"stable release checkout mismatch for {tag}: "
+                f"{checked_out or '<unknown>'} != {commit}"
+            )
+    except Exception:
+        temp.cleanup()
+        raise
+
+    return temp, candidate, tag, version
+
+
+def fetch_development_source(root: Path) -> str:
+    remote = clean_remote_source(root)
+
+    branch = git_output(root, "branch", "--show-current")
+    if branch != "main":
+        raise UpdateError(
+            f"development channel requires source branch main, found {branch!r}"
+        )
+
+    print(f"Source remote         : {remote}")
+    print("Update channel        : development")
     print("Fetching origin/main...")
 
     subprocess.run(
@@ -300,6 +484,8 @@ def maybe_fetch_source(root: Path) -> None:
         ["git", "-C", str(root), "merge", "--ff-only", "origin/main"],
         check=True,
     )
+
+    return "origin/main"
 
 
 def activate_services(home: Path) -> None:
@@ -372,7 +558,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fetch",
         action="store_true",
-        help="Fast-forward a clean source checkout from origin/main before planning.",
+        help=(
+            "Resolve a remote update before planning. Stable is the default "
+            "channel; use --channel development to opt into origin/main."
+        ),
+    )
+    parser.add_argument(
+        "--channel",
+        choices=("stable", "development"),
+        help="Remote channel used with --fetch (default: stable).",
     )
     parser.add_argument(
         "--dry-run",
@@ -392,12 +586,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-dirty-source",
         action="store_true",
-        help="Allow an explicit dirty Git source checkout.",
+        help="Allow an explicit/local dirty Git source checkout (not with --fetch).",
     )
     parser.add_argument(
         "--allow-downgrade",
         action="store_true",
-        help="Allow a candidate VERSION lower than the installed version.",
+        help=(
+            "Allow a lower VERSION only for explicit/local source updates; "
+            "remote stable/development channels always refuse downgrades."
+        ),
     )
     activation = parser.add_mutually_exclusive_group()
     activation.add_argument(
@@ -422,18 +619,44 @@ def main() -> int:
 
     pointer, old_state, old_manifest = read_manifest(home)
 
+    if args.channel and not args.fetch:
+        raise UpdateError("--channel requires --fetch")
+    if args.fetch and args.source:
+        raise UpdateError(
+            "--source selects an explicit local source and cannot be combined with --fetch"
+        )
+    if args.fetch and args.allow_dirty_source:
+        raise UpdateError("--allow-dirty-source cannot be combined with --fetch")
+    if args.fetch and args.allow_downgrade:
+        raise UpdateError(
+            "--allow-downgrade is not permitted for stable/development remote channels"
+        )
+
     source_value = args.source or old_manifest.get("source_root")
     if not source_value:
         raise UpdateError(
             "no source tree is available; use --source /path/to/nyvorel"
         )
 
-    source = Path(str(source_value)).expanduser().resolve(strict=False)
-    if not source.is_dir():
-        raise UpdateError(f"candidate source directory missing: {source}")
+    source_root = Path(str(source_value)).expanduser().resolve(strict=False)
+    if not source_root.is_dir():
+        raise UpdateError(f"candidate source directory missing: {source_root}")
+
+    source = source_root
+    channel = "explicit-source" if args.source else "recorded-source"
+    resolved_ref = str(source_root)
+    stable_version: str | None = None
+    stable_temp = None
 
     if args.fetch:
-        maybe_fetch_source(source)
+        channel = args.channel or "stable"
+        if channel == "stable":
+            stable_temp, source, resolved_ref, stable_version = clone_stable_candidate(
+                source_root
+            )
+        else:
+            resolved_ref = fetch_development_source(source_root)
+            source = source_root
 
     if (source / ".git").exists():
         dirty = git_output(source, "status", "--porcelain")
@@ -449,6 +672,12 @@ def main() -> int:
     candidate_version = version_file.read_text().strip()
     candidate_semver = parse_version(candidate_version)
 
+    if channel == "stable" and stable_version != candidate_version:
+        raise UpdateError(
+            f"stable release {resolved_ref} declares VERSION {candidate_version}; "
+            f"expected {stable_version}"
+        )
+
     old_version = str(old_manifest.get("version") or "0.0.0")
     old_semver = parse_version(old_version)
 
@@ -463,6 +692,18 @@ def main() -> int:
 
     source_commit = git_output(source, "rev-parse", "HEAD")
     old_commit = str(old_manifest.get("source_commit") or "")
+
+    if (
+        channel == "stable"
+        and candidate_version == old_version
+        and old_commit
+        and source_commit != old_commit
+    ):
+        raise UpdateError(
+            "stable channel refuses a same-version different-commit update: "
+            f"{candidate_version} is installed from {old_commit}, while "
+            f"{resolved_ref} resolves to {source_commit}"
+        )
 
     old_entries: dict[str, dict[str, Any]] = {}
     for entry in old_manifest["entries"]:
@@ -529,6 +770,16 @@ def main() -> int:
         else:
             content_changes.append(rel)
 
+    commit_changed = bool(source_commit and source_commit != old_commit)
+
+    if channel == "stable" and candidate_version == old_version and not old_commit:
+        if content_changes or added or retired:
+            raise UpdateError(
+                "stable channel refuses a same-version update when the installed "
+                "source commit is unknown and the managed payload differs"
+            )
+        commit_changed = False
+
     new_collisions: list[str] = []
     directory_conflicts: list[str] = []
 
@@ -553,13 +804,15 @@ def main() -> int:
         or drift_changed
         or drift_missing
         or candidate_version != old_version
-        or (source_commit and source_commit != old_commit)
+        or commit_changed
     )
 
     print("============================================================")
     print("NYVOREL UPDATE")
     print("============================================================")
     print(f"Target home           : {home}")
+    print(f"Update channel        : {channel}")
+    print(f"Resolved ref          : {resolved_ref}")
     print(f"Current version       : {old_version}")
     print(f"Candidate version     : {candidate_version}")
     print(f"Current commit        : {old_commit or '<unknown>'}")
@@ -676,8 +929,9 @@ def main() -> int:
             "product": "Nyvorel",
             "version": candidate_version,
             "status": status_value,
-            "source_root": str(source),
+            "source_root": str(source_root),
             "source_commit": source_commit,
+            "source_channel": channel,
             "target_home": str(home),
             "created_unix": int(time.time()),
             "entries": records,
@@ -685,6 +939,9 @@ def main() -> int:
                 "from_state": str(old_state),
                 "from_version": old_version,
                 "from_commit": old_commit,
+                "channel": channel,
+                "resolved_ref": resolved_ref,
+                "resolved_commit": source_commit,
                 "retired_destinations": retired,
                 "changed_files_archived": archived_conflicts,
                 "missing_changed_files": missing_conflicts,

@@ -101,15 +101,25 @@ nyvorel update --dry-run
 The stable/development channel contract is documented in
 [`RELEASES.md`](RELEASES.md).
 
-Phase 6A is policy-only: the current legacy `--fetch` behavior still
-fast-forwards a clean `main` checkout from `origin/main`, so it is classified
-as a **development** fetch until Phase 6B implements explicit channel
-selection.
+Remote update resolution is channel-aware. Stable is the default: `--fetch`
+queries GitHub Releases, ignores draft/prerelease entries, chooses the highest
+strict semantic-version tag, and evaluates that tag from an isolated temporary
+checkout.
 
 ```sh
 nyvorel update --fetch --dry-run
 nyvorel update --fetch --yes
 ```
+
+Development/main requires explicit opt-in:
+
+```sh
+nyvorel update --fetch --channel development --dry-run
+nyvorel update --fetch --channel development --yes
+```
+
+`--source PATH` remains a separate explicit local-source mode and cannot be
+combined with `--fetch`.
 
 Use `--activate` to reload/restart the Nyvorel user services after a successful
 update.

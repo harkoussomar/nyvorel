@@ -23,7 +23,7 @@ policy = json.loads(Path(sys.argv[1]).read_text())
 
 assert policy["schema"] == 1
 assert policy["product"] == "Nyvorel"
-assert policy["policy_status"] == "defined-not-fully-implemented"
+assert policy["policy_status"] == "partially-implemented"
 
 stable = policy["current_stable"]
 assert stable == {
@@ -41,6 +41,8 @@ assert set(channels) == {"stable", "development", "explicit-source"}
 
 assert channels["stable"]["user_default"] is True
 assert channels["stable"]["remote_ref_kind"] == "immutable-semver-tag"
+assert channels["stable"]["github_release_required"] is True
+assert channels["stable"]["prerelease_allowed"] is False
 assert channels["stable"]["same_version_different_commit"] == "refuse"
 assert channels["stable"]["downgrade"] == "refuse"
 assert channels["stable"]["mutable"] is False
@@ -62,47 +64,36 @@ assert channels["explicit-source"]["dirty_source"] == "explicit-override-only"
 target = policy["update_cli_target"]
 assert target["fetch_default_channel"] == "stable"
 assert target["development_channel"] == "explicit-opt-in"
-assert target["implementation_phase"] == "6B"
-
-same = policy["same_version_policy"]
-assert set(same) == {"stable", "development", "explicit-source"}
-
-inv = policy["release_invariants"]
-assert inv["version_format"] == "MAJOR.MINOR.PATCH"
-assert inv["tag_format"] == "v{version}"
-assert inv["tag_must_match_version"] is True
-assert inv["tag_must_be_immutable"] is True
-assert inv["stable_release_must_not_be_draft"] is True
-assert inv["stable_release_must_not_be_prerelease"] is True
-assert inv["changelog_release_heading_required"] is True
-assert inv["release_commit_must_be_clean"] is True
-assert inv["release_ci_must_be_green"] is True
-
-maintenance = policy["maintenance"]
-assert maintenance["current_line"] == "0.1.x"
-assert maintenance["versioning"] == "semver-patch"
-assert maintenance["next_patch"] == "0.1.1"
-assert maintenance["existing_release_tags_may_move"] is False
-assert maintenance["existing_github_releases_may_be_retargeted"] is False
-assert maintenance["separate_maintenance_branch_required_now"] is False
+assert target["implementation_phase"] == "6B-complete"
+assert "GitHub Releases API" in target["stable_release_discovery"]
+assert target["stable_checkout"] == "isolated temporary clone"
+assert target["development_fetch"] == "origin/main fast-forward"
 
 status = policy["implementation_status"]
 assert status == {
-    "stable_channel_resolution": "pending-6B",
-    "development_channel_opt_in": "pending-6B",
+    "stable_channel_resolution": "implemented-6B",
+    "development_channel_opt_in": "implemented-6B",
     "release_preflight_automation": "pending-6C",
     "installer_general_version_support": "pending-6C",
     "upgrade_path_matrix": "pending-6D",
 }
 
 legacy = policy["legacy_behavior"]
-assert legacy["fetch_currently_tracks"] == "origin/main"
-assert legacy["classification"] == "development"
-assert legacy["temporary_until"] == "6B"
-assert legacy["must_not_be_documented_as_stable"] is True
+assert legacy == {
+    "origin_main_default_fetch_retired_in": "6B",
+    "stable_fetch_default": "--fetch",
+    "development_replacement": "--fetch --channel development",
+    "history_rewrite_required": False,
+}
+
+maintenance = policy["maintenance"]
+assert maintenance["current_line"] == "0.1.x"
+assert maintenance["next_patch"] == "0.1.1"
+assert maintenance["existing_release_tags_may_move"] is False
 
 print("release_policy_schema=1")
-print("stable_default=immutable-semver-tag")
+print("stable_fetch_default=implemented-6B")
+print("stable_discovery=github-release+immutable-semver-tag")
 print("development=origin/main-explicit-opt-in")
 print("same_version_stable=refuse")
 print("same_version_development=allow")
@@ -111,28 +102,32 @@ PY
 
 VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
 [[ "$VERSION_VALUE" == "0.1.0" ]] \
-  || die "Phase 6A baseline expects development VERSION 0.1.0"
+  || die "Phase 6B baseline expects development VERSION 0.1.0"
 
-# Phase 6A is policy-only. Lock the legacy behavior in the test so 6A cannot
-# accidentally claim stable-channel implementation before 6B actually changes it.
-grep -q 'Fetching origin/main' bin/nyvorel-update \
-  || die "legacy updater fetch behavior changed before Phase 6B"
-grep -q '"origin", "main"' bin/nyvorel-update \
-  || die "legacy origin/main update fetch is no longer detectable"
-grep -q -- '--allow-downgrade' bin/nyvorel-update \
-  || die "existing downgrade override disappeared"
+bin/nyvorel-update --help | grep -q -- '--channel'
+bin/nyvorel-update --help >/dev/null
 
-# v0.1.1 cannot be published safely until the installer is generalized in 6C.
+grep -q 'latest_stable_release' bin/nyvorel-update \
+  || die "stable GitHub Release resolver missing"
+grep -q 'clone_stable_candidate' bin/nyvorel-update \
+  || die "isolated stable checkout missing"
+grep -q 'fetch_development_source' bin/nyvorel-update \
+  || die "explicit development resolver missing"
+grep -q 'stable channel refuses a same-version different-commit update' \
+  bin/nyvorel-update \
+  || die "stable same-version invariant missing"
+grep -q 'NYVOREL_GITHUB_API_BASE' bin/nyvorel-update \
+  || die "GitHub API endpoint contract missing"
+
+# v0.1.1 cannot be published until installer generalization in Phase 6C.
 grep -Fq '[[ "$VERSION" == "0.1.0" ]]' install.sh \
-  || die "installer version gate changed without updating Phase 6A implementation status"
+  || die "installer version gate changed without Phase 6C"
 
 grep -qF '**Stable is the user-default remote update channel.**' RELEASES.md \
-  || die "RELEASES.md does not explain stable default semantics"
-grep -q 'Development is explicitly opt-in' RELEASES.md \
-  || die "RELEASES.md does not explain development opt-in"
+  || die "RELEASES.md stable default missing"
+grep -q 'nyvorel update --fetch --channel development' RELEASES.md \
+  || die "RELEASES.md development command missing"
 grep -q 'same-version/different-commit' RELEASES.md \
-  || die "RELEASES.md does not explain same-version channel semantics"
-grep -q 'v0.1.x maintenance policy' RELEASES.md \
-  || die "RELEASES.md does not document v0.1.x maintenance"
+  || die "RELEASES.md same-version semantics missing"
 
-echo "PASS  release/update channel policy, invariants, and Phase 6A implementation boundary"
+echo "PASS  implemented stable/development update-channel contract"

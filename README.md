@@ -281,12 +281,19 @@ Preview an update from the source checkout recorded by the current installation:
 nyvorel update --dry-run
 ```
 
-Fast-forward a clean recorded source checkout from `origin/main`, review the
-plan, then apply:
+Resolve the latest stable non-draft/non-prerelease semantic GitHub Release,
+review the plan, then apply:
 
 ```sh
 nyvorel update --fetch --dry-run
 nyvorel update --fetch --yes
+```
+
+Development/main is explicit opt-in:
+
+```sh
+nyvorel update --fetch --channel development --dry-run
+nyvorel update --fetch --channel development --yes
 ```
 
 To reload the user services after the filesystem update:
@@ -387,9 +394,9 @@ Nyvorel now has an explicit release/update policy in [`RELEASES.md`](./RELEASES.
 Stable is defined as the default remote channel and resolves immutable semantic
 release tags. Development is opt-in and tracks `origin/main`.
 
-**Implementation note:** Phase 6A defines that contract only. Until Phase 6B
-closes, `nyvorel update --fetch` is a development/main fetch and must not be
-treated as "latest stable".
+**Implementation status:** Phase 6B implements the contract. A plain
+`nyvorel update --fetch` resolves stable releases; development/main requires
+`--channel development`.
 
 ## Documentation
 

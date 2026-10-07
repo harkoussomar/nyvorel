@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Post-release infrastructure — Phase 6B
+- Made stable the default `nyvorel update --fetch` channel using non-draft/non-prerelease semantic GitHub Releases and isolated tagged checkouts.
+- Added explicit `--channel development` resolution for `origin/main`.
+- Enforced stable same-version/different-commit refusal while preserving development/explicit-source same-version workflows and all existing drift/rollback safety.
+
 ### Post-release infrastructure — Phase 6A
 - Defined stable, development, and explicit-source update semantics in a versioned release-channel contract.
 - Defined stable same-version commit refusal, development same-version commit allowance, immutable release invariants, and the `0.1.x` maintenance policy.

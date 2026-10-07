@@ -67,6 +67,9 @@ jobs:
       - name: Exercise safe update lifecycle
         run: bash scripts/ci/test-update.sh
 
+      - name: Exercise stable/development channel resolution
+        run: bash scripts/ci/test-update-channels.sh
+
   clean-machine:
     name: Clean-machine Arch install
     runs-on: ubuntu-latest

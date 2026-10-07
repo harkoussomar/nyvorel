@@ -1,11 +1,11 @@
 # Nyvorel release and update channels
 
-This document defines the release/update policy introduced by post-release
-infrastructure Phase 6A. The machine-readable source of truth is
-[`release/channel-policy.json`](release/channel-policy.json).
+This document defines Nyvorel's release/update policy. The machine-readable
+source of truth is [`release/channel-policy.json`](release/channel-policy.json).
 
-Phase 6A defines policy only. The updater still has its legacy `--fetch`
-behavior until Phase 6B implements channel-aware resolution.
+Phase 6B implements channel-aware remote resolution in `nyvorel update`.
+Stable is now the default for `--fetch`; development/main requires explicit
+opt-in.
 
 ## Stable
 
@@ -40,9 +40,16 @@ Development is explicitly opt-in and tracks `origin/main`.
 between releases. Therefore a same-version/different-commit update is valid on
 the development channel but is not valid on stable.
 
-This is the correct classification of the updater's current legacy
-`--fetch -> origin/main` behavior. Phase 6B will make development selection
-explicit rather than allowing `--fetch` to look like a stable update.
+Development selection is explicit:
+
+```sh
+nyvorel update --fetch --channel development --dry-run
+nyvorel update --fetch --channel development --yes
+```
+
+A plain `--fetch` no longer tracks `main`; it resolves the highest strict
+semantic-version GitHub Release that is neither draft nor prerelease, then
+checks out that immutable tag in an isolated temporary clone.
 
 ## Explicit source
 
@@ -107,10 +114,7 @@ moved or silently retargeted to make a new preflight pass.
 
 Phase 6 is intentionally split:
 
-- **6A** — define this contract;
-- **6B** — implement stable vs development resolution in `nyvorel update`;
+- **6A** — define this contract — **closed**;
+- **6B** — implement stable vs development resolution in `nyvorel update` — **closed**;
 - **6C** — add deterministic `v0.1.x` release preflight/publication tooling;
 - **6D** — prove upgrade, downgrade, channel, clean-machine, and recovery paths.
-
-Until 6B closes, treat the existing `nyvorel update --fetch` behavior as
-**development/main**, not stable.

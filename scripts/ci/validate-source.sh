@@ -36,6 +36,7 @@ required_files=(
   scripts/ci/test-bootstrap.sh
   scripts/ci/test-phase5-readiness.sh
   scripts/ci/test-release-channel-contract.sh
+  scripts/ci/test-update-channels.sh
 )
 
 required_dirs=(

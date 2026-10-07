@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "product": "Nyvorel",
-  "policy_status": "defined-not-fully-implemented",
+  "policy_status": "partially-implemented",
   "current_stable": {
     "version": "0.1.0",
     "tag": "v0.1.0",
@@ -45,7 +45,10 @@
     "fetch_default_channel": "stable",
     "development_channel": "explicit-opt-in",
     "explicit_source_is_not_a_remote_channel": true,
-    "implementation_phase": "6B"
+    "implementation_phase": "6B-complete",
+    "stable_release_discovery": "GitHub Releases API: highest non-draft, non-prerelease strict semver tag",
+    "stable_checkout": "isolated temporary clone",
+    "development_fetch": "origin/main fast-forward"
   },
   "same_version_policy": {
     "stable": "A stable version identifies one immutable release commit; a different commit with the same VERSION is invalid for stable updates.",
@@ -76,16 +79,16 @@
     "future_backport_branch_pattern": "release/{major}.{minor}"
   },
   "implementation_status": {
-    "stable_channel_resolution": "pending-6B",
-    "development_channel_opt_in": "pending-6B",
+    "stable_channel_resolution": "implemented-6B",
+    "development_channel_opt_in": "implemented-6B",
     "release_preflight_automation": "pending-6C",
     "installer_general_version_support": "pending-6C",
     "upgrade_path_matrix": "pending-6D"
   },
   "legacy_behavior": {
-    "fetch_currently_tracks": "origin/main",
-    "classification": "development",
-    "temporary_until": "6B",
-    "must_not_be_documented_as_stable": true
+    "origin_main_default_fetch_retired_in": "6B",
+    "stable_fetch_default": "--fetch",
+    "development_replacement": "--fetch --channel development",
+    "history_rewrite_required": false
   }
 }
