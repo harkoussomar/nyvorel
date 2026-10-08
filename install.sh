@@ -290,6 +290,7 @@ print(f"Managed files          : {len(items)}")
 print(f"Existing replacements  : {len(existing)}")
 print(f"@HOME@ template files  : {token_files}")
 print(f"@HOME@ occurrences     : {token_occurrences}")
+print("Safety: replacements are backed up and tracked in an installation manifest.")
 
 if source_kind == "source-clone" and token_occurrences != 29:
     raise SystemExit(
@@ -299,6 +300,7 @@ if source_kind == "source-clone" and token_occurrences != 29:
 if dry_run:
     print()
     print("DRY RUN — no files changed.")
+    print("Next: review the plan, then use --yes to explicitly install.")
     print("Install roots:")
     print(f"  {home / '.config/quickshell/nyvorel'}")
     print(f"  {home / '.config/hypr'}")
@@ -396,7 +398,7 @@ def rollback() -> None:
         pass
 
 try:
-    for item in items:
+    for index, item in enumerate(items, start=1):
         dest = home / item.rel
         preexisting = lexists(dest)
         backup_rel = Path("backup") / item.rel
@@ -440,6 +442,8 @@ try:
 
         record["installed"] = installed_digest(dest)
         write_manifest("installing")
+        if index == 1 or index % max(1, len(items) // 5) == 0 or index == len(items):
+            print(f"Installing managed files: {index}/{len(items)}", flush=True)
 
     # User/runtime config intentionally starts separate from the source tree.
     (home / ".config/nyvorel").mkdir(parents=True, exist_ok=True)
@@ -451,7 +455,9 @@ try:
     write_manifest("installed")
 
 except Exception:
+    print("ERROR: installation failed; restoring managed destinations from backups.", file=sys.stderr)
     rollback()
+    print("Recovery: review the error above and your previous installation manifest before retrying.", file=sys.stderr)
     raise
 
 # Final materialization gate: @HOME@ must not survive in any installed file
@@ -493,7 +499,7 @@ if (( ACTIVATE )); then
     exit 4
   }
 
-  systemctl --user daemon-reload
+  systemctl --user daemon-reload || { echo "ERROR: user service reload failed; installation files remain backed up. Check systemctl --user status." >&2; exit 4; }
 
   path_units=(
     nyvorel-btop-style-sync.path
@@ -505,7 +511,7 @@ if (( ACTIVATE )); then
     nyvorel-zen-code-style-sync.path
   )
 
-  systemctl --user enable --now "${path_units[@]}" nyvorel-operations-monitor.service
+  systemctl --user enable --now "${path_units[@]}" nyvorel-operations-monitor.service || { echo "ERROR: service activation failed; inspect systemctl --user --failed." >&2; exit 4; }
 
   systemctl --user import-environment \
     DISPLAY \
@@ -514,7 +520,7 @@ if (( ACTIVATE )); then
     XDG_CURRENT_DESKTOP \
     XDG_SESSION_TYPE >/dev/null 2>&1 || true
 
-  systemctl --user restart nyvorel-quickshell.service
+  systemctl --user restart nyvorel-quickshell.service || { echo "ERROR: Quickshell could not restart; inspect journalctl --user -u nyvorel-quickshell.service -n 40." >&2; exit 4; }
 
   echo "Activation: PASS"
 else
@@ -529,3 +535,6 @@ echo
 echo "============================================================"
 echo "NYVOREL INSTALL: PASS"
 echo "============================================================"
+echo "Next: nyvorel welcome --no-session  # check files and dependencies safely"
+echo "Then: nyvorel welcome               # check the live session when available"
+echo "Help: nyvorel doctor                # details and actionable recovery"

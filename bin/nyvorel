@@ -35,6 +35,7 @@ Nyvorel command line
 Usage:
   nyvorel doctor [options]
   nyvorel bootstrap [options]
+  nyvorel welcome [--no-session] [--home PATH] [--json]
   nyvorel update [options]
   nyvorel settings
   nyvorel install [options]       # package mode
@@ -44,6 +45,7 @@ Usage:
 Commands:
   doctor      Run read-only Nyvorel installation/session diagnostics.
   bootstrap   Build a read-only Arch dependency package plan.
+  welcome     Guided read-only first-run checks and next steps.
   update      Update user materialization. Package mode never mutates /usr.
   settings    Open Nyvorel Settings.
   install     Materialize/sync packaged Nyvorel into the current user HOME.
@@ -75,6 +77,10 @@ case "${1:-help}" in
   bootstrap)
     shift
     exec "$HELPER_DIR/nyvorel-bootstrap" "$@"
+    ;;
+  welcome)
+    shift
+    exec "$HELPER_DIR/nyvorel-welcome" "$@"
     ;;
   update)
     shift

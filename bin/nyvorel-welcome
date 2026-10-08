@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Read-only guided first-run overview built on the existing Nyvorel doctor."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+def install_present(home: Path) -> bool:
+    """Inspect only the trusted installation-state directory under target HOME."""
+    state_root = home / ".local/state/nyvorel/installations"
+    pointer = home / ".local/state/nyvorel/current-install"
+    try:
+        if not pointer.is_file():
+            return False
+        state = Path(pointer.read_text().strip()).resolve(strict=False)
+        if not state.is_relative_to(state_root.resolve(strict=False)):
+            return False
+        metadata = json.loads((state / "manifest.json").read_text())
+        return metadata.get("status") == "installed" and metadata.get("target_home") == str(home)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="nyvorel welcome",
+        description="Read-only first-run health, dependency and next-step guide.",
+    )
+    parser.add_argument("--home", metavar="PATH", help="Inspect another HOME safely")
+    parser.add_argument("--no-session", action="store_true", help="Skip live Wayland/session checks")
+    parser.add_argument("--json", action="store_true", help="Print structured JSON only")
+    args = parser.parse_args()
+
+    real_home = Path.home().resolve(strict=False)
+    home = Path(args.home).expanduser().resolve(strict=False) if args.home else real_home
+    session = not args.no_session and home == real_home
+    package_mode = os.environ.get("NYVOREL_PACKAGE_MODE") == "1"
+    helper_root = Path(os.environ.get("NYVOREL_PACKAGE_HELPER_ROOT", Path(__file__).resolve().parent))
+    doctor = helper_root / "nyvorel-doctor"
+    if not doctor.is_file():
+        print(f"ERROR: Nyvorel doctor helper not found: {doctor}", file=sys.stderr)
+        return 2
+
+    command = [str(doctor), "--json", "--home", str(home), "--dependencies"]
+    if not session:
+        command.append("--no-session")
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=90, check=False)
+        report = json.loads(result.stdout)
+        if report.get("product") != "Nyvorel" or not isinstance(report.get("checks"), list):
+            raise ValueError("doctor returned an unexpected report")
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        print(f"ERROR: read-only doctor could not run: {exc}", file=sys.stderr)
+        return 2
+
+    installed = install_present(home)
+    issues = [c for c in report["checks"] if c.get("status") in ("FAIL", "WARN")]
+    failed = [c for c in issues if c.get("status") == "FAIL"]
+    deps = report.get("dependencies") or {}
+    required = deps.get("required") or {}
+    optional = deps.get("optional") or {}
+    required_missing = required.get("missing") or []
+    optional_missing = optional.get("missing") or []
+    status = "NEEDS_INSTALL" if not installed else "NEEDS_ATTENTION" if failed else "READY_WITH_WARNINGS" if issues else "READY"
+    next_steps = []
+    if not installed:
+        next_steps.append("From the source checkout: ./install.sh --dry-run" if not package_mode else "nyvorel install --dry-run")
+        next_steps.append("From the source checkout: ./install.sh --yes" if not package_mode else "nyvorel install --yes")
+    else:
+        if required_missing:
+            next_steps.append("nyvorel bootstrap  # read-only dependency plan; review before installing")
+        if failed:
+            next_steps.append("nyvorel doctor  # details and targeted fixes")
+        if not session:
+            next_steps.append("nyvorel welcome  # rerun in an active Hyprland session")
+        elif not failed:
+            next_steps.append("nyvorel settings  # explore your new desktop")
+        if not next_steps:
+            next_steps.append("nyvorel doctor  # optional detailed diagnostics")
+    output = {
+        "schema": 1,
+        "product": "Nyvorel",
+        "guide": "first-run",
+        "read_only": True,
+        "target_home": str(home),
+        "source_kind": "package" if package_mode else report.get("source_kind", "source-clone"),
+        "installed": installed,
+        "session_checked": session,
+        "status": status,
+        "doctor_result": report.get("result"),
+        "summary": report.get("summary"),
+        "required": {"total": required.get("total", 0), "missing": len(required_missing)},
+        "optional": {"total": optional.get("total", 0), "missing": len(optional_missing)},
+        "issues": issues,
+        "next_steps": next_steps,
+    }
+    if args.json:
+        print(json.dumps(output, indent=2))
+    else:
+        print("============================================================")
+        print("NYVOREL  /  FIRST-RUN GUIDE")
+        print("============================================================")
+        print(f"Target HOME : {home}")
+        print(f"Install     : {'detected' if installed else 'not yet materialized'}")
+        print(f"Session     : {'checked' if session else 'not checked (safe offline mode)'}")
+        print(f"Core deps   : {required.get('total', 0) - len(required_missing)}/{required.get('total', 0)} available")
+        print(f"Optional    : {len(optional_missing)} missing / {optional.get('total', 0)} (feature-only)")
+        print(f"Status      : {status}")
+        print()
+        if issues:
+            print("Attention (from nyvorel doctor):")
+            for check in sorted(issues, key=lambda c: c.get("status") != "FAIL")[:5]:
+                print(f"  {check.get('status', '?')}: {check.get('title', check.get('id', 'Check'))}")
+                if check.get("fix"):
+                    print(f"        Try: {check['fix']}")
+            if len(issues) > 5:
+                print(f"  + {len(issues) - 5} more; run nyvorel doctor for the full report")
+            print()
+        print("Next steps:")
+        for idx, step in enumerate(next_steps, 1):
+            print(f"  {idx}. {step}")
+        print()
+        print("No installation, package updates, services or user configuration were changed.")
+    return 1 if status in ("NEEDS_INSTALL", "NEEDS_ATTENTION") else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

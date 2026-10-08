@@ -38,8 +38,10 @@ required_files=(
   bin/nyvorel
   bin/nyvorel-doctor
   bin/nyvorel-bootstrap
+  bin/nyvorel-welcome
   bin/nyvorel-update
   scripts/ci/test-clean-machine.sh
+  scripts/ci/test-first-run.sh
   scripts/ci/test-dependency-contract.sh
   scripts/ci/test-bootstrap.sh
   scripts/ci/test-phase5-readiness.sh

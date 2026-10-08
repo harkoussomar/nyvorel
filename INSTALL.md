@@ -36,6 +36,27 @@ The installer:
 
 The installer does not activate services unless requested.
 
+## First-run experience
+
+Installer output now shows bounded progress for managed files and a clear next
+step, without changing the backup-first transaction or activating services
+implicitly. After installing:
+
+```sh
+nyvorel welcome --no-session  # safe diagnostic even without a graphical session
+nyvorel welcome               # live Hyprland/Quickshell check
+nyvorel doctor                # complete diagnostic detail
+```
+
+`nyvorel welcome` reports missing required vs optional dependencies, displays
+focused recovery guidance from Doctor, and suggests a read-only bootstrap plan
+when required packages are missing. For scripts use `nyvorel welcome --json`.
+For isolated test homes pass `--home PATH --no-session`.
+
+No onboarding command installs dependencies, changes home configuration, or
+starts desktop services. Full activation remains explicit via
+`./install.sh --yes --activate` or the supported package workflow.
+
 ## Verify the installation
 
 After installation, run the read-only diagnostic command:

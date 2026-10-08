@@ -223,6 +223,25 @@ session:
 See [`INSTALL.md`](./INSTALL.md) for the complete installation and recovery
 model.
 
+## First-run guide
+
+After reviewing the installer preview and installing Nyvorel, use the new
+read-only onboarding command:
+
+```sh
+nyvorel welcome --no-session  # installed files, dependencies and safe next steps
+nyvorel welcome               # additionally check your current Hyprland session
+```
+
+The guide distinguishes required dependencies from optional features, highlights
+Doctor findings with suggested fixes, and never installs packages, enables
+services or changes configuration. Use `nyvorel welcome --json` for automation.
+This Phase 8B feature is on development `main` until included in a later stable
+release; the immutable `v0.1.0` release is unchanged.
+
+Package-installed users run the same command; package materialization must still
+be confirmed explicitly with `nyvorel install --dry-run` / `--yes`.
+
 ## Safe recovery is part of the install model
 
 Nyvorel does not treat uninstall as an afterthought.

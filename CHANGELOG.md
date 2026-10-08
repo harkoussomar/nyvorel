@@ -4,6 +4,13 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Guided first-run onboarding — Phase 8B
+- Added read-only `nyvorel welcome` with text/JSON outcomes, dependency and
+  diagnostic summaries, actionable next steps and offline/alternate-HOME support.
+- Added bounded installation progress and clear follow-up guidance without
+  changing activation, backups, recovery or package ownership.
+- Added isolated first-run regression coverage to the existing six-job CI.
+
 ### AUR human review closure — Phase 7F
 - Supplied an explicitly confirmed AUR maintainer identity, added an independently 0BSD-licensed packaging-source LICENSE without changing the software's upstream license declarations.
 - Added a four-file reviewed AUR export and local-only Git rehearsal, gated on package metadata, source rights attestation, dependency review, source integrity and six existing CI jobs.
