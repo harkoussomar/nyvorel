@@ -63,7 +63,6 @@ source=('nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main')
 sha256sums=('SKIP')
 options=('!strip')
 
-makedepends=('git')
 provides=("nyvorel=${pkgver}")
 conflicts=('nyvorel')
 

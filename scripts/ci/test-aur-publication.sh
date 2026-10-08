@@ -29,7 +29,7 @@ assert exporter.is_file()
 assert 'pkgname=nyvorel-git\n' in p
 assert 'source=(\'nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main\')' in p
 assert "sha256sums=('SKIP')" in p
-assert 'makedepends=(\'git\')' in p
+assert "makedepends=('git')" not in p, 'redundant git makedepends'
 assert 'conflicts=(\'nyvorel\')' in p
 assert 'provides=("nyvorel=${pkgver}")' in p
 assert 'pkgver() {' in p
@@ -61,7 +61,8 @@ assert metadata['install']==['nyvorel.install']
 assert metadata['source']==['nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main']
 assert metadata['sha256sums']==['SKIP']
 assert metadata['conflicts']==['nyvorel']
-assert metadata['makedepends']==['git']
+assert 'makedepends' not in metadata, 'runtime git is implicitly available during build'
+assert 'git' in metadata['depends']
 assert len(metadata['provides'])==1 and metadata['provides'][0].startswith('nyvorel=')
 assert metadata['arch']==['any']
 

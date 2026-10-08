@@ -419,3 +419,16 @@ bash packaging/aur/export-nyvorel-git.sh --output "$HOME/nyvorel-aur-submission-
 The export is **not published**. AUR name lookup does not reserve the name,
 and actual AUR SSH submission remains a separate future action requiring
 fresh package-name validation and explicit authorization.
+
+## Phase 7G.1 — redundant Git makedepends cleanup
+
+`nyvorel-git` already declares `git` as a required **runtime** dependency:
+Nyvorel's safe updater and source-checkout workflows need Git after install.
+Since Arch makes `depends` available during package building, a second
+`makedepends=('git')` is unnecessary. Phase 7G.1 removes only the duplicate
+build-only declaration and regenerates `.SRCINFO`, retaining the runtime
+`depends=('git')` entry and every other package dependency. Package payload,
+upstream software licenses, user-home safety, and VCS semantics are unchanged.
+
+This is a normal upstream GitHub source correction, **not an AUR submission**.
+AUR publication remains a separate, explicitly authorized action.

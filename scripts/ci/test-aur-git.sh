@@ -30,11 +30,11 @@ assert body.count('"package_name":"nyvorel-git",')==1
 body=body.replace('local _src="$srcdir/nyvorel"','local _src="$_nyvorel_source"',1)
 body=body.replace('"package_name":"nyvorel-git",','"package_name":"nyvorel",',1)
 assert body==original, "AUR package() has drifted from canonical Phase 7B recipe"
+assert "makedepends=('git')" not in candidate, 'git already belongs to runtime depends'
 for marker in (
   "pkgname=nyvorel-git",
   "provides=(\"nyvorel=${pkgver}\")",
   "conflicts=('nyvorel')",
-  "makedepends=('git')",
   "sha256sums=('SKIP')",
   "nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main",
   "pkgver() {",

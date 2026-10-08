@@ -9,7 +9,6 @@ pkgbase = nyvorel-git
 	license = Apache-2.0
 	license = CC-BY-4.0
 	license = MIT
-	makedepends = git
 	depends = bash
 	depends = python
 	depends = hyprland
