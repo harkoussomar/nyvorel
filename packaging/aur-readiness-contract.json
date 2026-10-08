@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "phase": "7C",
+  "status": "aur-git-prepared-not-published",
+  "package_name": "nyvorel-git",
+  "upstream": "https://github.com/harkoussomar/nyvorel.git",
+  "upstream_branch": "main",
+  "source_type": "git-vcs",
+  "provides": [
+    "nyvorel"
+  ],
+  "conflicts": [
+    "nyvorel"
+  ],
+  "aur_git_directory": "packaging/aur/nyvorel-git",
+  "aur_submission_performed": false,
+  "aur_ssh_push_allowed": false,
+  "stable_release_performed": false,
+  "existing_tags_mutable": false,
+  "source_clone_install_retained": true,
+  "package_ownership_inherited_from_phase7b": true,
+  "package_automatic_home_mutation": false,
+  "vcs_version_rule": "VERSION.rGIT_REVCOUNT.gSHORT_SHA",
+  "canonical_package_body": "PKGBUILD::package",
+  "allowed_package_body_differences": [
+    "local _src=\"$_nyvorel_source\" -> local _src=\"$srcdir/nyvorel\"",
+    "\"package_name\":\"nyvorel\", -> \"package_name\":\"nyvorel-git\","
+  ],
+  "requires_six_existing_ci_jobs_green": true
+}

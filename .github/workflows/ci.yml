@@ -112,6 +112,12 @@ jobs:
           NYVOREL_PACKAGE_IMAGE: archlinux:base
         run: bash scripts/ci/test-package-lifecycle.sh
 
+      - name: Validate AUR Git package candidate
+        env:
+          NYVOREL_CONTAINER_RUNTIME: docker
+          NYVOREL_AUR_PACKAGE_IMAGE: archlinux:base
+        run: bash scripts/ci/test-aur-git.sh
+
   bootstrap-plan:
     name: Bootstrap planning
     runs-on: ubuntu-latest

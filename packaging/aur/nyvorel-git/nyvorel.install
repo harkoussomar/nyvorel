@@ -1,0 +1,17 @@
+post_install() {
+  echo "Nyvorel package installed."
+  echo "No user HOME was modified."
+  echo "Review: nyvorel doctor"
+  echo "Materialize for your user: nyvorel install --dry-run"
+}
+
+post_upgrade() {
+  echo "Nyvorel package payload upgraded."
+  echo "User configuration was not modified automatically."
+  echo "Review user changes: nyvorel update --dry-run"
+}
+
+post_remove() {
+  echo "Nyvorel package files removed."
+  echo "User configuration, manifests, state, and backups were intentionally retained."
+}

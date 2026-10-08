@@ -4,6 +4,13 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+
+### AUR Git distribution preparation — Phase 7C
+- Prepared a `nyvorel-git` AUR VCS recipe with exact package-body equivalence, generated `.SRCINFO`, and correct package identity/conflict/provides metadata.
+- Added offline-mirrored pristine Arch VCS package build, provenance, user materialization, and package-removal checks to the existing six-job CI.
+- Retained Phase 7B package ownership, release/tag immutability, and no-publication boundaries.
+
+
 ### Packaging & distribution — Phase 7B
 - Added a real Arch `PKGBUILD`/`.SRCINFO` and package-owned `/usr` filesystem map.
 - Added package-aware user materialization, explicit source-clone migration, package sync, package-mode doctor/bootstrap, and remote-updater ownership refusal.

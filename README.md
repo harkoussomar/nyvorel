@@ -156,6 +156,13 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 </p>
 <!-- NYVOREL_SHOWCASE_GALLERY_END -->
 
+## AUR Git candidate (not yet published)
+
+Phase 7C prepares a validated `nyvorel-git` development package recipe
+under [`packaging/aur/nyvorel-git`](packaging/aur/nyvorel-git).
+It is **not submitted to AUR** and does not replace the stable `v0.1.0`
+source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
+
 ## Quick start
 
 ### 1. Requirements

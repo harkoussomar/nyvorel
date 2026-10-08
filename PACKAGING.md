@@ -316,3 +316,39 @@ It does not delete:
 
 Reinstall the package to regain the CLI, then use `nyvorel uninstall` if you
 want the manifest-backed user recovery operation.
+
+## Phase 7C: `nyvorel-git` AUR candidate
+
+Phase 7C prepares and validates an AUR-compatible Git-tracking candidate.
+**It does not publish an AUR package or a stable Nyvorel release.**
+
+The submission-ready files are under `packaging/aur/nyvorel-git/`:
+
+- `PKGBUILD` tracks upstream `main` with a `git+https` VCS source;
+- `.SRCINFO` matches `makepkg --printsrcinfo` at the packaging revision;
+- `nyvorel.install` prints guidance without modifying user homes.
+
+This is the development `nyvorel-git` candidate (with `provides=nyvorel`
+and `conflicts=nyvorel`). It is not a stable release package.
+Its `pkgver()` derives `VERSION.rREVCOUNT.gSHORTSHA` from the Git checkout.
+The package payload mirrors the tested root `PKGBUILD` `package()` body:
+the only differences are the Git checkout location and the package identity
+record in immutable package metadata. Source-clone and package lifecycle
+ownership remain unchanged.
+
+Validate without publishing:
+
+```sh
+bash scripts/ci/test-aur-git.sh
+```
+
+That check builds through Git VCS acquisition in a disposable Arch container,
+verifies `.SRCINFO`, package version/provenance, installed `/usr` ownership,
+non-mutating pacman hooks, explicit user materialization, doctor/bootstrap,
+and state preservation on package removal. For test determinism, the container
+uses an isolated local Git mirror of the exact checkout rather than racing
+upstream `main`. The committed AUR recipe continues to point at GitHub HTTPS.
+
+Phase 7C does **not** run `git push` to the AUR, create an AUR repository,
+publish GitHub releases, move version tags, or install onto the host system.
+A future explicit publication decision and authentication are separate.
