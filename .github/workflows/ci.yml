@@ -37,6 +37,9 @@ jobs:
       - name: Validate Arch package layout
         run: bash scripts/ci/test-package-layout.sh
 
+      - name: Validate AUR publication readiness (local-only rehearsal)
+        run: bash scripts/ci/test-aur-publication.sh
+
       - name: Validate release candidate preflight
         run: bash scripts/ci/test-release-preflight.sh
 

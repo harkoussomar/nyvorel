@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "product": "Nyvorel",
+  "phase": "7D",
+  "status": "aur-submission-preflight-human-review-pending",
+  "package_name": "nyvorel-git",
+  "source_repo": "https://github.com/harkoussomar/nyvorel.git",
+  "aur_package_files": [
+    "PKGBUILD",
+    ".SRCINFO",
+    "nyvorel.install"
+  ],
+  "aur_directory": "packaging/aur/nyvorel-git",
+  "aur_remote_writes_permitted": false,
+  "aur_credentials_used": false,
+  "aur_repository_created": false,
+  "stable_release_created": false,
+  "release_tag_changes_permitted": false,
+  "source_clone_install_retained": true,
+  "user_home_mutation_by_pacman": false,
+  "explicit_separate_publication_approval_required": true,
+  "existing_ci_job_count": 6,
+  "prepublication_manual_review": [
+    "Verify the AUR package name is available and acceptable.",
+    "Provide your actual AUR maintainer identity/contact (not invented by tooling).",
+    "Review license/third-party attribution and package metadata.",
+    "Review optional AUR-only provider availability and all dependency hints.",
+    "Inspect the exact three-file export and its checksums before separate publication."
+  ]
+}

@@ -1,6 +1,6 @@
 # Maintainer: Nyvorel <https://github.com/harkoussomar/nyvorel>
-# Phase 7B source-tree package. AUR/release-source publication is intentionally
-# deferred until a future release phase.
+# Phase 7D AUR Git development candidate. Prepared for review only.
+# Publication requires a separate explicit user action outside this repository.
 pkgname=nyvorel-git
 pkgver=0.1.0.r22.g813ad29
 pkgrel=1

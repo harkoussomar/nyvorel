@@ -352,3 +352,44 @@ upstream `main`. The committed AUR recipe continues to point at GitHub HTTPS.
 Phase 7C does **not** run `git push` to the AUR, create an AUR repository,
 publish GitHub releases, move version tags, or install onto the host system.
 A future explicit publication decision and authentication are separate.
+
+## Phase 7D — submission readiness
+
+Phase 7D audits the already-tested Phase 7C `nyvorel-git` package and
+prepares a **local-only three-file AUR submission export**. This is not an AUR
+publication and does not make the package installable from AUR yet.
+
+After Phase 7D checkout, run the read-only package checks:
+
+```sh
+bash scripts/ci/test-aur-publication.sh
+bash scripts/ci/test-aur-git.sh --static-only
+```
+
+Generate an explicit review copy outside the repository:
+
+```sh
+bash packaging/aur/export-nyvorel-git.sh --output "$HOME/nyvorel-aur-review"
+```
+
+The export contains **only** `PKGBUILD`, `.SRCINFO`, `nyvorel.install`.
+Review each file and its checksums before doing anything with an AUR Git
+repository. The rehearsal uses only a temporary local bare Git repository
+and a local `master` branch; it never contacts the AUR SSH service.
+
+The package continues to track `main` dynamically through its `pkgver()`.
+Do **not** make a new AUR commit merely because new upstream Git commits
+changed the runtime version. The `.SRCINFO` seed remains coherent with the
+packaged `PKGBUILD`; refresh it when package metadata changes. The underlying
+Phase 7B `package()` payload, package-owned `/usr` boundary, and explicit
+user-home materialization rules remain unchanged.
+
+**Not covered by automated publication readiness:** account login and
+maintainer contact, package-name ownership/availability on the live AUR,
+optional AUR-only provider availability, and human copyright/third-party
+license review. These require separate confirmation prior to publication.
+
+This phase never executes AUR SSH, remote Git push to AUR, creates a real
+stable release, or moves release tags. GitHub `main` receives normal forward
+commits for tested source changes only. AUR publication requires a *separate*
+explicit request and must not be inferred from completing Phase 7D.

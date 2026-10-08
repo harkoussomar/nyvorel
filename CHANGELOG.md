@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### AUR submission preflight — Phase 7D
+- Audited VCS package identity and dependency contract mapping without changing the stable release.
+- Added a three-file AUR candidate export, local-only Git submission rehearsal, and six-job CI gate.
+- Preserved explicit AUR publication approval and package-managed versus user-owned boundaries.
+
 
 ### AUR Git distribution preparation — Phase 7C
 - Prepared a `nyvorel-git` AUR VCS recipe with exact package-body equivalence, generated `.SRCINFO`, and correct package identity/conflict/provides metadata.
