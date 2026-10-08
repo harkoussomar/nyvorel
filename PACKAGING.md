@@ -393,3 +393,29 @@ This phase never executes AUR SSH, remote Git push to AUR, creates a real
 stable release, or moves release tags. GitHub `main` receives normal forward
 commits for tested source changes only. AUR publication requires a *separate*
 explicit request and must not be inferred from completing Phase 7D.
+
+## Phase 7F — maintainer-approved AUR submission preparation
+
+Phase 7F collects explicit maintainer identity and three local review attestations
+before updating the AUR submission candidate. It does not publish or create
+an AUR remote. In contrast to the historical three-file Phase 7D prototype,
+the new **four-file** submission export contains `PKGBUILD`, `.SRCINFO`,
+`nyvorel.install`, and `LICENSE` (0BSD). All four are checked for equality
+in the local-only Git rehearsal.
+
+**The 0BSD license applies solely to the AUR packaging source files.** The
+packaged Nyvorel code and inherited assets keep their original upstream
+licenses and notices, independent of the PKGBUILD `license=()` field.
+The maintainer name/contact is supplied interactively; tooling never invents
+an identity or assumes ownership of third-party material. Optional AUR
+providers are reviewed but are not installed automatically.
+
+After Phase 7F, prepare a fresh export using:
+
+```sh
+bash packaging/aur/export-nyvorel-git.sh --output "$HOME/nyvorel-aur-submission-review"
+```
+
+The export is **not published**. AUR name lookup does not reserve the name,
+and actual AUR SSH submission remains a separate future action requiring
+fresh package-name validation and explicit authorization.

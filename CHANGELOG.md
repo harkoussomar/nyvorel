@@ -4,6 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### AUR human review closure — Phase 7F
+- Supplied an explicitly confirmed AUR maintainer identity, added an independently 0BSD-licensed packaging-source LICENSE without changing the software's upstream license declarations.
+- Added a four-file reviewed AUR export and local-only Git rehearsal, gated on package metadata, source rights attestation, dependency review, source integrity and six existing CI jobs.
+- Preserved the publication boundary: no AUR SSH push, stable release, tag changes, or Web modification.
+
 ### AUR submission preflight — Phase 7D
 - Audited VCS package identity and dependency contract mapping without changing the stable release.
 - Added a three-file AUR candidate export, local-only Git submission rehearsal, and six-job CI gate.

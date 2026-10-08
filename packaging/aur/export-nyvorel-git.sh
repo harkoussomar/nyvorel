@@ -11,7 +11,7 @@ while (( $# )); do
 done
 [[ -n "$OUTPUT" ]] || { echo 'Usage: export-nyvorel-git.sh --output PATH' >&2; exit 2; }
 [[ -d "$ROOT/.git" ]] || { echo 'ERROR: upstream repo missing' >&2; exit 1; }
-for f in PKGBUILD .SRCINFO nyvorel.install; do
+for f in PKGBUILD .SRCINFO nyvorel.install LICENSE; do
   [[ -f "$AUR/$f" && ! -L "$AUR/$f" ]] || { echo "ERROR: missing or linked $f" >&2; exit 1; }
 done
 [[ ! -e "$OUTPUT" && ! -L "$OUTPUT" ]] || { echo 'ERROR: destination already exists' >&2; exit 1; }
@@ -24,10 +24,10 @@ mkdir -p -- "$PARENT"
 OUTPUT="$PARENT/$(basename -- "$OUTPUT")"
 [[ ! -e "$OUTPUT" ]] || { echo 'ERROR: destination became occupied' >&2; exit 1; }
 mkdir -- "$OUTPUT"
-for f in PKGBUILD .SRCINFO nyvorel.install; do
+for f in PKGBUILD .SRCINFO nyvorel.install LICENSE; do
   install -m644 -- "$AUR/$f" "$OUTPUT/$f"
 done
-[[ "$(find "$OUTPUT" -maxdepth 1 -type f | wc -l)" -eq 3 ]] || { echo 'ERROR: unexpected export files' >&2; exit 1; }
+[[ "$(find "$OUTPUT" -maxdepth 1 -type f | wc -l)" -eq 4 ]] || { echo 'ERROR: unexpected export files' >&2; exit 1; }
 echo 'AUR candidate exported for HUMAN REVIEW ONLY — not published.'
 printf 'output=%s\n' "$OUTPUT"
-( cd "$OUTPUT" && sha256sum PKGBUILD .SRCINFO nyvorel.install )
+( cd "$OUTPUT" && sha256sum PKGBUILD .SRCINFO nyvorel.install LICENSE )

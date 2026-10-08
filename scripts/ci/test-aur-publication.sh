@@ -17,14 +17,14 @@ p=(aur/'PKGBUILD').read_text()
 src=(aur/'.SRCINFO').read_text()
 hook=(aur/'nyvorel.install').read_text()
 deps=json.loads((root/'dependencies/arch.json').read_text())
-assert c['phase']=='7D' and c['status']=='aur-submission-preflight-human-review-pending'
+assert c['phase']=='7F' and c['status']=='human-reviewed-submission-prepared-not-published'
 assert c['aur_remote_writes_permitted'] is False
 assert c['aur_credentials_used'] is False
 assert c['aur_repository_created'] is False
 assert c['stable_release_created'] is False
 assert c['release_tag_changes_permitted'] is False
 assert c['explicit_separate_publication_approval_required'] is True
-assert c['aur_package_files']==['PKGBUILD','.SRCINFO','nyvorel.install']
+assert c['aur_package_files']==['PKGBUILD','.SRCINFO','nyvorel.install','LICENSE']
 assert exporter.is_file()
 assert 'pkgname=nyvorel-git\n' in p
 assert 'source=(\'nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main\')' in p
@@ -37,6 +37,12 @@ assert 'replaces=(' not in p
 assert '.local/state/nyvorel' not in hook
 assert re.search(r'^\s*(systemctl|install|cp|rm|mv|chown|chmod)\s',hook,re.M) is None
 assert (aur/'nyvorel.install').read_bytes()==(root/'nyvorel.install').read_bytes()
+assert c['package_source_license']=='0BSD'
+assert c['human_approval_to_publish'] is False
+assert c['source_licensing_rights_user_attested'] is True
+assert (aur/'LICENSE').is_file()
+assert 'BSD Zero Clause License' in (aur/'LICENSE').read_text()
+assert '# SPDX-License-Identifier: 0BSD' in p
 assert not any(x in p for x in ('ssh://aur@','aur.archlinux.org','git push'))
 
 def parse_srcinfo(text):
@@ -109,21 +115,21 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 "$EXPORTER" --output "$TMP/aur-submission"
 mapfile -t FILES < <(find "$TMP/aur-submission" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
-[[ "${FILES[*]}" == '.SRCINFO PKGBUILD nyvorel.install' ]] || { echo 'ERROR: export contains unapproved files' >&2; exit 1; }
+[[ "${FILES[*]}" == '.SRCINFO LICENSE PKGBUILD nyvorel.install' ]] || { echo 'ERROR: export contains unapproved files' >&2; exit 1; }
 for f in "${FILES[@]}"; do cmp "$AUR/$f" "$TMP/aur-submission/$f"; done
 
 git init -q --bare --initial-branch=master "$TMP/mock-aur.git"
 git init -q --initial-branch=master "$TMP/mock-checkout"
-cp "$TMP/aur-submission/PKGBUILD" "$TMP/aur-submission/.SRCINFO" "$TMP/aur-submission/nyvorel.install" "$TMP/mock-checkout/"
+cp "$TMP/aur-submission/PKGBUILD" "$TMP/aur-submission/.SRCINFO" "$TMP/aur-submission/nyvorel.install" "$TMP/aur-submission/LICENSE" "$TMP/mock-checkout/"
 (
   cd "$TMP/mock-checkout"
-  git add -- PKGBUILD .SRCINFO nyvorel.install
+  git add -- PKGBUILD .SRCINFO nyvorel.install LICENSE
   git -c user.name='Nyvorel CI Only' -c user.email='ci@example.invalid' commit -qm 'local-only submission rehearsal'
   # The destination below is a throwaway LOCAL bare repository, never AUR.
   git push -q "$TMP/mock-aur.git" HEAD:refs/heads/master
 )
 mapfile -t REMOTE_FILES < <(git --git-dir="$TMP/mock-aur.git" ls-tree --name-only master | LC_ALL=C sort)
-[[ "${REMOTE_FILES[*]}" == '.SRCINFO PKGBUILD nyvorel.install' ]] || { echo 'ERROR: simulated AUR Git tree differs' >&2; exit 1; }
+[[ "${REMOTE_FILES[*]}" == '.SRCINFO LICENSE PKGBUILD nyvorel.install' ]] || { echo 'ERROR: simulated AUR Git tree differs' >&2; exit 1; }
 [[ "$(git --git-dir="$TMP/mock-aur.git" symbolic-ref HEAD)" == refs/heads/master ]]
 echo 'local_git_submission_rehearsal=PASS'
 echo 'remote_AUR_writes=NONE'

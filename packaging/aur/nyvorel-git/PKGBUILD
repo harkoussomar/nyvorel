@@ -1,4 +1,5 @@
-# Maintainer: Nyvorel <https://github.com/harkoussomar/nyvorel>
+# Maintainer: harkoussomar <harkouss.omar@gmail.com>
+# SPDX-License-Identifier: 0BSD
 # Phase 7D AUR Git development candidate. Prepared for review only.
 # Publication requires a separate explicit user action outside this repository.
 pkgname=nyvorel-git

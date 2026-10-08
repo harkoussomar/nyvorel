@@ -1,14 +1,15 @@
 {
   "schema": 1,
   "product": "Nyvorel",
-  "phase": "7D",
-  "status": "aur-submission-preflight-human-review-pending",
+  "phase": "7F",
+  "status": "human-reviewed-submission-prepared-not-published",
   "package_name": "nyvorel-git",
   "source_repo": "https://github.com/harkoussomar/nyvorel.git",
   "aur_package_files": [
     "PKGBUILD",
     ".SRCINFO",
-    "nyvorel.install"
+    "nyvorel.install",
+    "LICENSE"
   ],
   "aur_directory": "packaging/aur/nyvorel-git",
   "aur_remote_writes_permitted": false,
@@ -21,10 +22,16 @@
   "explicit_separate_publication_approval_required": true,
   "existing_ci_job_count": 6,
   "prepublication_manual_review": [
-    "Verify the AUR package name is available and acceptable.",
-    "Provide your actual AUR maintainer identity/contact (not invented by tooling).",
-    "Review license/third-party attribution and package metadata.",
-    "Review optional AUR-only provider availability and all dependency hints.",
-    "Inspect the exact three-file export and its checksums before separate publication."
-  ]
+    "Recheck AUR name availability and ownership immediately before any later submission.",
+    "Inspect the final four-file export, source license and checksums before submission.",
+    "Verify AUR account setup and authorization in a separate future action."
+  ],
+  "package_source_license": "0BSD",
+  "upstream_package_license_unchanged": true,
+  "maintainer_contact_user_provided": true,
+  "source_licensing_rights_user_attested": true,
+  "upstream_attribution_user_reviewed": true,
+  "optional_dependencies_user_reviewed": true,
+  "human_approval_to_publish": false,
+  "phase7d_historical_contract": "Phase 7D validated a three-file package; Phase 7F adds a separately licensed source LICENSE."
 }

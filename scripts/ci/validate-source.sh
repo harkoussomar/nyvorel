@@ -29,6 +29,7 @@ required_files=(
   packaging/ownership-contract.json
   packaging/package-layout.json
   packaging/nyvorel-package-install
+  packaging/aur/nyvorel-git/LICENSE
   PKGBUILD
   .SRCINFO
   nyvorel.install
