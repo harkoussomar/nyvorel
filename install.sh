@@ -433,7 +433,11 @@ try:
             "backup": backup_rel.as_posix() if preexisting else None,
             "installed": None,
         }
-        if item.rel.as_posix() == ".config/hypr/custom/appearance-runtime.conf":
+        if item.rel.as_posix() in {
+            ".config/hypr/custom/appearance-runtime.conf",
+            ".config/hypr/hyprland/colors.conf",
+            ".config/hypr/hyprlock/colors.conf",
+        }:
             record["ownership"] = "runtime"
         records.append(record)
         write_manifest("installing")
@@ -551,8 +555,8 @@ else
   echo
   echo "Nyvorel files are installed."
   echo "Services were not activated."
-  echo "To activate on the current user/session:"
-  echo "  ./install.sh --yes --activate"
+  echo "At the first Hyprland login, Nyvorel activates its user services."
+  echo "To activate an already running Nyvorel session: nyvorel activate --yes"
 fi
 
 echo

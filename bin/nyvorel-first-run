@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""Generate a recoverable initial palette before Nyvorel's first session."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+
+
+SEED_MODE = "dark"
+SCHEME = "scheme-tonal-spot"
+
+
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def regular_or_absent(path: Path) -> None:
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise RuntimeError(f"Refusing non-regular first-run target: {path}")
+
+
+def confined_target(home: Path, path: Path) -> None:
+    try:
+        path.relative_to(home)
+    except ValueError as exc:
+        raise RuntimeError(f"First-run target is outside HOME: {path}") from exc
+    parent = path.parent
+    while parent != home:
+        if parent.is_symlink():
+            raise RuntimeError(f"Refusing symlinked first-run parent: {parent}")
+        parent = parent.parent
+    regular_or_absent(path)
+
+
+def run(command: list[str], *, env: dict[str, str] | None = None, timeout: int = 60) -> str:
+    proc = subprocess.run(command, env=env, text=True, capture_output=True, timeout=timeout, check=False)
+    if proc.returncode:
+        raise RuntimeError(f"{' '.join(command[:2])} failed: {(proc.stderr or proc.stdout)[-700:].strip()}")
+    return proc.stdout
+
+
+def atomic_write(path: Path, content: bytes, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp, mode)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def target_paths(home: Path) -> dict[str, Path]:
+    config = home / ".config"
+    state = home / ".local/state"
+    return {
+        "config": config / "nyvorel/config.json",
+        "studio": config / "nyvorel/appearance-studio.json",
+        "colors": state / "quickshell/user/generated/colors.json",
+        "scss": state / "quickshell/user/generated/material_colors.scss",
+        "color": state / "quickshell/user/generated/color.txt",
+        "wallpaper": state / "quickshell/user/generated/wallpaper/path.txt",
+        "hyprland": config / "hypr/hyprland/colors.conf",
+        "hyprlock": config / "hypr/hyprlock/colors.conf",
+        "fuzzel": config / "fuzzel/fuzzel_theme.ini",
+        "gtk3": config / "gtk-3.0/gtk.css",
+        "gtk4": config / "gtk-4.0/gtk.css",
+    }
+
+
+def ready(paths: dict[str, Path]) -> bool:
+    try:
+        if any(not path.is_file() or path.is_symlink() for path in paths.values()):
+            return False
+        config = json.loads(paths["config"].read_text())
+        colors = json.loads(paths["colors"].read_text())
+        state = json.loads(paths["studio"].read_text())
+        wallpaper = Path(config.get("background", {}).get("wallpaperPath", ""))
+        return (
+            wallpaper.is_file()
+            and all(isinstance(colors.get(key), str) and colors[key].startswith("#") for key in ("background", "primary", "on_surface"))
+            and "$term0: #" in paths["scss"].read_text()
+            and state.get("active", {}).get("wallpaper") == str(wallpaper)
+        )
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
+
+
+def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -> dict[str, bytes]:
+    with tempfile.TemporaryDirectory(prefix="nyvorel-first-run-") as tmp:
+        stage = Path(tmp)
+        stage_config = stage / ".config"
+        stage_state = stage / ".local/state"
+        shutil.copytree(home / ".config/matugen", stage_config / "matugen")
+        env = {
+            **os.environ,
+            "HOME": str(stage),
+            "XDG_CONFIG_HOME": str(stage_config),
+            "XDG_STATE_HOME": str(stage_state),
+            "XDG_CACHE_HOME": str(stage / ".cache"),
+        }
+        run([
+            "matugen", "image", str(wallpaper), "--mode", SEED_MODE,
+            "--type", SCHEME, "--source-color-index", "0",
+        ], env=env)
+        generator = shell / "scripts/colors/generate_colors_material.py"
+        term_scheme = shell / "scripts/colors/terminal/scheme-base.json"
+        color_path = stage_state / "quickshell/user/generated/color.txt"
+        scss = run([
+            str(interpreter), str(generator), "--path", str(wallpaper),
+            "--mode", SEED_MODE, "--scheme", SCHEME,
+            "--termscheme", str(term_scheme), "--blend_bg_fg",
+            "--cache", str(color_path),
+        ], env=env)
+        if "$term0: #" not in scss:
+            raise RuntimeError("terminal palette generation returned incomplete SCSS")
+        generated = {
+            "colors": stage_state / "quickshell/user/generated/colors.json",
+            "color": color_path,
+            "hyprland": stage_config / "hypr/hyprland/colors.conf",
+            "hyprlock": stage_config / "hypr/hyprlock/colors.conf",
+            "fuzzel": stage_config / "fuzzel/fuzzel_theme.ini",
+            "gtk3": stage_config / "gtk-3.0/gtk.css",
+            "gtk4": stage_config / "gtk-4.0/gtk.css",
+        }
+        outputs = {key: path.read_bytes() for key, path in generated.items()}
+        colors = json.loads(outputs["colors"])
+        if not all(key in colors for key in ("background", "primary", "on_surface")):
+            raise RuntimeError("Matugen generated an incomplete shell palette")
+        outputs["scss"] = scss.encode()
+        outputs["wallpaper"] = (str(wallpaper) + "\n").encode()
+        config = {
+            "background": {"wallpaperPath": str(wallpaper), "thumbnailPath": ""},
+            "appearance": {
+                "interfaceStyle": "default",
+                "fonts": {
+                    "main": "Noto Sans", "numbers": "Noto Sans", "title": "Noto Sans",
+                    "iconNerd": "JetBrainsMono Nerd Font", "monospace": "JetBrainsMono Nerd Font",
+                    "reading": "Noto Sans", "expressive": "Noto Sans",
+                },
+                "palette": {"type": SCHEME, "accentColor": ""},
+                "wallpaperTheming": {"enableAppsAndShell": True, "enableQtApps": False, "enableTerminal": True},
+            },
+        }
+        studio = {
+            "version": 4,
+            "active": {
+                "source": "wallpaper", "preset": "", "seed": "",
+                "scheme": SCHEME, "mode": SEED_MODE, "wallpaper": str(wallpaper),
+                "uiProfile": "default",
+            },
+            "targets": {
+                "shell": True, "hyprland": True, "hyprlock": True,
+                "gtk": True, "fuzzel": True, "qt": False,
+                "terminal": True, "editors": True,
+            },
+            "activeUi": {}, "favorites": [], "history": [], "preview": None,
+        }
+        outputs["config"] = (json.dumps(config, indent=2) + "\n").encode()
+        outputs["studio"] = (json.dumps(studio, indent=2) + "\n").encode()
+        return outputs
+
+
+def initialize(home: Path, paths: dict[str, Path], outputs: dict[str, bytes]) -> Path:
+    root = home / ".local/state/nyvorel/first-run"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backup = root / stamp
+    confined_target(home, backup)
+    if backup.exists():
+        raise RuntimeError(f"First-run backup already exists: {backup}")
+    backup.mkdir(parents=True, mode=0o700)
+    records = {}
+    try:
+        for index, (key, path) in enumerate(paths.items()):
+            confined_target(home, path)
+            if path.is_file():
+                content = path.read_bytes()
+                name = f"{index:03d}"
+                saved = backup / name
+                saved.write_bytes(content)
+                os.chmod(saved, 0o600)
+                if digest(saved.read_bytes()) != digest(content):
+                    raise RuntimeError(f"Backup verification failed: {path}")
+                records[key] = {"path": str(path), "backup": name, "sha256": digest(content), "mode": stat.S_IMODE(path.stat().st_mode)}
+            else:
+                records[key] = {"path": str(path), "backup": None}
+        manifest = backup / "manifest.json"
+        manifest.write_text(json.dumps({"product": "Nyvorel", "target_home": str(home), "status": "prepared", "files": records}, indent=2) + "\n")
+        os.chmod(manifest, 0o600)
+        for key, path in paths.items():
+            atomic_write(path, outputs[key], records[key].get("mode", 0o644))
+            records[key]["installed_sha256"] = digest(outputs[key])
+        manifest.write_text(json.dumps({"product": "Nyvorel", "target_home": str(home), "status": "installed", "files": records}, indent=2) + "\n")
+        return backup
+    except Exception:
+        for record in records.values():
+            path = Path(record["path"])
+            name = record["backup"]
+            if name is None:
+                path.unlink(missing_ok=True)
+            else:
+                saved = backup / name
+                if saved.is_file() and digest(saved.read_bytes()) == record["sha256"]:
+                    atomic_write(path, saved.read_bytes(), record["mode"])
+        raise
+
+
+def rollback(home: Path, snapshot: Path) -> None:
+    root = home / ".local/state/nyvorel/first-run"
+    confined_target(home, root / ".recovery-check")
+    snapshot = snapshot.resolve(strict=True)
+    if snapshot.parent != root.resolve(strict=False):
+        raise RuntimeError("First-run snapshot must be a direct child of the current user's state directory")
+    manifest = snapshot / "manifest.json"
+    data = json.loads(manifest.read_text())
+    if data.get("product") != "Nyvorel" or data.get("target_home") != str(home) or data.get("status") != "installed":
+        raise RuntimeError("First-run recovery manifest is invalid or not complete")
+    records = data.get("files")
+    expected = target_paths(home)
+    if not isinstance(records, dict) or set(records) != set(expected):
+        raise RuntimeError("First-run recovery manifest has an unexpected target set")
+    for key, path in expected.items():
+        record = records[key]
+        if record.get("path") != str(path):
+            raise RuntimeError(f"Recovery target differs from the recorded path: {key}")
+        confined_target(home, path)
+        if not path.is_file() or digest(path.read_bytes()) != record.get("installed_sha256"):
+            raise RuntimeError(f"First-run output changed after initialization; refusing rollback: {path}")
+        if record.get("backup") is not None:
+            saved = snapshot / record["backup"]
+            if not saved.is_file() or digest(saved.read_bytes()) != record.get("sha256"):
+                raise RuntimeError(f"Recovery backup is missing or changed: {saved}")
+    for key, path in reversed(list(expected.items())):
+        record = records[key]
+        if record["backup"] is None:
+            path.unlink()
+        else:
+            atomic_write(path, (snapshot / record["backup"]).read_bytes(), record["mode"])
+    data["status"] = "restored"
+    manifest.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Prepare Nyvorel's initial appearance without starting Hyprland")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--plan", action="store_true", help="Show intended writes, with no mutation")
+    mode.add_argument("--check", action="store_true", help="Check initial appearance state")
+    mode.add_argument("--initialize", action="store_true", help="Generate initial appearance state")
+    mode.add_argument("--rollback", metavar="SNAPSHOT", help="Restore a verified first-run snapshot")
+    parser.add_argument("--yes", action="store_true", help="Consent to initial user-file writes")
+    parser.add_argument("--repair", action="store_true", help="Back up and replace partial existing appearance state")
+    args = parser.parse_args()
+    if args.yes and not (args.initialize or args.rollback):
+        parser.error("--yes requires --initialize or --rollback")
+    if args.repair and not args.initialize:
+        parser.error("--repair requires --initialize")
+    home = Path.home().resolve(strict=False)
+    shell = home / ".config/quickshell/nyvorel"
+    wallpaper = shell / "assets/images/default_wallpaper.png"
+    paths = target_paths(home)
+    if args.rollback:
+        if not args.yes:
+            parser.error("review the recovery snapshot, then pass --rollback SNAPSHOT --yes")
+        rollback(home, Path(args.rollback))
+        print(f"PASS restored first-run snapshot: {args.rollback}")
+        return 0
+    if args.plan:
+        print(f"Default wallpaper: {wallpaper}")
+        print("Generate initial shell, compositor, lock, GTK, Fuzzel and terminal colors")
+        for key, path in paths.items():
+            print(f"  {key}: {path} ({'replace with backup' if path.exists() else 'create'})")
+        print("No files or packages changed.")
+        return 0
+    if args.check:
+        result = ready(paths)
+        print("PASS initial appearance ready" if result else "FAIL initial appearance missing or incomplete")
+        return 0 if result else 1
+    if ready(paths):
+        print("Existing initial appearance passes; no mutation")
+        return 0
+    if not args.yes:
+        parser.error("review --plan, then pass --initialize --yes")
+    if not wallpaper.is_file() or not (home / ".config/matugen/config.toml").is_file():
+        raise RuntimeError("Install Nyvorel's shell and Matugen templates before first-run initialization")
+    protected = {"hyprland", "hyprlock"}
+    existing = [str(path) for key, path in paths.items() if key not in protected and path.exists()]
+    if existing and not args.repair:
+        raise RuntimeError("Existing appearance files need review before replacement: " + ", ".join(existing[:5]) + "; pass --repair to back them up")
+    interpreter = home / ".local/state/quickshell/.venv/bin/python"
+    if not interpreter.is_file() or not os.access(interpreter, os.X_OK):
+        raise RuntimeError("Color Python environment is missing; run nyvorel color-env --plan")
+    for path in paths.values():
+        confined_target(home, path)
+    outputs = stage_outputs(home, wallpaper, interpreter, shell)
+    backup = initialize(home, paths, outputs)
+    if not ready(paths):
+        rollback(home, backup)
+        raise RuntimeError(f"Initial appearance did not verify and was restored from {backup}")
+    print(f"PASS initial appearance ready; verified recovery snapshot: {backup}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1)

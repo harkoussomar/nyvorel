@@ -436,7 +436,11 @@ class Doctor:
             return "missing", rel.as_posix()
 
         if entry.get("ownership") == "runtime":
-            if rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+            if rel.as_posix() not in {
+                ".config/hypr/custom/appearance-runtime.conf",
+                ".config/hypr/hyprland/colors.conf",
+                ".config/hypr/hyprlock/colors.conf",
+            }:
                 return "invalid", rel.as_posix()
             return ("ok" if dest.is_file() and not dest.is_symlink() else "changed"), rel.as_posix()
 

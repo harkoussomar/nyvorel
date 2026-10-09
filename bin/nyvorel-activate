@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: nyvorel activate --check|--yes|--session
+
+--check    Verify readiness without starting services.
+--yes      Activate services in an existing Hyprland session.
+--session  Activation from Nyvorel's Hyprland exec-once entry.
+
+The installer prepares files without starting the desktop. At first login,
+--session imports the Wayland environment and starts Nyvorel user units.
+EOF
+}
+
+case "${1:-}" in
+  --check|--yes|--session) mode="$1" ;;
+  -h|--help) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+(($# == 1)) || { usage >&2; exit 2; }
+
+home="${HOME:?HOME is required}"
+pointer="$home/.local/state/nyvorel/current-install"
+[[ -s "$pointer" ]] || { echo 'Nyvorel is not installed for this user.' >&2; exit 1; }
+[[ -f "$home/.config/hypr/hyprland.conf" ]] || { echo 'Nyvorel Hyprland config is missing.' >&2; exit 1; }
+if [[ "${NYVOREL_PACKAGE_MODE:-0}" == 1 && -x /usr/bin/nyvorel ]]; then
+  first_run=/usr/bin/nyvorel
+elif [[ -x "$home/.local/bin/nyvorel" ]]; then
+  first_run="$home/.local/bin/nyvorel"
+elif [[ -x /usr/bin/nyvorel ]]; then
+  first_run=/usr/bin/nyvorel
+else
+  echo 'Nyvorel CLI is missing.' >&2
+  exit 1
+fi
+"$first_run" first-run --check >/dev/null || {
+  echo 'Initial appearance is incomplete. Run nyvorel first-run --plan.' >&2
+  exit 1
+}
+
+if [[ "$mode" == --check ]]; then
+  echo 'PASS Nyvorel session prerequisites'
+  exit 0
+fi
+[[ -n "${WAYLAND_DISPLAY:-}" && -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || {
+  echo 'Activation requires a running Hyprland session.' >&2
+  exit 1
+}
+command -v systemctl >/dev/null 2>&1 || { echo 'systemctl is missing.' >&2; exit 1; }
+
+systemctl --user import-environment \
+  DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+systemctl --user daemon-reload
+units=(
+  hyprpolkitagent.service
+  pipewire.socket
+  pipewire-pulse.socket
+  wireplumber.service
+  nyvorel-btop-style-sync.path
+  nyvorel-dolphin-theme-sync.path
+  nyvorel-fuzzel-style-sync.path
+  nyvorel-kde-app-style-sync.path
+  nyvorel-terminal-theme-sync.path
+  nyvorel-zed-theme-sync.path
+  nyvorel-zen-code-style-sync.path
+  nyvorel-operations-monitor.service
+)
+systemctl --user enable --now "${units[@]}"
+systemctl --user start nyvorel-quickshell.service
+systemctl --user is-active --quiet nyvorel-quickshell.service || {
+  echo 'Nyvorel Quickshell failed to start; inspect journalctl --user -u nyvorel-quickshell.service.' >&2
+  exit 1
+}
+echo 'PASS Nyvorel user services active'

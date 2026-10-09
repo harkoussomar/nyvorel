@@ -52,6 +52,9 @@ jobs:
       - name: Validate guided first-run onboarding
         run: bash scripts/ci/test-first-run.sh
 
+      - name: Validate initial appearance recovery
+        run: python3 scripts/ci/test-first-run-initialize.py
+
       - name: Validate packaging ownership contract
         run: bash scripts/ci/test-packaging-ownership-contract.sh
 
@@ -78,6 +81,9 @@ jobs:
 
       - name: Exercise install and recovery lifecycle
         run: bash scripts/ci/test-installer-sandbox.sh
+
+      - name: Validate minimal-Arch setup safety and session activation
+        run: bash scripts/ci/test-setup.sh
 
       - name: Exclude local interpreter caches from installation
         run: bash scripts/ci/test-install-bytecode.sh

@@ -23,6 +23,11 @@ HOME_TOKEN = "@" + "HOME" + "@"
 HOME_TOKEN_BYTES = HOME_TOKEN.encode()
 STABLE_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 RUNTIME_REL = ".config/hypr/custom/appearance-runtime.conf"
+RUNTIME_RELS = {
+    RUNTIME_REL,
+    ".config/hypr/hyprland/colors.conf",
+    ".config/hypr/hyprlock/colors.conf",
+}
 LEGACY_APPEARANCE_MARKERS = {
     ".config/hypr/custom/general.conf": ("Appearance Studio: window radius",),
     ".config/hypr/custom/rules.conf": (
@@ -897,7 +902,7 @@ def main() -> int:
             raise UpdateError(f"duplicate current manifest destination: {key}")
         if not isinstance(entry.get("installed"), dict):
             raise UpdateError(f"current manifest entry has no installed digest: {key}")
-        if entry.get("ownership") == "runtime" and key != RUNTIME_REL:
+        if entry.get("ownership") == "runtime" and key not in RUNTIME_RELS:
             raise UpdateError(f"invalid runtime ownership destination: {key}")
         old_entries[key] = entry
 
@@ -917,6 +922,8 @@ def main() -> int:
             continue
         status = live_state(home / rel, entry["installed"])
         if status == "changed":
+            if rel in RUNTIME_RELS and rel in candidate_by_rel:
+                continue
             if not (RUNTIME_REL in candidate_by_rel and RUNTIME_REL not in old_entries
                     and known_legacy_appearance_change(rel, entry, home / rel, old_manifest)):
                 drift_changed.append(rel)
@@ -979,7 +986,7 @@ def main() -> int:
     unchanged: list[str] = []
 
     for rel in retained:
-        if old_entries[rel].get("ownership") == "runtime":
+        if rel in RUNTIME_RELS:
             unchanged.append(rel)
             continue
         candidate_digest = rendered_digest(candidate_by_rel[rel], home)
@@ -1201,7 +1208,7 @@ def main() -> int:
                 "backup": backup_rel,
                 "installed": None,
             }
-            if rel == RUNTIME_REL:
+            if rel in RUNTIME_RELS:
                 record["ownership"] = "runtime"
             records.append(record)
 
@@ -1222,9 +1229,7 @@ def main() -> int:
 
         for rel, item in sorted(candidate_by_rel.items()):
             dest = home / rel
-            if rel == RUNTIME_REL and lexists(dest) and (
-                rel not in old_entries or old_entries[rel].get("ownership") == "runtime"
-            ):
+            if rel in RUNTIME_RELS and lexists(dest):
                 if not dest.is_file() or dest.is_symlink():
                     raise UpdateError(f"runtime state must be a regular file: {dest}")
                 record_by_rel[rel]["installed"] = installed_digest(dest)

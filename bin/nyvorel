@@ -36,6 +36,8 @@ Usage:
   nyvorel doctor [options]
   nyvorel bootstrap [options]
   nyvorel color-env --plan|--check|--install [options]
+  nyvorel first-run --plan|--check|--initialize|--rollback [options]
+  nyvorel activate --check|--yes|--session
   nyvorel welcome [--no-session] [--home PATH] [--json]
   nyvorel update [options]
   nyvorel settings
@@ -48,6 +50,8 @@ Commands:
   doctor      Run read-only Nyvorel installation/session diagnostics.
   bootstrap   Build a read-only Arch dependency package plan.
   color-env   Verify or explicitly provision the user color Python environment.
+  first-run   Prepare a backed-up default wallpaper and palette before login.
+  activate    Enable user services and start the shell in a Hyprland session.
   welcome     Guided read-only first-run checks and next steps.
   update      Update user materialization. Package mode never mutates /usr.
   settings    Open Nyvorel Settings.
@@ -85,6 +89,14 @@ case "${1:-help}" in
   color-env)
     shift
     exec "$HELPER_DIR/nyvorel-color-env" "$@"
+    ;;
+  first-run)
+    shift
+    exec "$HELPER_DIR/nyvorel-first-run" "$@"
+    ;;
+  activate)
+    shift
+    exec "$HELPER_DIR/nyvorel-activate" "$@"
     ;;
   welcome)
     shift

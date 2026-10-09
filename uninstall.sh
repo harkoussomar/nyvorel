@@ -192,7 +192,11 @@ for entry in entries:
     rel = Path(entry["destination"])
     if rel.is_absolute() or ".." in rel.parts:
         raise SystemExit(f"unsafe manifest destination: {rel}")
-    if entry.get("ownership") == "runtime" and rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+    if entry.get("ownership") == "runtime" and rel.as_posix() not in {
+        ".config/hypr/custom/appearance-runtime.conf",
+        ".config/hypr/hyprland/colors.conf",
+        ".config/hypr/hyprlock/colors.conf",
+    }:
         raise SystemExit(f"invalid runtime ownership destination: {rel}")
 
     dest = home / rel
@@ -376,7 +380,11 @@ conflicts = []
 runtime_archives = []
 for entry in entries:
     rel = Path(entry["destination"])
-    if entry.get("ownership") == "runtime" and rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+    if entry.get("ownership") == "runtime" and rel.as_posix() not in {
+        ".config/hypr/custom/appearance-runtime.conf",
+        ".config/hypr/hyprland/colors.conf",
+        ".config/hypr/hyprlock/colors.conf",
+    }:
         raise SystemExit(f"invalid runtime ownership destination: {rel}")
     dest = home / rel
     if entry.get("ownership") == "runtime" and dest.is_file() and not dest.is_symlink():

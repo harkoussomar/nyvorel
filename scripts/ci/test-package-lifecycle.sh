@@ -69,6 +69,10 @@ grep -q "^usr/bin/nyvorel$" /work/package-files.txt
 grep -q "^usr/lib/nyvorel/bin/nyvorel-doctor$" /work/package-files.txt
 grep -q "^usr/share/nyvorel/quickshell/shell.qml$" /work/package-files.txt
 grep -q "^usr/lib/systemd/user/nyvorel-quickshell.service$" /work/package-files.txt
+grep -q "^usr/lib/nyvorel/bin/nyvorel-activate$" /work/package-files.txt
+grep -q "^usr/lib/nyvorel/bin/nyvorel-first-run$" /work/package-files.txt
+bsdtar -xOf "$PKG" usr/share/nyvorel/hypr/hyprland/execs.conf \
+  | grep -q "exec-once = /usr/bin/nyvorel activate --session"
 grep -q "^usr/share/icons/hicolor/scalable/apps/nyvorel.svg$" /work/package-files.txt
 
 if grep -Eq "^(home|root|usr/local)/" /work/package-files.txt; then
