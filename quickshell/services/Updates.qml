@@ -39,7 +39,7 @@ Singleton {
     Process {
         id: checkAvailabilityProc
         running: Config.ready && Config.options.updates.enableCheck
-        command: ["which", "checkupdates"]
+        command: ["bash", "-c", "command -v checkupdates >/dev/null"]
         onExited: (exitCode, exitStatus) => {
             root.available = (exitCode === 0);
             root.refresh();

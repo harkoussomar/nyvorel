@@ -57,6 +57,18 @@ grep -q 'already installed' "$tmp/existing.log"
 rm "$HOME/.local/state/nyvorel/current-install"
 cat > "$tmp/bin/pacman" <<'MOCK'
 #!/usr/bin/env bash
+[[ "$1" == -Qq ]] && exit 1
+exit 20
+MOCK
+chmod +x "$tmp/bin/pacman"
+"$root/setup.sh" --install --yes > "$tmp/no-tty.log" 2>&1 && {
+  echo 'setup attempted package installation without an interactive terminal' >&2; exit 1
+}
+grep -q 'interactive terminal' "$tmp/no-tty.log"
+[[ ! -s "$NYVOREL_TEST_SUDO_LOG" ]]
+
+cat > "$tmp/bin/pacman" <<'MOCK'
+#!/usr/bin/env bash
 [[ "$1" == -Qq ]]
 MOCK
 cat > "$tmp/bin/qs" <<'MOCK'

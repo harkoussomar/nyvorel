@@ -186,6 +186,10 @@ qs_supported() {
   [[ "$(printf '%s\n%s\n' 0.3.2 "$version" | sort -V | head -1)" == 0.3.2 ]]
 }
 if ((${#missing[@]})) || ! qs_supported; then
+  [[ -t 0 ]] || {
+    echo 'Package installation needs an interactive terminal to review the pacman transaction. Rerun setup from a local terminal or SSH with a PTY (ssh -t).' >&2
+    exit 2
+  }
   printf 'Installing %d missing official packages and updating Quickshell with a full system upgrade.\n' "${#missing[@]}"
   sudo pacman -Syu --needed "${packages[@]}"
 else
@@ -223,5 +227,5 @@ first_run_args=(--initialize --yes)
 "$cli" first-run "${first_run_args[@]}"
 "$cli" first-run --check
 "$cli" session --check
-printf '\nNyvorel user setup is ready. Start the desktop with: nyvorel session\n'
+printf '\nNyvorel user setup is ready. Start the desktop with: %s session\n' "$cli"
 printf 'For recovery, inspect ~/.local/state/nyvorel/installations and first-run snapshots.\n'
