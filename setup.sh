@@ -83,7 +83,7 @@ core=(
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
   matugen jq bc xdg-utils xdg-user-dirs
 )
-recommended_packages=(zed kate ark btop imagemagick ffmpeg playerctl hyprlock hypridle)
+recommended_packages=(zed kate ark btop imagemagick ffmpeg playerctl hypridle)
 ocr_packages=(tesseract tesseract-data-eng)
 recording_packages=(gpu-screen-recorder libpulse)
 packages=("${core[@]}")
