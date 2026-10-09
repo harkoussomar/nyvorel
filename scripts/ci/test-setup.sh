@@ -29,6 +29,10 @@ unset HYPRLAND_INSTANCE_SIGNATURE || true
 
 "$root/setup.sh" --plan --with-recommended --with-ocr-english > "$tmp/plan.log"
 grep -q 'tesseract-data-eng' "$tmp/plan.log"
+grep -q 'pipewire-jack' "$tmp/plan.log"
+grep -q 'qt6-multimedia-ffmpeg' "$tmp/plan.log"
+grep -q 'pacman-contrib' "$tmp/plan.log"
+grep -q 'Vulkan provider:' "$tmp/plan.log"
 grep -q 'No packages, services, or user files changed' "$tmp/plan.log"
 [[ ! -s "$NYVOREL_TEST_PACMAN_LOG" && ! -s "$NYVOREL_TEST_SUDO_LOG" ]]
 
@@ -86,7 +90,9 @@ export NYVOREL_TEST_SYSTEMCTL_LOG="$tmp/systemctl.log"
 [[ ! -s "$NYVOREL_TEST_SYSTEMCTL_LOG" ]]
 WAYLAND_DISPLAY=wayland-test HYPRLAND_INSTANCE_SIGNATURE=hyprland-test \
   "$root/bin/nyvorel-activate" --session > "$tmp/activate.log"
-grep -q 'enable --now hyprpolkitagent.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"
+if grep -q 'hyprpolkitagent.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"; then
+  echo 'external Polkit agent would conflict with Quickshell agent' >&2; exit 1
+fi
 grep -q 'nyvorel-operations-monitor.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"
 grep -q 'start nyvorel-quickshell.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"
 echo 'PASS setup plan/consent/live guard/existing-install refusal and session activation'

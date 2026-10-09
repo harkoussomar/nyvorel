@@ -549,15 +549,17 @@ def main():
     current = interface_style()
     c = load_colors()
 
-    # Zen
-    profile = active_zen_profile()
-    chrome = profile / "chrome"
-    chrome.mkdir(parents=True, exist_ok=True)
-    atomic_write(chrome / "nyvorel-interface-style.css", render_zen_css(current, c))
+    # Optional applications must not fail a fresh desktop before first launch.
+    if ZEN_PROFILES.is_file():
+        profile = active_zen_profile()
+        chrome = profile / "chrome"
+        chrome.mkdir(parents=True, exist_ok=True)
+        atomic_write(chrome / "nyvorel-interface-style.css", render_zen_css(current, c))
 
     # VS Code
-    write_vscode_extension(c)
-    patch_vscode_theme(current)
+    if CODE_SETTINGS.is_file():
+        write_vscode_extension(c)
+        patch_vscode_theme(current)
 
 
 if __name__ == "__main__":

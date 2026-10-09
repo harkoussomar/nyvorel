@@ -54,7 +54,6 @@ systemctl --user import-environment \
   DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
 systemctl --user daemon-reload
 units=(
-  hyprpolkitagent.service
   pipewire.socket
   pipewire-pulse.socket
   wireplumber.service

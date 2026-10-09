@@ -11,6 +11,7 @@ ocr=0
 recording=0
 enable_networkmanager=0
 wheelhouse=""
+vulkan_driver=""
 
 usage() {
   cat <<'EOF'
@@ -24,6 +25,7 @@ Usage: ./setup.sh [--plan|--install --yes] [options]
 --resume                 Continue after an interrupted user-file setup.
 --replace-existing       Back up and replace conflicting personal config files.
 --with-recommended       Add Zed, Kate, Ark, btop and appearance tools.
+--vulkan-driver PACKAGE   Select an official Vulkan provider for Zed.
 --with-ocr-english       Add Tesseract with English language data.
 --with-recording         Add GPU screen recording tools.
 --enable-networkmanager  Enable/start NetworkManager after package install.
@@ -44,6 +46,9 @@ while (($#)); do
     --resume) resume=1; shift ;;
     --replace-existing) replace_existing=1; shift ;;
     --with-recommended) recommended=1; shift ;;
+    --vulkan-driver)
+      (($# >= 2)) || { echo '--vulkan-driver needs a package.' >&2; exit 2; }
+      vulkan_driver="$2"; shift 2 ;;
     --with-ocr-english) ocr=1; shift ;;
     --with-recording) recording=1; shift ;;
     --enable-networkmanager) enable_networkmanager=1; shift ;;
@@ -73,13 +78,13 @@ command -v pacman >/dev/null || { echo 'pacman is required.' >&2; exit 1; }
 # The rootless plan stays available before Python, Hyprland, or Qt is present.
 core=(
   bash coreutils findutils grep sed gawk git python python-pip python-pillow
-  hyprland quickshell mesa hyprpolkitagent
+  pacman-contrib hyprland quickshell mesa polkit
   xdg-desktop-portal xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
   qt6-positioning qt6-5compat kirigami
   noto-fonts noto-fonts-emoji ttf-dejavu ttf-material-symbols-variable
   ttf-jetbrains-mono-nerd adwaita-cursors
-  kitty fish firefox dolphin hyprlock
-  pipewire pipewire-pulse pipewire-alsa wireplumber
+  kitty fish firefox dolphin hyprlock qt6-multimedia-ffmpeg
+  pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
   matugen jq bc xdg-utils xdg-user-dirs
 )
@@ -87,6 +92,31 @@ recommended_packages=(zed kate ark btop imagemagick ffmpeg playerctl hypridle)
 ocr_packages=(tesseract tesseract-data-eng)
 recording_packages=(gpu-screen-recorder libpulse)
 packages=("${core[@]}")
+case "$vulkan_driver" in
+  ''|vulkan-intel|vulkan-radeon|vulkan-swrast|vulkan-virtio|vulkan-nouveau|nvidia-utils) ;;
+  *) echo "Unsupported Vulkan package selection: $vulkan_driver" >&2; exit 2 ;;
+esac
+if [[ -n "$vulkan_driver" && "$recommended" != 1 ]]; then
+  echo '--vulkan-driver applies only with --with-recommended (Zed).' >&2
+  exit 2
+fi
+gpu_vendor=""
+for vendor_file in /sys/class/drm/card*/device/vendor; do
+  [[ -f "$vendor_file" ]] || continue
+  gpu_vendor="$(<"$vendor_file")"
+  break
+done
+if (( recommended )); then
+  if [[ -z "$vulkan_driver" ]]; then
+    case "$gpu_vendor" in
+      0x8086) vulkan_driver=vulkan-intel ;;
+      0x1002) vulkan_driver=vulkan-radeon ;;
+      0x10de) vulkan_driver=manual-nvidia-selection ;;
+      *) vulkan_driver=vulkan-swrast ;;
+    esac
+  fi
+  [[ "$vulkan_driver" == manual-nvidia-selection ]] || recommended_packages+=("$vulkan_driver")
+fi
 (( recommended == 0 )) || packages+=("${recommended_packages[@]}")
 (( ocr == 0 )) || packages+=("${ocr_packages[@]}")
 (( recording == 0 )) || packages+=("${recording_packages[@]}")
@@ -97,6 +127,7 @@ printf '  Source: %s\n' "$root"
 printf '  User:   %s (%s)\n' "${USER:-$(id -un)}" "$HOME"
 printf '  Core official packages (%d): %s\n' "${#core[@]}" "${core[*]}"
 (( recommended == 0 )) || printf '  Recommended: %s\n' "${recommended_packages[*]}"
+(( recommended == 0 )) || printf '  GPU vendor: %s; Vulkan provider: %s\n' "${gpu_vendor:-unknown}" "$vulkan_driver"
 (( ocr == 0 )) || printf '  English OCR: %s\n' "${ocr_packages[*]}"
 (( recording == 0 )) || printf '  Recording:   %s\n' "${recording_packages[*]}"
 printf '  NetworkManager activation: %s\n' "$([[ "$enable_networkmanager" == 1 ]] && echo requested || echo no)"
@@ -109,6 +140,10 @@ if [[ "$mode" == plan ]]; then
 fi
 
 [[ "$yes" == 1 ]] || { echo 'Review --plan, then use --install --yes.' >&2; exit 2; }
+if [[ "$vulkan_driver" == manual-nvidia-selection ]]; then
+  echo 'NVIDIA GPU detected. Choose and configure its kernel driver, then pass --vulkan-driver vulkan-nouveau or nvidia-utils explicitly.' >&2
+  exit 2
+fi
 [[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || {
   echo 'Refusing setup inside an active Hyprland desktop.' >&2; exit 1;
 }

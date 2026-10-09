@@ -11,6 +11,7 @@ printf '# fixture\n' >"$HOME_TEST/.config/hypr/hyprland.conf"
 cat >"$TMP/bin/start-hyprland" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$NYVOREL_TEST_ARGS"
+printf '%s\n' "$XDG_SESSION_TYPE" "$XDG_CURRENT_DESKTOP" "$XDG_SESSION_DESKTOP" >"$NYVOREL_TEST_ARGS.env"
 SH
 chmod 755 "$TMP/bin/start-hyprland"
 
@@ -25,6 +26,7 @@ python3 - "$TMP/args" "$HOME_TEST/.config/hypr/hyprland.conf" <<'PY'
 from pathlib import Path
 import sys
 assert Path(sys.argv[1]).read_text().splitlines() == ["--", "--config", sys.argv[2]]
+assert Path(sys.argv[1]+".env").read_text().splitlines() == ["wayland", "Hyprland", "Hyprland"]
 PY
 
 if env -u XDG_CONFIG_HOME HOME="$HOME_TEST" PATH="$TMP/bin:$PATH" \

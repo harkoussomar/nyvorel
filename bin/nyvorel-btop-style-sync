@@ -185,7 +185,8 @@ def atomic_write(path: Path, text: str):
 
 
 def patch_config(current_style: str):
-    text = BTOP_CONFIG.read_text(encoding="utf-8")
+    text = (BTOP_CONFIG.read_text(encoding="utf-8") if BTOP_CONFIG.exists()
+            else 'color_theme = "Default"\nrounded_corners = true\n')
     if current_style == "fluid":
         theme = "Default"
         rounded = "true"

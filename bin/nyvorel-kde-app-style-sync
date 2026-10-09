@@ -391,7 +391,8 @@ def load_baseline():
 
 
 def patch_kdeglobals(target: str, target_hash: str | None):
-    text = KDEGLOBALS.read_text(encoding="utf-8")
+    missing = not KDEGLOBALS.exists()
+    text = "[General]\nColorScheme=IllogicalImpulse\n" if missing else KDEGLOBALS.read_text(encoding="utf-8")
     current, current_hash = read_current_scheme(text)
 
     # A Matugen/non-managed scheme is the Fluid source-of-truth. Capture it
@@ -401,6 +402,8 @@ def patch_kdeglobals(target: str, target_hash: str | None):
 
     if target == "fluid":
         if current not in MANAGED:
+            if missing:
+                atomic_write(KDEGLOBALS, text)
             return
         baseline = load_baseline()
         scheme = baseline.get("ColorScheme") or "IllogicalImpulse"

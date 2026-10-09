@@ -78,3 +78,34 @@ with tempfile.TemporaryDirectory(prefix="nyvorel-style-sync-") as raw:
             assert f"ColorScheme=IllogicalImpulse{style.title()}" in kde
             assert f"Nyvorel {style.title()}" in code
         print(f"PASS {style}: btop, Fuzzel, KDE, Zen and Code outputs")
+
+    # A minimal Arch user has never run KDE before Nyvorel's first session.
+    kdeglobals = home / ".config/kdeglobals"
+    kdeglobals.unlink()
+    for style, expected in (("default", "IllogicalImpulseDefault"), ("fluid", "IllogicalImpulse")):
+        write(home / ".config/nyvorel/config.json", json.dumps({"appearance": {"interfaceStyle": style}}))
+        if style == "fluid":
+            kdeglobals.unlink()
+        result = subprocess.run(
+            [str(ROOT / "bin/nyvorel-kde-app-style-sync")], env=env,
+            capture_output=True, text=True, timeout=20,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert f"ColorScheme={expected}\n" in kdeglobals.read_text()
+        print(f"PASS first-run KDE globals creation: {style}")
+
+    # Optional app configuration is absent on a clean Arch home.
+    (home / ".config/btop/btop.conf").unlink()
+    (home / ".config/zed/settings.json").unlink(missing_ok=True)
+    (home / ".config/Code/User/settings.json").unlink()
+    (home / ".zen/profiles.ini").unlink()
+    write(home / ".config/nyvorel/config.json", json.dumps({"appearance": {"interfaceStyle": "default"}}))
+    for service in ("nyvorel-btop-style-sync", "nyvorel-zed-theme-sync", "nyvorel-zen-code-style-sync"):
+        result = subprocess.run([str(ROOT / "bin" / service)], env=env,
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, f"{service}: {result.stderr or result.stdout}"
+    assert 'color_theme = "nyvorel-default"' in (home / ".config/btop/btop.conf").read_text()
+    assert '"theme_overrides"' in (home / ".config/zed/settings.json").read_text()
+    assert not (home / ".config/Code/User/settings.json").exists()
+    assert not (home / ".zen/profiles.ini").exists()
+    print("PASS fresh-home style sync: btop/Zed initialized; absent Zen/Code skipped")
