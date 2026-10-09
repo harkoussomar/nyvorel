@@ -68,7 +68,7 @@ echo "image=$IMAGE"
 # This uses a local Git mirror of the exact reviewed commit instead of
 # live origin/main. Only a disposable copy of source= is changed; the
 # publication-ready PKGBUILD always uses GitHub HTTPS.
-"$RUNTIME" run --rm \
+"$RUNTIME" run --rm -i \
   -v "$ROOT:/src:ro" \
   -v "$AUR:/aur:ro" \
   "$IMAGE" bash -s <<'ARCH'
