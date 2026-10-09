@@ -437,6 +437,8 @@ try:
             ".config/hypr/custom/appearance-runtime.conf",
             ".config/hypr/hyprland/colors.conf",
             ".config/hypr/hyprlock/colors.conf",
+            ".config/kitty/nyvorel-dynamic-theme.conf",
+            ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
         }:
             record["ownership"] = "runtime"
         records.append(record)

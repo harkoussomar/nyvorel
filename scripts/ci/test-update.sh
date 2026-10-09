@@ -56,6 +56,11 @@ for output in hyprland/colors.conf hyprlock/colors.conf; do
 done
 COLOR_SHA1="$(sha256sum "$HOME1/.config/hypr/hyprland/colors.conf" | cut -d' ' -f1)"
 LOCK_COLOR_SHA1="$(sha256sum "$HOME1/.config/hypr/hyprlock/colors.conf" | cut -d' ' -f1)"
+for output in .config/kitty/nyvorel-dynamic-theme.conf .config/fish/conf.d/99-nyvorel-dynamic-theme.fish; do
+  printf '\n# generated terminal palette\n' >>"$HOME1/$output"
+done
+KITTY_SHA1="$(sha256sum "$HOME1/.config/kitty/nyvorel-dynamic-theme.conf" | cut -d' ' -f1)"
+FISH_SHA1="$(sha256sum "$HOME1/.config/fish/conf.d/99-nyvorel-dynamic-theme.fish" | cut -d' ' -f1)"
 [[ -f "$HOME1/.config/matugen/config.toml" ]] \
   || die "installer omitted source-owned Matugen config"
 python3 - "$HOME1" "$ROOT/bin/nyvorel-doctor" <<'PY'
@@ -105,6 +110,8 @@ grep -qF '# ci-update-candidate' "$HOME1/.local/bin/nyvorel-settings" \
   || die "update replaced selected appearance runtime state"
 [[ "$(sha256sum "$HOME1/.config/hypr/hyprland/colors.conf" | cut -d' ' -f1)" == "$COLOR_SHA1" ]]
 [[ "$(sha256sum "$HOME1/.config/hypr/hyprlock/colors.conf" | cut -d' ' -f1)" == "$LOCK_COLOR_SHA1" ]]
+[[ "$(sha256sum "$HOME1/.config/kitty/nyvorel-dynamic-theme.conf" | cut -d' ' -f1)" == "$KITTY_SHA1" ]]
+[[ "$(sha256sum "$HOME1/.config/fish/conf.d/99-nyvorel-dynamic-theme.fish" | cut -d' ' -f1)" == "$FISH_SHA1" ]]
 
 python3 - "$NEW_STATE1/manifest.json" "$OLD_STATE1" "$SENTINEL" <<'PY'
 from pathlib import Path
@@ -128,6 +135,8 @@ assert ".local/bin/nyvorel-ci-update-fixture" in entries
 assert entries[".config/hypr/custom/appearance-runtime.conf"]["ownership"] == "runtime"
 assert entries[".config/hypr/hyprland/colors.conf"]["ownership"] == "runtime"
 assert entries[".config/hypr/hyprlock/colors.conf"]["ownership"] == "runtime"
+assert entries[".config/kitty/nyvorel-dynamic-theme.conf"]["ownership"] == "runtime"
+assert entries[".config/fish/conf.d/99-nyvorel-dynamic-theme.fish"]["ownership"] == "runtime"
 
 shell = entries[".config/quickshell/nyvorel/shell.qml"]
 assert shell["preexisting"] is True

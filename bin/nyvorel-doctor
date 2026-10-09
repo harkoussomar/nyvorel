@@ -440,6 +440,8 @@ class Doctor:
                 ".config/hypr/custom/appearance-runtime.conf",
                 ".config/hypr/hyprland/colors.conf",
                 ".config/hypr/hyprlock/colors.conf",
+                ".config/kitty/nyvorel-dynamic-theme.conf",
+                ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
             }:
                 return "invalid", rel.as_posix()
             return ("ok" if dest.is_file() and not dest.is_symlink() else "changed"), rel.as_posix()

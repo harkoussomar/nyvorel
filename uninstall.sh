@@ -196,6 +196,8 @@ for entry in entries:
         ".config/hypr/custom/appearance-runtime.conf",
         ".config/hypr/hyprland/colors.conf",
         ".config/hypr/hyprlock/colors.conf",
+        ".config/kitty/nyvorel-dynamic-theme.conf",
+        ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
     }:
         raise SystemExit(f"invalid runtime ownership destination: {rel}")
 
@@ -384,6 +386,8 @@ for entry in entries:
         ".config/hypr/custom/appearance-runtime.conf",
         ".config/hypr/hyprland/colors.conf",
         ".config/hypr/hyprlock/colors.conf",
+        ".config/kitty/nyvorel-dynamic-theme.conf",
+        ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
     }:
         raise SystemExit(f"invalid runtime ownership destination: {rel}")
     dest = home / rel
