@@ -74,6 +74,8 @@ def main() -> int:
     else:
         if required_missing:
             next_steps.append("nyvorel bootstrap  # read-only dependency plan; review before installing")
+        if any(check.get("id") == "appearance.runtime" and check.get("status") == "FAIL" for check in issues):
+            next_steps.append("nyvorel color-env --plan  # review isolated color Python setup")
         if failed:
             next_steps.append("nyvorel doctor  # details and targeted fixes")
         if not session:

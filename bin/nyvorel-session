@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if (($# > 1)) || { (($# == 1)) && [[ "$1" != --check ]]; }; then
+  echo 'Usage: nyvorel session [--check]' >&2
+  exit 2
+fi
+
+config_home="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
+config="$config_home/hypr/hyprland.conf"
+[[ -f "$config" ]] || {
+  echo "Nyvorel Hyprland configuration is missing: $config" >&2
+  exit 1
+}
+command -v start-hyprland >/dev/null 2>&1 || {
+  echo 'start-hyprland is missing; install the supported Hyprland package.' >&2
+  exit 1
+}
+
+if [[ "${1:-}" == --check ]]; then
+  echo "Nyvorel session launcher found its configuration: $config"
+  exit 0
+fi
+
+[[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || {
+  echo 'A Hyprland session is already active; refusing to start another one here.' >&2
+  exit 1
+}
+
+exec start-hyprland -- --config "$config"

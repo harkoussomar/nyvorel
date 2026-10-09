@@ -4,7 +4,7 @@ Description=Watch Nyvorel style/palette for Zen and VS Code
 [Path]
 PathChanged=%h/.config/nyvorel/config.json
 PathChanged=%h/.local/state/quickshell/user/generated/colors.json
-Unit=nyvorel-zen-code-style-sync.service
+Unit=nyvorel-zen-code-style-sync.timer
 
 [Install]
 WantedBy=default.target

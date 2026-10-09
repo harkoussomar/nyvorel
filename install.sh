@@ -101,6 +101,12 @@ PY
   exit 1
 }
 
+if (( ! DRY_RUN )) && [[ -s "$TARGET_HOME/.local/state/nyvorel/current-install" ]]; then
+  echo "ERROR: an existing Nyvorel installation is recorded for this home." >&2
+  echo "Use 'nyvorel update --dry-run' and then 'nyvorel update --yes' to preserve its backup chain and runtime state." >&2
+  exit 3
+fi
+
 if (( ACTIVATE )); then
   REAL_HOME="$(python3 - "$HOME" <<'PY'
 from pathlib import Path
@@ -190,12 +196,21 @@ def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
         if not (src.is_file() or src.is_symlink()):
             continue
         rel_inside = src.relative_to(src_root)
+        # Local Python runs can create ignored bytecode containing stale paths
+        # and template tokens. Only distribute source, never interpreter caches.
+        if "__pycache__" in rel_inside.parts or src.suffix in {".pyc", ".pyo"}:
+            continue
+        # Historical source snapshots document earlier design iterations but
+        # must not become runnable files in a new user's desktop.
+        if ".before-" in src.name or ".pre-" in src.name:
+            continue
         items.append(Item(src=src, rel=dest_root / rel_inside))
 
 items: list[Item] = []
 
 add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
 add_tree(items, root / "hypr", Path(".config/hypr"))
+add_tree(items, root / "matugen", Path(".config/matugen"))
 
 for name in ("fish", "kitty"):
     src = root / "integrations" / name
@@ -418,8 +433,17 @@ try:
             "backup": backup_rel.as_posix() if preexisting else None,
             "installed": None,
         }
+        if item.rel.as_posix() == ".config/hypr/custom/appearance-runtime.conf":
+            record["ownership"] = "runtime"
         records.append(record)
         write_manifest("installing")
+
+        if record.get("ownership") == "runtime" and preexisting:
+            if not dest.is_file() or dest.is_symlink():
+                raise RuntimeError(f"runtime state must be a regular file: {dest}")
+            record["installed"] = installed_digest(dest)
+            write_manifest("installing")
+            continue
 
         dest.parent.mkdir(parents=True, exist_ok=True)
         if lexists(dest):

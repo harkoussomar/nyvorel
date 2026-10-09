@@ -5,7 +5,7 @@ Description=Watch style/palette/KDE globals for app material sync
 PathChanged=%h/.config/nyvorel/config.json
 PathChanged=%h/.local/state/quickshell/user/generated/colors.json
 PathChanged=%h/.config/kdeglobals
-Unit=nyvorel-kde-app-style-sync.service
+Unit=nyvorel-kde-app-style-sync.timer
 
 [Install]
 WantedBy=default.target

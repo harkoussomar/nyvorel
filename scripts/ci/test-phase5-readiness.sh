@@ -52,23 +52,25 @@ NYVOREL_PACMAN_BIN="$TMP/fail-pacman" \
 NYVOREL_TEST_PACMAN_LOG="$PACMAN_LOG" \
   "$CLI" bootstrap --list-optional --json >"$TMP/catalog.json"
 
-python3 - "$TMP/catalog.json" <<'PY'
+python3 - "$TMP/catalog.json" "$TARGET/.local/share/nyvorel/dependencies/arch.json" <<'PY'
 from pathlib import Path
 import json
 import sys
 
 data = json.loads(Path(sys.argv[1]).read_text())
+contract = json.loads(Path(sys.argv[2]).read_text())
 
 assert data["schema"] == 1
 assert data["product"] == "Nyvorel"
 assert data["bootstrap_version"] == 2
 assert data["mode"] == "optional-catalog"
 assert data["mutation_performed"] is False
-assert data["optional_count"] == 32
-assert len(data["optional"]) == 32
+assert data["optional_count"] == len(contract["optional"])
+assert len(data["optional"]) == len(contract["optional"])
 
 ids = [item["id"] for item in data["optional"]]
 assert len(ids) == len(set(ids))
+assert set(ids) == {item["id"] for item in contract["optional"]}
 assert {"screenshots", "ocr", "clipboard-history", "screen-recording"} <= set(ids)
 
 for item in data["optional"]:

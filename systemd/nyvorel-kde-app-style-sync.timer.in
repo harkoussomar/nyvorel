@@ -1,0 +1,8 @@
+[Unit]
+Description=Coalesce Nyvorel KDE application style changes
+
+[Timer]
+OnActiveSec=1s
+AccuracySec=100ms
+Unit=nyvorel-kde-app-style-sync.service
+RemainAfterElapse=no

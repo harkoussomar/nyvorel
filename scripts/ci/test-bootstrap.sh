@@ -75,11 +75,18 @@ data = json.loads(Path(sys.argv[1]).read_text())
 assert data["schema"] == 2
 
 for entry in data["required"]:
+    file_key = next((key for key in ("files_any_of", "files_all_of") if key in entry), None)
+    if file_key:
+        fixture = Path(sys.argv[1]).parent / (entry["id"] + ".fixture")
+        fixture.write_text("test runtime asset\n")
+        entry[file_key] = [str(fixture)]
+        continue
     if isinstance(entry.get("commands_all_of"), list):
         for command in entry["commands_all_of"]:
             print(command)
     else:
         print(entry["commands_any_of"][0])
+Path(sys.argv[1]).write_text(json.dumps(data))
 PY
 
 while IFS= read -r command; do

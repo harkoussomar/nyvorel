@@ -11,7 +11,8 @@ for path in \
   .SRCINFO \
   nyvorel.install \
   packaging/package-layout.json \
-  packaging/nyvorel-package-install
+  packaging/nyvorel-package-install \
+  packaging/nyvorel.desktop
 do
   [[ -s "$path" ]] || die "missing package implementation file: $path"
 done
@@ -69,6 +70,7 @@ grep -qF '/usr/bin/nyvorel' PKGBUILD
 grep -qF '/usr/lib/nyvorel' PKGBUILD
 grep -qF '/usr/share/nyvorel' PKGBUILD
 grep -qF '/usr/lib/systemd/user' PKGBUILD
+grep -qF '/usr/share/wayland-sessions/nyvorel.desktop' PKGBUILD
 
 if grep -Eq '^[[:space:]]*(cp|mv|rm|install|mkdir|systemctl)[[:space:]]' nyvorel.install; then
   cat nyvorel.install >&2

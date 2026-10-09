@@ -67,15 +67,18 @@ for class_name in classes:
 
         command_keys = [
             key
-            for key in ("commands_any_of", "commands_all_of")
+            for key in ("commands_any_of", "commands_all_of", "files_any_of", "files_all_of")
             if isinstance(entry.get(key), list) and entry.get(key)
         ]
-        assert len(command_keys) == 1, f"{dep_id}: exactly one command selector required"
+        assert len(command_keys) == 1, f"{dep_id}: exactly one runtime selector required"
         commands = entry[command_keys[0]]
         assert len(commands) == len(set(commands)), f"{dep_id}: duplicate command"
         for command in commands:
             assert isinstance(command, str) and command
-            assert "/" not in command, f"{dep_id}: commands must be executable names"
+            if command_keys[0].startswith("files_"):
+                assert Path(command).is_absolute() and ".." not in Path(command).parts, dep_id
+            else:
+                assert "/" not in command, f"{dep_id}: commands must be executable names"
 
         package_keys = [
             key

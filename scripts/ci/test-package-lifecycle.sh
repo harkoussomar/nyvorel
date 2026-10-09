@@ -194,7 +194,7 @@ import json,sys
 d=json.loads(Path(sys.argv[1]).read_text())
 assert d["mode"]=="optional-catalog"
 assert d["mutation_performed"] is False
-assert d["optional_count"]==32
+assert d["optional_count"]==len(json.loads(Path("/usr/share/nyvorel/dependencies/arch.json").read_text())["optional"])
 PY
 
 echo "== Build/install pkgrel=2; pacman upgrade must not touch HOME =="

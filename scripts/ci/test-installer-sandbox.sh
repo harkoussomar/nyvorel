@@ -11,10 +11,13 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 HOME_SANDBOX="$TMP/home"
-mkdir -p "$HOME_SANDBOX/.config/quickshell/nyvorel"
+mkdir -p "$HOME_SANDBOX/.config/quickshell/nyvorel" "$HOME_SANDBOX/.config/hypr/custom"
 
 SENTINEL='pre-existing-shell-ci-sentinel'
 printf '%s\n' "$SENTINEL" >"$HOME_SANDBOX/.config/quickshell/nyvorel/shell.qml"
+RUNTIME_SENTINEL='# selected runtime appearance before install'
+printf '%s\n' "$RUNTIME_SENTINEL" \
+  >"$HOME_SANDBOX/.config/hypr/custom/appearance-runtime.conf"
 
 echo "== Installer dry-run =="
 ./install.sh \
@@ -40,6 +43,17 @@ CURRENT="$HOME_SANDBOX/.local/state/nyvorel/current-install"
 STATE="$(tr -d '\r\n' <"$CURRENT")"
 MANIFEST="$STATE/manifest.json"
 [[ -s "$MANIFEST" ]] || die "manifest missing"
+[[ "$(cat "$HOME_SANDBOX/.config/hypr/custom/appearance-runtime.conf")" == "$RUNTIME_SENTINEL" ]] \
+  || die "installer replaced existing appearance runtime state"
+
+set +e
+./install.sh --target-home "$HOME_SANDBOX" --yes --no-activate \
+  >"$TMP/reinstall-refusal.log" 2>&1
+REINSTALL_CODE=$?
+set -e
+[[ "$REINSTALL_CODE" == "3" ]] || die "installer accepted an unsafe repeat install"
+[[ "$(tr -d '\r\n' <"$CURRENT")" == "$STATE" ]] \
+  || die "repeat-install refusal changed the installation pointer"
 
 python3 - "$MANIFEST" "$HOME_SANDBOX" "$(git rev-parse HEAD)" <<'PY'
 from pathlib import Path
@@ -129,6 +143,8 @@ echo "== Forced recovery with archive =="
 
 [[ "$(cat "$HOME_SANDBOX/.config/quickshell/nyvorel/shell.qml")" == "$SENTINEL" ]] \
   || die "pre-existing shell file was not restored exactly"
+[[ "$(cat "$HOME_SANDBOX/.config/hypr/custom/appearance-runtime.conf")" == "$RUNTIME_SENTINEL" ]] \
+  || die "uninstall did not restore pre-existing appearance runtime state"
 
 [[ ! -e "$HOME_SANDBOX/.local/bin/nyvorel-settings" ]] \
   || die "Nyvorel-created helper was not removed"

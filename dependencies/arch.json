@@ -201,6 +201,85 @@
       "evidence": [
         "hypr/hyprland/keybinds.conf"
       ]
+    },
+    {
+      "id": "qml-positioning",
+      "files_any_of": [
+        "/usr/lib/qt6/qml/QtPositioning/qmldir"
+      ],
+      "arch_packages_any_of": [
+        "qt6-positioning"
+      ],
+      "reason": "Settings and Weather import QtPositioning.",
+      "evidence": [
+        "quickshell"
+      ]
+    },
+    {
+      "id": "qml-graphical-effects",
+      "files_any_of": [
+        "/usr/lib/qt6/qml/Qt5Compat/GraphicalEffects/qmldir"
+      ],
+      "arch_packages_any_of": [
+        "qt6-5compat"
+      ],
+      "reason": "Core widgets import Qt5Compat.GraphicalEffects.",
+      "evidence": [
+        "quickshell"
+      ]
+    },
+    {
+      "id": "material-symbols",
+      "files_any_of": [
+        "/usr/share/fonts/TTF/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf",
+        "/usr/share/fonts/ttf-material-symbols-variable/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf"
+      ],
+      "arch_packages_any_of": [
+        "ttf-material-symbols-variable"
+      ],
+      "reason": "Core UI uses Material Symbols Rounded ligatures.",
+      "evidence": [
+        "quickshell"
+      ]
+    },
+    {
+      "id": "jq",
+      "commands_any_of": [
+        "jq"
+      ],
+      "arch_packages_any_of": [
+        "jq"
+      ],
+      "reason": "Appearance color scripts use jq.",
+      "evidence": [
+        "quickshell/scripts/colors/switchwall.sh"
+      ]
+    },
+    {
+      "id": "bc",
+      "commands_any_of": [
+        "bc"
+      ],
+      "arch_packages_any_of": [
+        "bc"
+      ],
+      "reason": "Appearance color scripts use bc.",
+      "evidence": [
+        "quickshell/scripts/colors/switchwall.sh"
+      ]
+    },
+    {
+      "id": "appearance-colors",
+      "commands_any_of": [
+        "matugen"
+      ],
+      "arch_packages_any_of": [
+        "matugen"
+      ],
+      "evidence": [
+        "quickshell/scripts/appearance-studio/appearance_studio.py"
+      ],
+      "reason": "Material color generation and appearance synchronization."
     }
   ],
   "optional": [
@@ -436,19 +515,6 @@
       ]
     },
     {
-      "id": "appearance-colors",
-      "commands_any_of": [
-        "matugen"
-      ],
-      "arch_packages_any_of": [
-        "matugen"
-      ],
-      "feature": "Material color generation and appearance synchronization.",
-      "evidence": [
-        "quickshell/scripts/appearance-studio/appearance_studio.py"
-      ]
-    },
-    {
       "id": "image-processing",
       "commands_any_of": [
         "magick",
@@ -535,15 +601,17 @@
     },
     {
       "id": "geolocation",
-      "commands_any_of": [
-        "geoclue"
-      ],
       "arch_packages_any_of": [
         "geoclue"
       ],
       "feature": "GeoClue agent used by location-aware shell functionality.",
       "evidence": [
         "hypr/hyprland/scripts/start_geoclue_agent.sh"
+      ],
+      "files_all_of": [
+        "/usr/lib/geoclue",
+        "/usr/lib/geoclue-2.0/demos/agent",
+        "/usr/lib/systemd/system/geoclue.service"
       ]
     },
     {

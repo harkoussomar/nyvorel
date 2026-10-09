@@ -9,7 +9,7 @@ from pathlib import Path
 
 HOME = Path.home()
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
-RULES = XDG_CONFIG / "hypr/custom/rules.conf"
+RULES = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
 TERMINAL_SYNC = HOME / ".local/bin/nyvorel-terminal-theme-sync"
 
 BEGIN = "# >>> nyvorel-fluid-interface-v1 >>>"

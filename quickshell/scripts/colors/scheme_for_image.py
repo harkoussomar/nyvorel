@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import math
+import statistics
 import sys
-import cv2
-import numpy as np
+
+from PIL import Image
 
 # Allowed scheme types
 SCHEMES = [
@@ -17,14 +19,14 @@ SCHEMES = [
 
 def image_colorfulness(image):
     # Based on Hasler and Süsstrunk's colorfulness metric
-    (B, G, R) = cv2.split(image.astype("float"))
-    rg = np.absolute(R - G)
-    yb = np.absolute(0.5 * (R + G) - B)
-    std_rg = np.std(rg)
-    std_yb = np.std(yb)
-    mean_rg = np.mean(rg)
-    mean_yb = np.mean(yb)
-    colorfulness = np.sqrt(std_rg ** 2 + std_yb ** 2) + (0.3 * np.sqrt(mean_rg ** 2 + mean_yb ** 2))
+    pixels = list(image.get_flattened_data() if hasattr(image, "get_flattened_data") else image.getdata())
+    rg = [abs(r - g) for r, g, _ in pixels]
+    yb = [abs(0.5 * (r + g) - b) for r, g, b in pixels]
+    std_rg = statistics.pstdev(rg)
+    std_yb = statistics.pstdev(yb)
+    mean_rg = statistics.fmean(rg)
+    mean_yb = statistics.fmean(yb)
+    colorfulness = math.hypot(std_rg, std_yb) + 0.3 * math.hypot(mean_rg, mean_yb)
     return colorfulness
 
 # scheme-content respects the image's colors very well, but it might
@@ -36,13 +38,14 @@ def pick_scheme(colorfulness):
         return "scheme-tonal-spot"
 
 def load_and_resize_image(img_path, max_dim=128):
-    img = cv2.imread(img_path)
-    if img is None:
+    try:
+        img = Image.open(img_path).convert("RGB")
+    except (OSError, ValueError):
         return None
-    h, w = img.shape[:2]
+    w, h = img.size
     if max(h, w) > max_dim:
         scale = max_dim / max(h, w)
-        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.Resampling.BOX)
     return img
 
 def main():

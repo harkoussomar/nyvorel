@@ -75,13 +75,15 @@ for group,name in ((deps['required'],required),(deps['optional'],optional)):
         if first:
             name.append(first[0])
         name.extend(whole)
-assert len(deps['required'])==12 and len(deps['optional'])==32 and len(deps['test-only'])==2
+assert len(deps['required'])==18 and len(deps['optional'])==31 and len(deps['test-only'])==2
 assert len(required)==len(set(required)),'duplicate required package names'
 assert len(optional)==len(set(optional)),'duplicate optional package names'
-assert set(metadata['depends'])==set(required),('required difference',set(metadata['depends'])^set(required))
+provisioning={'python-pillow','python-pip'}
+assert not provisioning.intersection(required),'provisioning packages duplicated in runtime contract'
+assert set(metadata['depends'])==set(required)|provisioning,('required/provisioning difference',set(metadata['depends'])^(set(required)|provisioning))
 actual_optional=[s.split(':',1)[0] for s in metadata['optdepends']]
 assert set(actual_optional)==set(optional),('optional difference',set(actual_optional)^set(optional))
-assert len(metadata['depends'])==len(required)
+assert len(metadata['depends'])==len(required)+len(provisioning)
 assert len(metadata['optdepends'])==len(optional)
 for row in deps['test-only']:
     for candidate in row.get('arch_packages_all_of',[]):
@@ -91,8 +93,8 @@ assert 'cloudflare-warp-bin' in optional and 'cloudflare-warp-bin' not in requir
 for text in (p,src):
     assert re.search(r'/home/[A-Za-z0-9._-]+/',text) is None
     assert '/usr/local/' not in text
-print('dependency_contract_required=12_PASS')
-print('dependency_contract_optional_features=32_PASS')
+print(f"dependency_contract_required={len(deps['required'])}_PASS")
+print(f"dependency_contract_optional_features={len(deps['optional'])}_PASS")
 print('test_only_runtime_separation=PASS')
 print('AUR_VCS_metadata_provides_conflicts=PASS')
 print('AUR_publication_forbidden=PASS')

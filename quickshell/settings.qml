@@ -455,6 +455,9 @@ ApplicationWindow {
             return
 
         const geometry = root.screen.availableGeometry
+            ?? root.screen.geometry
+        if (!geometry)
+            return
         const availableWidth = Math.max(
             root.minimumWidth,
             geometry.width - root.preferredScreenMargin

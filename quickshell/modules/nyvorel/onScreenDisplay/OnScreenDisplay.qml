@@ -81,7 +81,7 @@ Scope {
             screen =>
                 screen.name
                 === Hyprland.focusedMonitor?.name
-        )
+        ) ?? Quickshell.screens[0] ?? null
 
     property string currentIndicator:
         "volume"

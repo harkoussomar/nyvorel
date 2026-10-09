@@ -1,0 +1,8 @@
+[Unit]
+Description=Coalesce Nyvorel Zen and VS Code style changes
+
+[Timer]
+OnActiveSec=1s
+AccuracySec=100ms
+Unit=nyvorel-zen-code-style-sync.service
+RemainAfterElapse=no

@@ -43,8 +43,17 @@ GLASS_RUNTIME = HOME / ".local/bin/nyvorel-glass-runtime"
 FLUID_RUNTIME = HOME / ".local/bin/nyvorel-fluid-runtime"  # fluid-interface-v1
 EDITOR_COLOR_SCRIPT = NYVOREL_DIR / "scripts/colors/code/material-code-set-color.sh"
 QT_WRAPPER = XDG_CONFIG / "matugen/templates/kde/kde-material-you-colors-wrapper.sh"
-VIDEO_RESTORE_SCRIPT = XDG_CONFIG / "hypr/custom/scripts/__restore_video_wallpaper.sh"
-HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/general.conf"
+VIDEO_RESTORE_SCRIPT = XDG_CONFIG / "nyvorel/video-wallpaper-restore.sh"
+HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
+HYPR_CUSTOM_RULES = HYPR_CUSTOM_GENERAL
+KITTY_CONFIG = XDG_CONFIG / "kitty/kitty.conf"
+TERMINAL_RUNTIME_FILES = [
+    HOME / ".config/kitty/nyvorel-dynamic-theme.conf",
+    HOME / ".config/starship.toml",
+    HOME / ".config/kitty/tab_bar.py",
+    HOME / ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
+    HOME / ".local/state/nyvorel/terminal-startup-overlay.fish",
+]
 VIDEO_THUMBNAIL_DIR = XDG_CONFIG / "hypr/custom/scripts/mpvpaper_thumbnails"
 VIDEO_PREVIEW_DIR = XDG_CACHE / "nyvorel-appearance-studio/video-previews"
 VIDEO_OPTS = "no-audio loop hwdec=auto scale=bilinear interpolation=no video-sync=display-resample panscan=1.0 video-scale-x=1.0 video-scale-y=1.0 video-align-x=0.5 video-align-y=0.5 load-scripts=no"
@@ -386,6 +395,7 @@ EDITOR_SETTINGS = [
     XDG_CONFIG / "Code/User/settings.json",
     XDG_CONFIG / "VSCodium/User/settings.json",
     XDG_CONFIG / "Code - OSS/User/settings.json",
+    XDG_CONFIG / "Code - Insiders/User/settings.json",
     XDG_CONFIG / "Cursor/User/settings.json",
     XDG_CONFIG / "Antigravity/User/settings.json",
 ]
@@ -428,9 +438,12 @@ def _read_json(path: Path, default: Any) -> Any:
 
 
 def _write_json(path: Path, data: Any) -> None:
+    rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    if path.is_file() and path.read_text() == rendered:
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    tmp.write_text(rendered)
     tmp.replace(path)
 
 
@@ -797,10 +810,13 @@ def _resolve_scheme(requested: str, wallpaper: str) -> str:
     if requested != "auto":
         return requested
     path = _local_path(wallpaper)
-    if path.is_file() and SCHEME_DETECTOR.is_file():
+    py = Path(os.path.expanduser(os.environ.get(
+        "NYVOREL_VIRTUAL_ENV", "~/.local/state/quickshell/.venv",
+    ))) / "bin/python"
+    if path.is_file() and SCHEME_DETECTOR.is_file() and py.is_file():
         env = os.environ.copy()
         proc = subprocess.run(
-            [str(SCHEME_DETECTOR), str(path)],
+            [str(py), str(SCHEME_DETECTOR), str(path)],
             check=False, capture_output=True, text=True, timeout=15, env=env,
         )
         candidate = proc.stdout.strip()
@@ -1292,9 +1308,13 @@ def _generate_palette(seed: str, scheme: str, mode: str) -> dict[str, str]:
 def _capture_files(paths: list[Path]) -> dict[str, bytes | None]:
     snapshot: dict[str, bytes | None] = {}
     for path in paths:
-        try:
-            snapshot[str(path)] = path.read_bytes() if path.is_file() else None
-        except Exception:
+        if path.is_symlink():
+            raise RuntimeError(f"Appearance transaction path is a symlink: {path}")
+        if path.is_file():
+            snapshot[str(path)] = path.read_bytes()
+        elif path.exists():
+            raise RuntimeError(f"Appearance transaction path is not a file: {path}")
+        else:
             snapshot[str(path)] = None
     return snapshot
 
@@ -1302,15 +1322,31 @@ def _capture_files(paths: list[Path]) -> dict[str, bytes | None]:
 def _restore_files(snapshot: dict[str, bytes | None]) -> None:
     for raw, content in snapshot.items():
         path = Path(raw)
+        if path.is_symlink():
+            raise RuntimeError(f"Appearance rollback refuses symlink: {path}")
+        if content is None:
+            if path.exists():
+                path.unlink()
+            continue
+        if path.is_file() and path.read_bytes() == content:
+            continue
+        if path.exists() and not path.is_file():
+            raise RuntimeError(f"Appearance rollback target is not a file: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        mode = (path.stat().st_mode & 0o777) if path.is_file() else 0o644
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.restore-", dir=str(path.parent))
+        tmp = Path(tmp_name)
         try:
-            if content is None:
-                if path.exists():
-                    path.unlink()
-            else:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(content)
-        except Exception:
-            pass
+            with os.fdopen(fd, "wb") as output:
+                output.write(content)
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(tmp, mode)
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
+        if path.read_bytes() != content:
+            raise RuntimeError(f"Appearance rollback verification failed: {path}")
 
 
 def _gsettings_snapshot() -> dict[str, str]:
@@ -1349,6 +1385,9 @@ def _all_transaction_files() -> list[Path]:
         WALLPAPER_TXT,
         VIDEO_RESTORE_SCRIPT,
         HYPR_CUSTOM_GENERAL,
+        HYPR_CUSTOM_RULES,
+        KITTY_CONFIG,
+        *TERMINAL_RUNTIME_FILES,
     ]
     for paths in TARGET_FILES.values():
         files.extend(paths)
@@ -1430,9 +1469,16 @@ def _transaction_snapshot() -> dict[str, Any]:
 
 
 def _restore_transaction(snapshot: dict[str, Any]) -> None:
-    _restore_files(snapshot.get("files", {}))
+    files = snapshot.get("files", {})
+    _restore_files(files)
     _restore_gsettings(snapshot.get("gsettings", {}))
     _sync_glass_runtime_for_cfg(_read_json(NYVOREL_CONFIG, {}), best_effort=True)
+    # Runtime helpers can normalize managed files while resynchronizing. The
+    # transaction owns the exact original bytes, including personal edits.
+    rules_after_sync = HYPR_CUSTOM_RULES.read_bytes() if HYPR_CUSTOM_RULES.is_file() else None
+    _restore_files(files)
+    if rules_after_sync != (HYPR_CUSTOM_RULES.read_bytes() if HYPR_CUSTOM_RULES.is_file() else None):
+        _run_optional_command(["hyprctl", "reload"], timeout=8)
 
 
 def _apply_ui_snapshot(snapshot: dict[str, Any] | None) -> None:
@@ -1620,7 +1666,14 @@ def _prepare_preview_snapshot(state: dict[str, Any]) -> None:
     files = []
     for paths in TARGET_FILES.values():
         files.extend(paths)
-    files += [NYVOREL_CONFIG, GENERATED / "material_colors.scss", GENERATED / "color.txt"]
+    files += [
+        NYVOREL_CONFIG,
+        GENERATED / "material_colors.scss",
+        GENERATED / "color.txt",
+        HYPR_CUSTOM_RULES,
+        KITTY_CONFIG,
+        *TERMINAL_RUNTIME_FILES,
+    ]
 
     manifest: dict[str, str | None] = {}
     store = PREVIEW_DIR / "files"
@@ -1641,23 +1694,31 @@ def _prepare_preview_snapshot(state: dict[str, Any]) -> None:
 
 
 def _restore_preview_runtime(*, remove: bool) -> None:
+    preview_cfg = _read_json(NYVOREL_CONFIG, {})
     manifest = _read_json(PREVIEW_DIR / "manifest.json", {})
     store = PREVIEW_DIR / "files"
+    snapshot: dict[str, bytes | None] = {}
     for raw_path, key in manifest.items():
-        item = Path(raw_path)
-        if key is None:
-            if item.exists():
-                try:
-                    item.unlink()
-                except Exception:
-                    pass
-        else:
-            saved = store / key
-            if saved.is_file():
-                item.parent.mkdir(parents=True, exist_ok=True)
-                item.write_bytes(saved.read_bytes())
+        saved = store / key if key is not None else None
+        if saved is not None and not saved.is_file():
+            raise RuntimeError(f"Missing preview backup for {raw_path}")
+        snapshot[raw_path] = saved.read_bytes() if saved is not None else None
+    _restore_files(snapshot)
     _restore_gsettings(_read_json(PREVIEW_DIR / "gsettings.json", {}))
-    _sync_glass_runtime_for_cfg(_read_json(NYVOREL_CONFIG, {}), best_effort=True)
+    restored_cfg = _read_json(NYVOREL_CONFIG, {})
+    runtime_changed = (
+        _glass_runtime_mode_for_cfg(preview_cfg), _fluid_runtime_mode_for_cfg(preview_cfg)
+    ) != (
+        _glass_runtime_mode_for_cfg(restored_cfg), _fluid_runtime_mode_for_cfg(restored_cfg)
+    )
+    if runtime_changed:
+        _sync_glass_runtime_for_cfg(restored_cfg, best_effort=True)
+        # Glass/Fluid synchronization may reformat the just-restored rules and
+        # terminal files. Finish with the immutable preview bytes.
+        rules_after_sync = HYPR_CUSTOM_RULES.read_bytes() if HYPR_CUSTOM_RULES.is_file() else None
+        _restore_files(snapshot)
+        if rules_after_sync != (HYPR_CUSTOM_RULES.read_bytes() if HYPR_CUSTOM_RULES.is_file() else None):
+            _run_optional_command(["hyprctl", "reload"], timeout=8)
     if remove:
         shutil.rmtree(PREVIEW_DIR, ignore_errors=True)
 
@@ -2443,6 +2504,7 @@ def _render_preview(request: dict[str, Any]) -> dict[str, Any]:
     state = _load_state()
     targets = deepcopy(state.get("targets", {}))
     cfg = _read_json(NYVOREL_CONFIG, {})
+    runtime_before = (_glass_runtime_mode_for_cfg(cfg), _fluid_runtime_mode_for_cfg(cfg))
     resolved = _resolve_request(request, cfg, preview=True)
 
     _apply_ui_snapshot_to_cfg(cfg, resolved.get("ui"))
@@ -2474,7 +2536,8 @@ def _render_preview(request: dict[str, Any]) -> dict[str, Any]:
 
     _ensure_radius_geometry(cfg)
     _write_json(NYVOREL_CONFIG, cfg)
-    _sync_glass_runtime_for_cfg(cfg)
+    if runtime_before != (_glass_runtime_mode_for_cfg(cfg), _fluid_runtime_mode_for_cfg(cfg)):
+        _sync_glass_runtime_for_cfg(cfg)
     candidate = _make_active(
         resolved["source"],
         resolved["mode"],

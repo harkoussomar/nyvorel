@@ -14,7 +14,7 @@ II = XDG_CONFIG / "quickshell/nyvorel"
 CONFIG_QML = II / "modules/common/Config.qml"
 APPEARANCE_QML = II / "modules/common/Appearance.qml"
 NYVOREL_CONFIG = XDG_CONFIG / "nyvorel/config.json"
-HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/general.conf"
+HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
 
 RADIUS_DEFAULTS = {
     "global": 17,

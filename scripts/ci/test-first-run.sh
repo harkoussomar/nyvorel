@@ -17,7 +17,7 @@ CLI="$HOME_TEST/.local/bin/nyvorel"
 [[ -x "$CLI" ]] || die 'CLI missing'
 [[ -x "$HOME_TEST/.local/bin/nyvorel-welcome" ]] || die 'welcome helper not executable'
 "$CLI" help | grep -q 'welcome'
-"$CLI" welcome --help | grep -q '\-\-no-session'
+"$CLI" welcome --help | grep -q -- '--no-session'
 MANIFEST="$(tr -d '\r\n' < "$HOME_TEST/.local/state/nyvorel/current-install")/manifest.json"
 BEFORE="$(sha256sum "$MANIFEST" | cut -d' ' -f1)"
 set +e

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Nyvorel
+Comment=Nyvorel desktop on Hyprland
+Exec=/usr/bin/nyvorel session
+TryExec=/usr/bin/nyvorel
+Type=Application
+DesktopNames=Nyvorel;Hyprland;

@@ -12,6 +12,8 @@ license=('GPL-3.0-only' 'Apache-2.0' 'CC-BY-4.0' 'MIT')
 depends=(
   'bash'
   'python'
+  'python-pillow'
+  'python-pip'
   'hyprland'
   'quickshell'
   'systemd'
@@ -22,6 +24,12 @@ depends=(
   'grep'
   'sed'
   'gawk'
+  'qt6-positioning'
+  'qt6-5compat'
+  'ttf-material-symbols-variable'
+  'jq'
+  'bc'
+  'matugen'
 )
 optdepends=(
   'libnotify: Desktop notifications and fallback user feedback.'
@@ -42,7 +50,6 @@ optdepends=(
   'brightnessctl: Brightness media-key fallback.'
   'gnome-keyring: Secrets keyring session component.'
   'networkmanager: Network integration used by shell modules.'
-  'matugen: Material color generation and appearance synchronization.'
   'imagemagick: Wallpaper profiling and image processing.'
   'mpvpaper: Video wallpaper playback.'
   'kitty: Preferred terminal and Kitty theme synchronization.'
@@ -94,6 +101,7 @@ package() {
   local _units="$pkgdir/usr/lib/systemd/user"
 
   install -Dm755 "$_src/bin/nyvorel" "$pkgdir/usr/bin/nyvorel"
+  install -Dm644 "$_src/packaging/nyvorel.desktop" "$pkgdir/usr/share/wayland-sessions/nyvorel.desktop"
   install -Dm755 "$_src/install.sh" "$pkgdir/usr/lib/nyvorel/install.sh"
   install -Dm755 "$_src/uninstall.sh" "$pkgdir/usr/lib/nyvorel/uninstall.sh"
 
@@ -106,7 +114,7 @@ package() {
   install -m755 "$_src/packaging/nyvorel-package-install"     "$_helpers/nyvorel-package-install"
 
   install -d "$_share"
-  for _dir in quickshell hypr integrations dependencies assets; do
+  for _dir in quickshell hypr matugen integrations dependencies assets; do
     cp -a "$_src/$_dir" "$_share/$_dir"
   done
   install -m644 "$_src/VERSION" "$_share/VERSION"
@@ -135,6 +143,12 @@ prefixes=(
 
 for path in share.rglob("*"):
     if not path.is_file() or path.is_symlink():
+        continue
+    # Remove interpreter caches only from the disposable package payload.
+    if ("__pycache__" in path.relative_to(share).parts
+            or path.suffix in {".pyc", ".pyo"}
+            or ".before-" in path.name or ".pre-" in path.name):
+        path.unlink()
         continue
     data=path.read_bytes()
     original=data
@@ -246,6 +260,7 @@ package_version=sys.argv[3]
 roots=[
     src/"quickshell",
     src/"hypr",
+    src/"matugen",
     src/"bin",
     src/"dependencies",
     src/"integrations",

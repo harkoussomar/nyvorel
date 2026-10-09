@@ -192,6 +192,8 @@ for entry in entries:
     rel = Path(entry["destination"])
     if rel.is_absolute() or ".." in rel.parts:
         raise SystemExit(f"unsafe manifest destination: {rel}")
+    if entry.get("ownership") == "runtime" and rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+        raise SystemExit(f"invalid runtime ownership destination: {rel}")
 
     dest = home / rel
     installed = entry.get("installed")
@@ -212,6 +214,11 @@ for entry in entries:
     if not lexists(dest):
         missing.append(rel.as_posix())
         changed.append(rel.as_posix())
+        continue
+
+    if entry.get("ownership") == "runtime":
+        if not dest.is_file() or dest.is_symlink():
+            changed.append(rel.as_posix())
         continue
 
     kind = installed.get("kind")
@@ -366,18 +373,24 @@ archived = []
 
 # Revalidate immediately before mutation.
 conflicts = []
+runtime_archives = []
 for entry in entries:
     rel = Path(entry["destination"])
+    if entry.get("ownership") == "runtime" and rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+        raise SystemExit(f"invalid runtime ownership destination: {rel}")
     dest = home / rel
+    if entry.get("ownership") == "runtime" and dest.is_file() and not dest.is_symlink():
+        runtime_archives.append(rel)
+        continue
     if not matches_installed(dest, entry["installed"]):
         conflicts.append(rel)
 
 if conflicts and not force_changed:
     raise SystemExit("installed files changed after preflight; refusing recovery")
 
-if conflicts:
+if conflicts or runtime_archives:
     conflict_root.mkdir(parents=True, exist_ok=True)
-    for rel in conflicts:
+    for rel in conflicts + runtime_archives:
         dest = home / rel
         if not lexists(dest):
             continue

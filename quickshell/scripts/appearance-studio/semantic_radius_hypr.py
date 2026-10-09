@@ -63,7 +63,7 @@ def main() -> int:
     )
 
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    persist_rounding(config_home / "hypr/custom/general.conf", value)
+    persist_rounding(config_home / "hypr/custom/appearance-runtime.conf", value)
     return 0
 
 

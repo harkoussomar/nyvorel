@@ -31,6 +31,24 @@ jobs:
       - name: Validate source contracts
         run: bash scripts/ci/validate-source.sh
 
+      - name: Validate isolated appearance recovery
+        run: python3 scripts/ci/test-appearance-studio.py
+
+      - name: Validate appearance runtime ownership
+        run: bash scripts/ci/test-appearance-ownership.sh
+
+      - name: Validate style-sync outputs
+        run: python3 scripts/ci/test-style-sync.py
+
+      - name: Validate user-unit syntax and style-sync coalescing
+        run: bash scripts/ci/test-systemd-units.sh
+
+      - name: Validate Nyvorel session entry
+        run: bash scripts/ci/test-session-entry.sh
+
+      - name: Validate runtime asset dependency probes
+        run: python3 scripts/ci/test-runtime-dependencies.py
+
       - name: Validate guided first-run onboarding
         run: bash scripts/ci/test-first-run.sh
 
@@ -60,6 +78,9 @@ jobs:
 
       - name: Exercise install and recovery lifecycle
         run: bash scripts/ci/test-installer-sandbox.sh
+
+      - name: Exclude local interpreter caches from installation
+        run: bash scripts/ci/test-install-bytecode.sh
 
   doctor:
     name: Doctor sandbox

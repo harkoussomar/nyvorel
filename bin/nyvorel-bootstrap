@@ -59,6 +59,18 @@ def selector(
     return ("any" if has_any else "all"), values
 
 
+def runtime_selector(entry: dict[str, Any]) -> tuple[str, list[str]]:
+    keys = ("commands_any_of", "commands_all_of", "files_any_of", "files_all_of")
+    selected = [key for key in keys if isinstance(entry.get(key), list) and entry[key]]
+    if len(selected) != 1:
+        raise BootstrapError(f"{entry.get('id')}: exactly one runtime selector required")
+    kind = "files" if selected[0].startswith("files_") else "commands"
+    mode, values = selector(entry, f"{kind}_any_of", f"{kind}_all_of")
+    if kind == "files" and not all(Path(value).is_absolute() and ".." not in Path(value).parts for value in values):
+        raise BootstrapError(f"{entry.get('id')}: runtime files must be absolute paths")
+    return mode, values
+
+
 def load_contract(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text())
@@ -102,7 +114,7 @@ def load_contract(path: Path) -> dict[str, Any]:
         for entry in entries:
             if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
                 raise BootstrapError(f"invalid {class_name} dependency entry")
-            selector(entry, "commands_any_of", "commands_all_of")
+            runtime_selector(entry)
             _, packages = selector(
                 entry,
                 "arch_packages_any_of",
@@ -120,12 +132,13 @@ def command_status(
     entry: dict[str, Any],
     search_path: str | None,
 ) -> dict[str, Any]:
-    mode, commands = selector(entry, "commands_any_of", "commands_all_of")
+    mode, commands = runtime_selector(entry)
+    file_probe = "files_any_of" in entry or "files_all_of" in entry
     found: list[dict[str, str]] = []
     missing: list[str] = []
 
     for command in commands:
-        path = shutil.which(command, path=search_path)
+        path = (command if Path(command).is_file() else None) if file_probe else shutil.which(command, path=search_path)
         if path is None:
             missing.append(command)
         else:
@@ -135,6 +148,7 @@ def command_status(
 
     return {
         "id": entry["id"],
+        "probe_kind": "file" if file_probe else "command",
         "command_mode": mode,
         "commands": commands,
         "found": found,
@@ -193,11 +207,7 @@ def optional_catalog(contract: dict[str, Any]) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
 
     for entry in contract["optional"]:
-        command_mode, commands = selector(
-            entry,
-            "commands_any_of",
-            "commands_all_of",
-        )
+        command_mode, commands = runtime_selector(entry)
         package_mode, packages = selector(
             entry,
             "arch_packages_any_of",
@@ -239,7 +249,7 @@ def print_optional_catalog(catalog: dict[str, Any]) -> None:
         print(f"{item['id']}")
         print(f"  Feature : {item['feature']}")
         print(
-            "  Commands: "
+            "  Runtime : "
             + command_joiner.join(item["commands"])
             + f" ({item['command_mode']})"
         )

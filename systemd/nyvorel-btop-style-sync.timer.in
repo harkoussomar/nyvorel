@@ -1,0 +1,8 @@
+[Unit]
+Description=Coalesce Nyvorel btop style changes
+
+[Timer]
+OnActiveSec=1s
+AccuracySec=100ms
+Unit=nyvorel-btop-style-sync.service
+RemainAfterElapse=no

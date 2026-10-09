@@ -22,6 +22,14 @@ from urllib.request import Request, urlopen
 HOME_TOKEN = "@" + "HOME" + "@"
 HOME_TOKEN_BYTES = HOME_TOKEN.encode()
 STABLE_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+RUNTIME_REL = ".config/hypr/custom/appearance-runtime.conf"
+LEGACY_APPEARANCE_MARKERS = {
+    ".config/hypr/custom/general.conf": ("Appearance Studio: window radius",),
+    ".config/hypr/custom/rules.conf": (
+        "appearance-studio-glass-runtime-v2",
+        "nyvorel-fluid-interface-v1",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -106,6 +114,8 @@ def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
             continue
         if "__pycache__" in src.parts or src.suffix in {".pyc", ".pyo"}:
             continue
+        if ".before-" in src.name or ".pre-" in src.name:
+            continue
         rel_inside = src.relative_to(src_root)
         items.append(Item(src=src, rel=dest_root / rel_inside))
 
@@ -118,6 +128,7 @@ def build_items(root: Path, source_kind: str = "source-clone") -> list[Item]:
 
     add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
     add_tree(items, root / "hypr", Path(".config/hypr"))
+    add_tree(items, root / "matugen", Path(".config/matugen"))
 
     for name in ("fish", "kitty"):
         src = root / "integrations" / name
@@ -207,6 +218,56 @@ def live_state(path: Path, expected: dict[str, Any]) -> str:
         return "ok" if sha256_file(path) == value else "changed"
 
     return "invalid"
+
+
+def appearance_blocks(text: str, rel: str) -> tuple[str, list[str]]:
+    blocks: list[str] = []
+    base = text
+    for marker in LEGACY_APPEARANCE_MARKERS[rel]:
+        begin = f"# >>> {marker} >>>"
+        end = f"# <<< {marker} <<<"
+        if base.count(begin) != base.count(end) or base.count(begin) > 1:
+            raise UpdateError(f"malformed legacy appearance marker in {rel}: {marker}")
+        if begin not in base:
+            continue
+        pattern = re.compile(r"^" + re.escape(begin) + r"\n.*?^" + re.escape(end), re.M | re.S)
+        match = pattern.search(base)
+        if match is None:
+            raise UpdateError(f"malformed legacy appearance block in {rel}: {marker}")
+        blocks.append(match.group(0))
+        base = base[:match.start()] + base[match.end():]
+    return re.sub(r"\n{3,}", "\n\n", base).strip(), blocks
+
+
+def known_legacy_appearance_change(
+    rel: str, entry: dict[str, Any], live: Path, old_manifest: dict[str, Any]
+) -> bool:
+    if rel not in LEGACY_APPEARANCE_MARKERS or live.is_symlink() or not live.is_file():
+        return False
+    if old_manifest.get("source_kind") != "source-clone":
+        return False
+    commit = str(old_manifest.get("source_commit") or "")
+    root = Path(str(old_manifest.get("source_root") or ""))
+    source_path = entry.get("source")
+    if not re.fullmatch(r"[0-9a-fA-F]{40,64}", commit):
+        return False
+    if source_path not in {"hypr/custom/general.conf", "hypr/custom/rules.conf"}:
+        return False
+    proc = subprocess.run(
+        ["git", "-C", str(root), "show", f"{commit}:{source_path}"],
+        capture_output=True, check=False, timeout=8,
+    )
+    if proc.returncode != 0:
+        return False
+    original = proc.stdout.replace(HOME_TOKEN_BYTES, str(live.parents[3]).encode())
+    if entry["installed"] != {"kind": "file", "value": hashlib.sha256(original).hexdigest()}:
+        return False
+    try:
+        old_base, _ = appearance_blocks(original.decode("utf-8"), rel)
+        live_base, _ = appearance_blocks(live.read_text(encoding="utf-8"), rel)
+    except (UnicodeError, UpdateError):
+        return False
+    return old_base == live_base
 
 
 def validate_source(
@@ -836,6 +897,8 @@ def main() -> int:
             raise UpdateError(f"duplicate current manifest destination: {key}")
         if not isinstance(entry.get("installed"), dict):
             raise UpdateError(f"current manifest entry has no installed digest: {key}")
+        if entry.get("ownership") == "runtime" and key != RUNTIME_REL:
+            raise UpdateError(f"invalid runtime ownership destination: {key}")
         old_entries[key] = entry
 
     candidate_by_rel = {item.rel.as_posix(): item for item in items}
@@ -845,9 +908,18 @@ def main() -> int:
     invalid: list[str] = []
 
     for rel, entry in old_entries.items():
+        if entry.get("ownership") == "runtime":
+            live = home / rel
+            if not lexists(live):
+                drift_missing.append(rel)
+            elif not live.is_file() or live.is_symlink():
+                drift_changed.append(rel)
+            continue
         status = live_state(home / rel, entry["installed"])
         if status == "changed":
-            drift_changed.append(rel)
+            if not (RUNTIME_REL in candidate_by_rel and RUNTIME_REL not in old_entries
+                    and known_legacy_appearance_change(rel, entry, home / rel, old_manifest)):
+                drift_changed.append(rel)
         elif status == "missing":
             drift_missing.append(rel)
         elif status == "invalid":
@@ -879,10 +951,37 @@ def main() -> int:
     added = sorted(set(candidate_by_rel) - set(old_entries))
     retired = sorted(set(old_entries) - set(candidate_by_rel))
 
+    migrated_runtime: bytes | None = None
+    if RUNTIME_REL in added and not lexists(home / RUNTIME_REL):
+        runtime_seed = candidate_by_rel[RUNTIME_REL].src.read_text(encoding="utf-8")
+        migrated_blocks: dict[str, str] = {}
+        for rel in LEGACY_APPEARANCE_MARKERS:
+            if rel not in old_entries:
+                continue
+            live = home / rel
+            if not live.is_file() or live.is_symlink():
+                continue
+            _, blocks = appearance_blocks(live.read_text(encoding="utf-8"), rel)
+            for block in blocks:
+                marker = block.splitlines()[0]
+                migrated_blocks[marker] = block
+        radius_marker = "# >>> Appearance Studio: window radius >>>"
+        if radius_marker in migrated_blocks:
+            runtime_seed = re.sub(
+                re.escape(radius_marker) + r".*?" + re.escape("# <<< Appearance Studio: window radius <<<"),
+                lambda _: migrated_blocks.pop(radius_marker), runtime_seed, count=1, flags=re.S,
+            )
+        if migrated_blocks:
+            runtime_seed = runtime_seed.rstrip() + "\n\n" + "\n\n".join(migrated_blocks.values()) + "\n"
+        migrated_runtime = runtime_seed.encode("utf-8")
+
     content_changes: list[str] = []
     unchanged: list[str] = []
 
     for rel in retained:
+        if old_entries[rel].get("ownership") == "runtime":
+            unchanged.append(rel)
+            continue
         candidate_digest = rendered_digest(candidate_by_rel[rel], home)
         if candidate_digest == old_entries[rel]["installed"]:
             unchanged.append(rel)
@@ -1095,15 +1194,16 @@ def main() -> int:
                 copy_path(baseline, state / backup_rel_path)
                 backup_rel = backup_rel_path.as_posix()
 
-            records.append(
-                {
-                    "destination": rel,
-                    "source": str(item.src.relative_to(source)),
-                    "preexisting": preexisting,
-                    "backup": backup_rel,
-                    "installed": None,
-                }
-            )
+            record = {
+                "destination": rel,
+                "source": str(item.src.relative_to(source)),
+                "preexisting": preexisting,
+                "backup": backup_rel,
+                "installed": None,
+            }
+            if rel == RUNTIME_REL:
+                record["ownership"] = "runtime"
+            records.append(record)
 
         write_manifest("updating")
 
@@ -1122,13 +1222,22 @@ def main() -> int:
 
         for rel, item in sorted(candidate_by_rel.items()):
             dest = home / rel
+            if rel == RUNTIME_REL and lexists(dest) and (
+                rel not in old_entries or old_entries[rel].get("ownership") == "runtime"
+            ):
+                if not dest.is_file() or dest.is_symlink():
+                    raise UpdateError(f"runtime state must be a regular file: {dest}")
+                record_by_rel[rel]["installed"] = installed_digest(dest)
+                write_manifest("updating")
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             remove_path(dest)
 
             if item.src.is_symlink():
                 os.symlink(os.readlink(item.src), dest)
             else:
-                data = item.src.read_bytes().replace(
+                data = (migrated_runtime if rel == RUNTIME_REL and migrated_runtime is not None
+                        else item.src.read_bytes()).replace(
                     HOME_TOKEN_BYTES,
                     str(home).encode("utf-8"),
                 )

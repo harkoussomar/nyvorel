@@ -12,7 +12,7 @@ import tempfile
 
 HOME = Path.home()
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
-CUSTOM_RULES = XDG_CONFIG / "hypr/custom/rules.conf"
+CUSTOM_RULES = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
 KITTY_CONF = XDG_CONFIG / "kitty/kitty.conf"
 STUDIO_STATE = XDG_CONFIG / "nyvorel/appearance-studio.json"
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "appearance-studio"
@@ -136,8 +136,13 @@ def sync_hypr_rules(mode: str, enabled: bool) -> bool:
     if not CUSTOM_RULES.is_file():
         raise RuntimeError(f"Missing Hyprland custom rules: {CUSTOM_RULES}")
     original = CUSTOM_RULES.read_text(encoding="utf-8")
-    base, _ = strip_glass_block(original)
     want_glass = mode == "glass" and enabled
+    if want_glass and original.count(BEGIN) == 1 and original.count(END) == 1:
+        start = original.index(BEGIN)
+        end = original.index(END, start) + len(END)
+        if original[start:end] == GLASS_BLOCK:
+            return False
+    base, _ = strip_glass_block(original)
     updated = base.rstrip("\n") + "\n\n" + GLASS_BLOCK + "\n" if want_glass else base
     if updated == original:
         return False

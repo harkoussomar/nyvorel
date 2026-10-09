@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-QUICKSHELL_CONFIG_NAME="ii"
+QUICKSHELL_CONFIG_NAME="nyvorel"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
@@ -21,8 +21,13 @@ colorstrings=''
 colorlist=()
 colorvalues=()
 
-colornames=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f1)
-colorstrings=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f2 | cut -d ' ' -f2 | cut -d ";" -f1)
+PALETTE_FILE="$STATE_DIR/user/generated/material_colors.scss"
+if [[ ! -s "$PALETTE_FILE" ]]; then
+  echo "Missing generated terminal palette: $PALETTE_FILE" >&2
+  exit 1
+fi
+colornames=$(cut -d: -f1 "$PALETTE_FILE")
+colorstrings=$(cut -d: -f2 "$PALETTE_FILE" | cut -d ' ' -f2 | cut -d ";" -f1)
 IFS=$'\n'
 colorlist=($colornames)     # Array of color names
 colorvalues=($colorstrings) # Array of color values

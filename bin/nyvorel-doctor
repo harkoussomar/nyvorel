@@ -435,6 +435,11 @@ class Doctor:
         if not self.lexists(dest):
             return "missing", rel.as_posix()
 
+        if entry.get("ownership") == "runtime":
+            if rel.as_posix() != ".config/hypr/custom/appearance-runtime.conf":
+                return "invalid", rel.as_posix()
+            return ("ok" if dest.is_file() and not dest.is_symlink() else "changed"), rel.as_posix()
+
         kind = installed.get("kind")
         expected = installed.get("value")
 
@@ -670,7 +675,7 @@ class Doctor:
 
                 command_selectors = [
                     key
-                    for key in ("commands_any_of", "commands_all_of")
+                    for key in ("commands_any_of", "commands_all_of", "files_any_of", "files_all_of")
                     if isinstance(entry.get(key), list) and entry.get(key)
                 ]
                 package_selectors = [
@@ -685,6 +690,12 @@ class Doctor:
 
                 commands = entry[command_selectors[0]]
                 packages = entry[package_selectors[0]]
+                if command_selectors[0].startswith("files_") and not all(
+                    isinstance(value, str) and Path(value).is_absolute() and ".." not in Path(value).parts
+                    for value in commands
+                ):
+                    errors.append(f"invalid runtime file paths: {entry.get('id')!r}")
+                    break
                 if (
                     not all(isinstance(value, str) and value for value in commands)
                     or not all(isinstance(value, str) and value for value in packages)
@@ -724,7 +735,11 @@ class Doctor:
 
     @staticmethod
     def _dependency_result(entry: dict[str, Any]) -> dict[str, Any]:
-        if isinstance(entry.get("commands_all_of"), list):
+        file_probe = "files_any_of" in entry or "files_all_of" in entry
+        if file_probe:
+            command_mode = "all" if "files_all_of" in entry else "any"
+            commands = list(entry[f"files_{command_mode}_of"])
+        elif isinstance(entry.get("commands_all_of"), list):
             command_mode = "all"
             commands = list(entry["commands_all_of"])
         else:
@@ -741,7 +756,7 @@ class Doctor:
         found = [
             {"command": command, "path": path}
             for command in commands
-            if (path := shutil.which(command)) is not None
+            if (path := ((command if Path(command).is_file() else None) if file_probe else shutil.which(command))) is not None
         ]
         found_names = {item["command"] for item in found}
         missing_commands = [
@@ -751,6 +766,7 @@ class Doctor:
 
         return {
             "id": entry["id"],
+            "probe_kind": "file" if file_probe else "command",
             "satisfied": satisfied,
             "command_mode": command_mode,
             "commands": commands,
@@ -1107,12 +1123,79 @@ class Doctor:
                     "No configuration errors reported.",
                 )
 
+    def check_appearance_runtime(self) -> None:
+        if not self.dependency_checks:
+            self.add("appearance.runtime", "SKIP", "Appearance generation runtime",
+                     "Use --dependencies to check color templates and Python modules.")
+            return
+
+        # Inspect the requested home, never borrow the maintainer's environment
+        # when diagnosing another installation.
+        current_home = self.home == Path.home().resolve(strict=False)
+        config_home = Path(os.environ.get("XDG_CONFIG_HOME", self.home / ".config")) if current_home else self.home / ".config"
+        env_root = self.home / ".local/state/quickshell/.venv"
+        if current_home and os.environ.get("NYVOREL_VIRTUAL_ENV"):
+            env_root = Path(os.environ["NYVOREL_VIRTUAL_ENV"]).expanduser()
+        interpreter = env_root / "bin/python"
+        matugen_config = config_home / "matugen/config.toml"
+        problems = []
+        try:
+            system_pillow = subprocess.run(
+                ["python3", "-c", "import PIL"],
+                text=True, capture_output=True, timeout=10, check=False,
+            )
+            if system_pillow.returncode:
+                problems.append("System python-pillow is unavailable")
+        except (OSError, subprocess.TimeoutExpired):
+            problems.append("System python-pillow could not be checked")
+        if not matugen_config.is_file():
+            problems.append(f"Missing Matugen configuration: {matugen_config}")
+        else:
+            try:
+                import tomllib
+                data = tomllib.loads(matugen_config.read_text())
+                templates = data.get("templates", {})
+                if not templates:
+                    problems.append("Matugen has no output templates")
+                for name, template in templates.items():
+                    raw = str(template.get("input_path", ""))
+                    if raw.startswith("~/"):
+                        path = self.home / raw[2:]
+                    else:
+                        path = Path(raw)
+                        if not path.is_absolute():
+                            path = matugen_config.parent / path
+                    if not raw or not path.is_file():
+                        problems.append(f"Missing Matugen template: {name}")
+            except (OSError, ValueError, TypeError, AttributeError) as exc:
+                problems.append(f"Cannot read Matugen templates: {exc}")
+
+        if not interpreter.is_file() or not os.access(interpreter, os.X_OK):
+            problems.append(f"Missing color Python interpreter: {interpreter}")
+        else:
+            try:
+                result = subprocess.run(
+                    [str(interpreter), "-c", "import PIL, materialyoucolor"],
+                    text=True, capture_output=True, timeout=15, check=False,
+                )
+                if result.returncode:
+                    problems.append("Color Python modules unavailable: " + (result.stderr or result.stdout)[-500:].strip())
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                problems.append(f"Color Python probe failed: {exc}")
+
+        self.add(
+            "appearance.runtime", "FAIL" if problems else "PASS", "Appearance generation runtime",
+            "; ".join(problems) if problems else "Matugen template inputs exist and the configured color interpreter imports its modules; generation still needs functional validation.",
+            "Install the source-owned Matugen templates and official Arch python-pillow/python-pip packages, then run `nyvorel color-env --plan` and `nyvorel color-env --install --yes` to create the isolated color environment." if problems else None,
+        )
+
     def run(self) -> None:
         self.check_platform()
         self.load_manifest()
         self.check_installation_files()
         self.load_dependency_contract()
         self.check_dependencies()
+        self.check_appearance_runtime()
         self.check_manifest_integrity()
         self.check_materialization()
         self.check_config()

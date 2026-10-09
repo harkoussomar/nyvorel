@@ -1,0 +1,8 @@
+[Unit]
+Description=Coalesce Nyvorel Fuzzel style changes
+
+[Timer]
+OnActiveSec=1s
+AccuracySec=100ms
+Unit=nyvorel-fuzzel-style-sync.service
+RemainAfterElapse=no

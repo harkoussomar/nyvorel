@@ -13,13 +13,16 @@ trap 'rm -rf "$TMP"' EXIT
 CANDIDATE="$TMP/candidate"
 mkdir -p "$CANDIDATE"
 
-# Copy the working source, including the uncommitted Phase 3 implementation,
-# without making the candidate a Git checkout.
-cp -a "$ROOT/." "$CANDIDATE/"
-rm -rf "$CANDIDATE/.git"
+# Copy tracked and non-ignored source, including uncommitted implementation,
+# without pulling private runtime backups or a Git checkout into the fixture.
+git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
+  | tar -C "$ROOT" --null -T - -cf - \
+  | tar -C "$CANDIDATE" -xf -
 find "$CANDIDATE" -type d -name __pycache__ -prune -exec rm -rf {} +
 
 printf '\n# ci-update-candidate\n' >>"$CANDIDATE/bin/nyvorel-settings"
+printf '\n# candidate seed must not replace selected appearance\n' \
+  >>"$CANDIDATE/hypr/custom/appearance-runtime.conf"
 
 cat >"$CANDIDATE/bin/nyvorel-ci-update-fixture" <<'EOF'
 #!/usr/bin/env bash
@@ -45,6 +48,25 @@ printf '%s\n' "$SENTINEL" >"$HOME1/.config/quickshell/nyvorel/shell.qml"
 
 OLD_STATE1="$(tr -d '\r\n' <"$HOME1/.local/state/nyvorel/current-install")"
 OLD_POINTER1="$(cat "$HOME1/.local/state/nyvorel/current-install")"
+RUNTIME1="$HOME1/.config/hypr/custom/appearance-runtime.conf"
+printf '\n# user selected Fluid\n' >>"$RUNTIME1"
+RUNTIME_SHA1="$(sha256sum "$RUNTIME1" | cut -d' ' -f1)"
+[[ -f "$HOME1/.config/matugen/config.toml" ]] \
+  || die "installer omitted source-owned Matugen config"
+python3 - "$HOME1" "$ROOT/bin/nyvorel-doctor" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+home, doctor = sys.argv[1:]
+result = subprocess.run(
+    [doctor, "--home", home, "--deep", "--json", "--no-session"],
+    capture_output=True, text=True, check=False,
+)
+payload = json.loads(result.stdout)
+integrity = [check for check in payload["checks"] if check["id"] == "manifest.integrity"]
+assert len(integrity) == 1 and integrity[0]["status"] == "PASS", integrity
+PY
 
 "$UPDATER" \
   --target-home "$HOME1" \
@@ -74,6 +96,8 @@ NEW_STATE1="$(tr -d '\r\n' <"$HOME1/.local/state/nyvorel/current-install")"
   || die "retired managed file was not removed"
 grep -qF '# ci-update-candidate' "$HOME1/.local/bin/nyvorel-settings" \
   || die "candidate payload change not installed"
+[[ "$(sha256sum "$RUNTIME1" | cut -d' ' -f1)" == "$RUNTIME_SHA1" ]] \
+  || die "update replaced selected appearance runtime state"
 
 python3 - "$NEW_STATE1/manifest.json" "$OLD_STATE1" "$SENTINEL" <<'PY'
 from pathlib import Path
@@ -94,6 +118,7 @@ assert ".local/bin/nyvorel-tmux-status" in data["update"]["retired_destinations"
 
 entries = {entry["destination"]: entry for entry in data["entries"]}
 assert ".local/bin/nyvorel-ci-update-fixture" in entries
+assert entries[".config/hypr/custom/appearance-runtime.conf"]["ownership"] == "runtime"
 
 shell = entries[".config/quickshell/nyvorel/shell.qml"]
 assert shell["preexisting"] is True
@@ -112,6 +137,10 @@ PY
   || die "uninstall after update did not remove update-added file"
 [[ ! -e "$HOME1/.local/bin/nyvorel-tmux-status" ]] \
   || die "retired Nyvorel-created file reappeared after uninstall"
+[[ ! -e "$RUNTIME1" ]] || die "uninstall left runtime config active"
+grep -qF 'user selected Fluid' \
+  "$NEW_STATE1/uninstall-conflicts/"*/.config/hypr/custom/appearance-runtime.conf \
+  || die "uninstall did not archive selected appearance state"
 
 echo "== Changed-file refusal and explicit archive =="
 
@@ -186,4 +215,76 @@ grep -qF '# ci-update-candidate' "$HOME2/.local/bin/nyvorel-settings" \
 [[ ! -e "$HOME2/.local/bin/nyvorel-settings" ]] \
   || die "uninstall did not remove originally Nyvorel-created settings helper"
 
-pass "dry-run, baseline carry-forward, retirement, refusal, archive, update and uninstall"
+echo "== Legacy appearance state migration =="
+
+LEGACY="$TMP/legacy-source"
+cp -a "$CANDIDATE" "$LEGACY"
+rm "$LEGACY/hypr/custom/appearance-runtime.conf"
+cat >>"$LEGACY/hypr/custom/general.conf" <<'EOF'
+# >>> Appearance Studio: window radius >>>
+decoration { rounding = 8 }
+# <<< Appearance Studio: window radius <<<
+EOF
+cat >>"$LEGACY/hypr/custom/rules.conf" <<'EOF'
+# >>> appearance-studio-glass-runtime-v2 >>>
+layerrule = match:namespace ^quickshell:.*$, blur on
+# <<< appearance-studio-glass-runtime-v2 <<<
+
+# >>> nyvorel-fluid-interface-v1 >>>
+layerrule = match:namespace ^quickshell:.*$, xray on
+# <<< nyvorel-fluid-interface-v1 <<<
+EOF
+git -C "$LEGACY" init -q
+git -C "$LEGACY" -c core.autocrlf=false -c core.safecrlf=false \
+  -c user.name='Nyvorel CI' -c user.email='ci@invalid.example' \
+  add -A
+git -C "$LEGACY" -c user.name='Nyvorel CI' -c user.email='ci@invalid.example' \
+  commit -qm 'Synthetic legacy appearance payload'
+
+HOME3="$TMP/home-legacy"
+mkdir -p "$HOME3"
+"$LEGACY/install.sh" --target-home "$HOME3" --yes --no-activate \
+  >"$TMP/home3-install.log"
+
+python3 - "$HOME3/.config/hypr/custom/rules.conf" <<'PY'
+from pathlib import Path
+import re
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+text, count = re.subn(
+    r"(?ms)^# >>> appearance-studio-glass-runtime-v2 >>>\n.*?^# <<< appearance-studio-glass-runtime-v2 <<<\n?",
+    "", text,
+)
+assert count == 1
+path.write_text(text.rstrip() + "\n")
+PY
+
+cp "$HOME3/.config/hypr/custom/rules.conf" "$TMP/home3-rules-runtime-only.conf"
+printf 'windowrule = match:class ^(unrelated-user-edit)$, float on\n' \
+  >>"$HOME3/.config/hypr/custom/rules.conf"
+set +e
+"$UPDATER" --target-home "$HOME3" --source "$CANDIDATE" \
+  --yes --no-activate >"$TMP/home3-unrelated-refusal.log" 2>&1
+UNRELATED_CODE=$?
+set -e
+[[ "$UNRELATED_CODE" == "3" ]] \
+  || die "legacy migration accepted unrelated managed-file edit"
+cp "$TMP/home3-rules-runtime-only.conf" "$HOME3/.config/hypr/custom/rules.conf"
+
+"$UPDATER" --target-home "$HOME3" --source "$CANDIDATE" \
+  --yes --no-activate >"$TMP/home3-update.log"
+RUNTIME3="$HOME3/.config/hypr/custom/appearance-runtime.conf"
+grep -qF '# >>> nyvorel-fluid-interface-v1 >>>' "$RUNTIME3" \
+  || die "legacy update lost selected Fluid rules"
+if grep -qF '# >>> appearance-studio-glass-runtime-v2 >>>' "$RUNTIME3"; then
+  die "legacy update re-enabled removed Glass rules"
+fi
+grep -qF '# >>> Appearance Studio: window radius >>>' "$RUNTIME3" \
+  || die "legacy update lost window radius"
+if grep -qF '# >>> nyvorel-fluid-interface-v1 >>>' \
+  "$HOME3/.config/hypr/custom/rules.conf"; then
+  die "legacy runtime rules remained in managed rules.conf"
+fi
+
+pass "runtime ownership, legacy migration, baseline carry-forward, retirement, refusal, archive, update and uninstall"

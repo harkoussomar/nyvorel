@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+  cat <<'EOF'
+Nyvorel color Python environment
+
+Usage: nyvorel color-env --plan|--check|--install [--yes] [--repair] [--wheelhouse PATH]
+
+--plan        Show the isolated user-environment plan without changing files.
+--check       Verify imports and run Nyvorel's installed color generator.
+--install     Create a user virtual environment with materialyoucolor 3.0.4.
+--yes         Consent to the PyPI wheel installation and user-file mutation.
+--repair      Back up and replace an existing broken color environment.
+--wheelhouse  Install only from a local wheel directory, without network access.
+
+The host must already provide Python 3, pip/venv, and python-pillow. No pacman,
+AUR, system configuration, or active desktop services are changed here.
+EOF
+}
+
+MODE=""
+YES=0
+REPAIR=0
+WHEELHOUSE=""
+while (($#)); do
+  case "$1" in
+    --plan|--check|--install)
+      [[ -z "$MODE" ]] || { echo 'Choose one mode.' >&2; exit 2; }
+      MODE="$1"; shift ;;
+    --yes) YES=1; shift ;;
+    --repair) REPAIR=1; shift ;;
+    --wheelhouse)
+      (($# >= 2)) || { echo '--wheelhouse needs a directory.' >&2; exit 2; }
+      WHEELHOUSE="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+[[ -n "$MODE" ]] || { usage >&2; exit 2; }
+if [[ "$MODE" != --install && ( "$YES" == 1 || "$REPAIR" == 1 || -n "$WHEELHOUSE" ) ]]; then
+  echo '--yes, --repair and --wheelhouse apply only to --install.' >&2
+  exit 2
+fi
+
+command -v python3 >/dev/null || { echo 'Python 3 is required.' >&2; exit 1; }
+TARGET_HOME="${HOME:?HOME is required}"
+STATE_HOME="${XDG_STATE_HOME:-$TARGET_HOME/.local/state}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$TARGET_HOME/.config}"
+TARGET="${NYVOREL_VIRTUAL_ENV:-$STATE_HOME/quickshell/.venv}"
+case "$TARGET" in
+  '~') TARGET="$TARGET_HOME" ;;
+  '~/'*) TARGET="$TARGET_HOME/${TARGET#\~/}" ;;
+esac
+[[ ! -L "$TARGET" ]] || { echo "Refusing symlinked color environment: $TARGET" >&2; exit 1; }
+TARGET_HOME="$(realpath -m -- "$TARGET_HOME")"
+TARGET="$(realpath -m -- "$TARGET")"
+[[ "$TARGET" == /* && "$TARGET" != "$TARGET_HOME" ]] || {
+  echo "Refusing unsafe color environment path: $TARGET" >&2
+  exit 1
+}
+case "$TARGET/" in
+  "$TARGET_HOME"/*) ;;
+  *) echo "Color environment must be inside the current HOME: $TARGET" >&2; exit 1 ;;
+esac
+
+GENERATOR="$CONFIG_HOME/quickshell/nyvorel/scripts/colors/generate_colors_material.py"
+TERM_SCHEME="$CONFIG_HOME/quickshell/nyvorel/scripts/colors/terminal/scheme-base.json"
+
+probe() {
+  local interpreter="$1"
+  "$interpreter" - <<'PY'
+from PIL import Image
+import materialyoucolor
+from materialyoucolor.dynamiccolor.material_dynamic_colors import MaterialDynamicColors
+from materialyoucolor.quantize import QuantizeCelebi
+assert hasattr(MaterialDynamicColors, "primary")
+PY
+  [[ -f "$GENERATOR" && -f "$TERM_SCHEME" ]] || {
+    echo "Install Nyvorel first; color generator missing: $GENERATOR" >&2
+    return 1
+  }
+  "$interpreter" "$GENERATOR" --color '#5368B7' --mode dark \
+    --scheme scheme-tonal-spot --termscheme "$TERM_SCHEME" --blend_bg_fg \
+    | grep -E '^\$term0: #[0-9A-Fa-f]{6};$' >/dev/null
+}
+
+if [[ "$MODE" == --plan ]]; then
+  echo "Target: $TARGET"
+  echo 'Prerequisites: python3, python-pillow, pip/venv'
+  echo 'Python wheel: materialyoucolor==3.0.4 (binary wheel only, no dependencies)'
+  echo 'Network: PyPI during --install unless --wheelhouse is supplied'
+  echo 'Mutation: isolated user environment only, with a backup on --repair'
+  echo 'No packages or user files changed.'
+  exit 0
+fi
+
+if [[ "$MODE" == --check ]]; then
+  [[ -x "$TARGET/bin/python" ]] || { echo "Missing color environment: $TARGET" >&2; exit 1; }
+  probe "$TARGET/bin/python"
+  echo "PASS Nyvorel color generator: $TARGET/bin/python"
+  exit 0
+fi
+
+python3 -c 'import PIL' >/dev/null 2>&1 || {
+  echo 'System Pillow is missing. Review and install the official Arch python-pillow package first.' >&2
+  exit 1
+}
+[[ -f "$GENERATOR" && -f "$TERM_SCHEME" ]] || {
+  echo "Install Nyvorel first; color generator missing: $GENERATOR" >&2
+  exit 1
+}
+
+if [[ -x "$TARGET/bin/python" ]] && probe "$TARGET/bin/python" >/dev/null 2>&1; then
+  echo "Existing color environment passes; no mutation: $TARGET"
+  exit 0
+fi
+if [[ -e "$TARGET" && "$REPAIR" != 1 ]]; then
+  echo "Existing color environment needs repair: $TARGET" >&2
+  echo 'Review its contents, then rerun with --install --repair --yes to back it up.' >&2
+  exit 1
+fi
+[[ "$YES" == 1 ]] || {
+  echo 'Review nyvorel color-env --plan, then pass --install --yes to consent.' >&2
+  exit 2
+}
+if [[ -n "$WHEELHOUSE" && ! -d "$WHEELHOUSE" ]]; then
+  echo "Wheelhouse directory missing: $WHEELHOUSE" >&2
+  exit 1
+fi
+
+parent="$(dirname -- "$TARGET")"
+mkdir -p "$parent"
+tmp="$(mktemp -d "$parent/.venv.new.XXXXXXXX")"
+cleanup() { [[ -z "${tmp:-}" ]] || rm -rf -- "$tmp"; }
+trap cleanup EXIT
+
+python3 -m venv --system-site-packages "$tmp"
+pip_args=(--disable-pip-version-check --no-deps --only-binary=:all:)
+if [[ -n "$WHEELHOUSE" ]]; then
+  pip_args+=(--no-index --find-links "$WHEELHOUSE")
+fi
+"$tmp/bin/python" -m pip install "${pip_args[@]}" 'materialyoucolor==3.0.4'
+probe "$tmp/bin/python"
+
+backup=""
+if [[ -e "$TARGET" ]]; then
+  backup="$TARGET.before-$(date -u +%Y%m%dT%H%M%SZ)"
+  [[ ! -e "$backup" ]] || { echo "Backup destination exists: $backup" >&2; exit 1; }
+  mv -- "$TARGET" "$backup"
+fi
+if ! mv -- "$tmp" "$TARGET"; then
+  [[ -z "$backup" ]] || mv -- "$backup" "$TARGET"
+  echo 'Could not activate color environment; prior environment restored.' >&2
+  exit 1
+fi
+tmp=""
+echo "PASS Nyvorel color environment: $TARGET"
+[[ -z "$backup" ]] || echo "Previous environment backup: $backup"

@@ -4,7 +4,7 @@ Description=Watch Nyvorel style/palette for Fuzzel
 [Path]
 PathChanged=%h/.config/nyvorel/config.json
 PathChanged=%h/.local/state/quickshell/user/generated/colors.json
-Unit=nyvorel-fuzzel-style-sync.service
+Unit=nyvorel-fuzzel-style-sync.timer
 
 [Install]
 WantedBy=default.target

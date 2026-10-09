@@ -1,4 +1,4 @@
-#!/usr/bin/env -S\_/bin/sh\_-c\_"source\_\$(eval\_echo\_\$NYVOREL_VIRTUAL_ENV)/bin/activate&&exec\_python\_-E\_"\$0"\_"\$@""
+#!/usr/bin/env python3
 import argparse
 import math
 import json
@@ -113,11 +113,22 @@ scheme = Scheme(hct, darkmode, 0.0)
 material_colors = {}
 term_colors = {}
 
+# materialyoucolor 3 uses camelCase for the palette-key roles that v2 exposed
+# with an underscore. Keep the generated SCSS contract stable across both.
+palette_key_aliases = {
+    "primaryPaletteKeyColor": "primary_paletteKeyColor",
+    "secondaryPaletteKeyColor": "secondary_paletteKeyColor",
+    "tertiaryPaletteKeyColor": "tertiary_paletteKeyColor",
+    "neutralPaletteKeyColor": "neutral_paletteKeyColor",
+    "neutralVariantPaletteKeyColor": "neutral_variant_paletteKeyColor",
+    "errorPaletteKeyColor": "error_paletteKeyColor",
+}
+
 for color in vars(MaterialDynamicColors).keys():
     color_name = getattr(MaterialDynamicColors, color)
     if hasattr(color_name, "get_hct"):
         rgba = color_name.get_hct(scheme).to_rgba()
-        material_colors[color] = rgba_to_hex(rgba)
+        material_colors[palette_key_aliases.get(color, color)] = rgba_to_hex(rgba)
 
 # Extended material
 if darkmode == True:

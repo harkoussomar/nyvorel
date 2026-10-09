@@ -82,6 +82,12 @@ import sys
 
 data = json.loads(Path(sys.argv[1]).read_text())
 for entry in data["required"]:
+    file_key = next((key for key in ("files_any_of", "files_all_of") if key in entry), None)
+    if file_key:
+        fixture = Path(sys.argv[1]).parent / (entry["id"] + ".fixture")
+        fixture.write_text("test runtime asset\n")
+        entry[file_key] = [str(fixture)]
+        continue
     if isinstance(entry.get("commands_all_of"), list):
         commands = entry["commands_all_of"]
         for command in commands:
@@ -89,6 +95,7 @@ for entry in data["required"]:
     else:
         commands = entry["commands_any_of"]
         print(commands[0])
+Path(sys.argv[1]).write_text(json.dumps(data))
 PYDEPS
 
 while IFS= read -r command; do
@@ -96,6 +103,13 @@ while IFS= read -r command; do
   [[ "$command" == "python3" ]] && continue
   ln -sf /bin/true "$FAKE_BIN/$command"
 done <"$TMP/required-commands.txt"
+
+# These are explicit color-runtime fixtures, not a claim that the source
+# installer provisions a Python environment.
+mkdir -p "$HOME_SANDBOX/.config/matugen" "$HOME_SANDBOX/.local/state/quickshell/.venv/bin"
+printf '[templates.fixture]\ninput_path = "template.txt"\n' > "$HOME_SANDBOX/.config/matugen/config.toml"
+printf 'synthetic template\n' > "$HOME_SANDBOX/.config/matugen/template.txt"
+ln -s /bin/true "$HOME_SANDBOX/.local/state/quickshell/.venv/bin/python"
 
 PATH="$FAKE_BIN" "$DOCTOR" \
   --home "$HOME_SANDBOX" \

@@ -19,6 +19,10 @@ Nyvorel baseline.
 
 The core includes Bash/GNU userland, Python 3, Hyprland, Quickshell, systemd
 user services, D-Bus session integration, and Git for the safe updater.
+Settings also requires the Qt Positioning and Qt 5 compatibility QML modules
+and the Material Symbols Rounded font. Appearance scripts require Matugen,
+jq, and bc. Detecting these assets does not establish that the complete QML
+application or color-generation environment is functional.
 
 ### Optional
 
@@ -42,11 +46,27 @@ Schema 2 distinguishes alternatives from sets that must all exist:
 - `commands_any_of`: one executable is enough, such as `qs` or `quickshell`;
 - `commands_all_of`: every listed executable is required by that dependency
   group, such as both `grim` and `slurp`;
+- `files_any_of` / `files_all_of`: installed runtime assets, using absolute
+  paths instead of executable lookup. Qt QML modules and fonts are not commands;
+  GeoClue supplies a daemon outside PATH, a session agent, and a service unit.
+  File detection verifies installation only, not service activation, permissions,
+  font rendering, or a successful location request;
 - `arch_packages_any_of`: provider alternatives; the planner selects the first
   package visible through the configured pacman repositories;
 - `arch_packages_all_of`: every listed package is required for that group.
 
-Runtime command detection remains the truth. Package names are planning hints.
+Each entry has exactly one command or file selector. Runtime asset detection
+remains the evidence for dependency presence. Package names are planning hints.
+
+Fresh-install validation remains incomplete: the source installer includes
+Nyvorel's Matugen templates. The package metadata includes official Arch
+`python-pillow` and `python-pip`; source-clone users must review and install
+those packages themselves. `nyvorel color-env --plan` explains the separate,
+explicit user-environment step. `nyvorel color-env --install --yes` installs a
+binary-only, version-pinned `materialyoucolor` wheel from PyPI into a virtual
+environment, while `--wheelhouse PATH` supports an offline reviewed wheel.
+Neither `./install.sh --yes` nor package installation silently runs pip. A
+dependency PASS is not a desktop readiness or clean-install certification.
 
 ## Bootstrap policy
 
