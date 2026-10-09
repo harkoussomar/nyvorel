@@ -18,6 +18,7 @@ technical inventory, not legal advice.
 | terminal `scheme-base.json` | end-4/dots-hyprland | GPL-3.0 |
 | rounded-polygon QML/JS shapes | end-4/rounded-polygon-qmljs | Apache-2.0; retain component license |
 | Nyvorel logo | Nyvorel project-owned artwork | project asset distributed with Nyvorel |
+| Default wallpaper (`quickshell/assets/images/default_wallpaper.png`) | Generated for Nyvorel on 2026-10-09 with the built-in image-generation tool; no third-party image input | Project default asset; replaces the inherited upstream wallpaper |
 
 ## Fluent icon family
 
@@ -57,13 +58,12 @@ dependency in this staging tree.
 
 ## Inherited upstream assets
 
-Nyvorel retains a set of brand/project SVGs and the default wallpaper inherited
-from `end-4/dots-hyprland`.
+Nyvorel retains a set of brand/project SVGs inherited from
+`end-4/dots-hyprland`.
 
 These assets are not claimed as Nyvorel-owned material. Their upstream status,
 project policy, and complete file list are documented in
 `INHERITED_ASSETS.md`.
 
-The default wallpaper has exact upstream binary provenance. The brand/project
-SVGs are retained as inherited third-party interface assets rather than being
-relicensed or represented as original Nyvorel artwork.
+The brand/project SVGs are retained as inherited third-party interface assets
+rather than being relicensed or represented as original Nyvorel artwork.

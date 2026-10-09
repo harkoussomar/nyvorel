@@ -30,13 +30,6 @@ runtime behavior.
 - `quickshell/assets/icons/spark-symbolic.svg`
 - `quickshell/assets/icons/ubuntu-symbolic.svg`
 
-## Inherited wallpaper
-
-- `quickshell/assets/images/default_wallpaper.png`
-
-The wallpaper is byte-identical to the copy in the authoritative
-`end-4/dots-hyprland` source tree that Nyvorel derives from.
-
 ## Ownership and trademark treatment
 
 Third-party names, logos, service marks, product marks, and distribution marks
