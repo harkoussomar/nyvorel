@@ -1,27 +1,87 @@
 # Installing and recovering Nyvorel
 
-Nyvorel v0.1.0 targets an existing **Arch Linux + Hyprland + Quickshell**
-desktop. The supported required/optional/test-only dependency policy is defined
-in [`DEPENDENCIES.md`](DEPENDENCIES.md) and `dependencies/arch.json`.
+The complete setup workflow in this development checkout targets an installed
+minimal Arch Linux system with working internet, a normal user account, and
+working `sudo`. It installs desktop packages; it does not partition disks or
+install Arch itself. This workflow has been validated on a fresh Arch VM but
+is not in the immutable `v0.1.0` release or public `main` yet. The dependency
+policy is in [`DEPENDENCIES.md`](DEPENDENCIES.md).
 
-The installer does not currently bootstrap Arch Linux or automatically install
-dependency packages.
+## From minimal Arch to the desktop
 
-## Preview
-
-```sh
-./install.sh --dry-run
-```
-
-No files are changed.
-
-## Install
+From a text console or interactive SSH terminal, clone this checkout and
+review its complete plan:
 
 ```sh
-./install.sh --yes
+git clone https://github.com/harkoussomar/nyvorel.git
+cd nyvorel
+./setup.sh --plan
 ```
 
-The installer:
+The public clone will offer this workflow once the development commits are
+published. Until then, the commands below describe this local candidate only.
+Use a terminal with a PTY; SSH users can connect with `ssh -t`. The package
+transaction is interactive even with `--yes` so you can review pacman's full
+system upgrade and package selection:
+
+```sh
+./setup.sh --install --yes
+```
+
+For Zed, Kate, Ark, btop and extra appearance tools, choose
+`--with-recommended`. For English OCR choose `--with-ocr-english`; for screen
+recording choose `--with-recording`. Review `./setup.sh --help` for GPU-specific
+Zed Vulkan selection, NetworkManager activation, local wheelhouse, and recovery
+options. The default uses official Arch repositories and does not invoke an
+AUR helper, enable a VPN, or expose remote services. Existing network
+management stays in place unless `--enable-networkmanager` is selected.
+
+The setup installs Hyprland, Quickshell 0.3.2 or newer, Qt modules and icon
+fonts, portals, a Polkit agent, Kitty, Fish, Firefox, Dolphin, PipeWire,
+WirePlumber, launcher, notifications, clipboard and screenshot tools. The
+recommended group adds applications and utility tools; OCR and recording are
+opt-in. Pacman may pull additional dependencies; review its transaction before
+accepting. It then runs the backed-up user-file installer, creates an isolated
+color environment, and seeds the first wallpaper and palette. The color
+environment fetches a version-pinned binary wheel from PyPI unless
+`--wheelhouse PATH` points to a reviewed local wheel.
+
+At the next local text login run:
+
+```sh
+~/.local/bin/nyvorel session
+```
+
+This explicitly starts Hyprland with `~/.config/hypr/hyprland.conf`, then
+activates Nyvorel's user services and Quickshell. The installed desktop entry
+can be selected from a display manager if one is configured. The explicit path
+works even when a fresh Arch login has not added `~/.local/bin` to `PATH`.
+Before entering the desktop, `~/.local/bin/nyvorel first-run --check`,
+`~/.local/bin/nyvorel session --check`, and
+`~/.local/bin/nyvorel doctor --no-session` help diagnose setup.
+After login, use `nyvorel doctor` and `nyvorel welcome`.
+
+Hyprland 0.56 accepted the explicit `.conf` session entry in the clean VM;
+the compositor warns that `.conf` support will be removed in 0.57. A future
+Hyprland update needs a compatible Nyvorel configuration before that version
+can be claimed as supported. A software-rendered QEMU VM may show high CPU use
+and Quickshell shared-memory rendering; physical GPU behavior must be checked
+on the target machine. Brightness, Bluetooth, fingerprints, battery controls,
+recording and optional content-aware screenshot hints depend on the relevant
+hardware or optional packages and are not guaranteed by the core setup.
+
+If setup stops after installing packages, rerun `./setup.sh --install --yes
+--resume`. It refuses existing managed-file replacements by default; review
+the dry-run conflict list and use `--replace-existing` only when you intend to
+back up and replace those files. Do not use setup on an existing Nyvorel
+desktop; use `nyvorel update --dry-run` followed by `nyvorel update --yes`.
+
+## Lower-level user-file installer
+
+`./install.sh` is for an already provisioned desktop and for package workflows.
+It does not install Arch packages or initialize the full first-run state. Its
+read-only preview is `./install.sh --dry-run`; its mutation is
+`./install.sh --yes`. The installer:
 
 - installs Quickshell source to `~/.config/quickshell/nyvorel`;
 - merges the published Hyprland tree into `~/.config/hypr`;
@@ -34,13 +94,11 @@ The installer:
 - writes a machine-readable manifest under
   `~/.local/state/nyvorel/installations/`.
 
-The installer does not activate services unless requested.
+The lower-level installer does not activate services unless requested.
 
 ## First-run experience
 
-Installer output now shows bounded progress for managed files and a clear next
-step, without changing the backup-first transaction or activating services
-implicitly. After installing:
+After installing:
 
 ```sh
 nyvorel welcome --no-session  # safe diagnostic even without a graphical session
@@ -53,9 +111,9 @@ focused recovery guidance from Doctor, and suggests a read-only bootstrap plan
 when required packages are missing. For scripts use `nyvorel welcome --json`.
 For isolated test homes pass `--home PATH --no-session`.
 
-No onboarding command installs dependencies, changes home configuration, or
-starts desktop services. Full activation remains explicit via
-`./install.sh --yes --activate` or the supported package workflow.
+These onboarding commands are read-only. The complete setup's first session
+activates services. Existing-session or package users can activate explicitly
+with `nyvorel activate --session` or the supported package workflow.
 
 ## Verify the installation
 
@@ -204,7 +262,7 @@ Existing source-clone installations require explicit migration:
 
 Package removal preserves user configuration, installation state, and backups.
 
-## Install and activate
+## Lower-level install and activate
 
 ```sh
 ./install.sh --yes --activate

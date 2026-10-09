@@ -167,10 +167,13 @@ source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
 
 ### 1. Requirements
 
-Nyvorel `v0.1.0` targets an existing **Arch Linux + Hyprland + Quickshell**
-desktop.
+The current development checkout can configure a **minimal Arch Linux**
+installation with working internet and sudo; Hyprland and Quickshell do not
+need to be preinstalled. This workflow is not part of the immutable `v0.1.0`
+release and is not public until these source changes are published.
 
-Core requirements are defined by the versioned dependency contract:
+The versioned dependency contract covers diagnostic groups; `setup.sh` is the
+complete minimal-Arch package plan for the desktop:
 
 - [`dependencies/arch.json`](dependencies/arch.json) — machine-readable contract;
 - [`DEPENDENCIES.md`](DEPENDENCIES.md) — required/optional/test-only policy.
@@ -191,42 +194,60 @@ package plan. Run `nyvorel bootstrap --list-optional` to discover feature IDs,
 then select only the features you want with `--optional ID`. Bootstrap never
 installs packages or invokes an AUR helper.
 
-### 2. Clone
+### 2. Clone this development checkout
 
 ```sh
 git clone https://github.com/harkoussomar/nyvorel.git
 cd nyvorel
 ```
 
-### 3. Preview before touching your configuration
+### 3. Review the complete setup plan
 
 ```sh
-./install.sh --dry-run
+./setup.sh --plan
 ```
 
-### 4. Install
+### 4. Install from an interactive terminal
 
 ```sh
-./install.sh --yes
+./setup.sh --install --yes
 ```
 
-To install and activate Nyvorel services in the current Hyprland / Wayland
-session:
+The setup runs a full `pacman -Syu` when packages are missing, shows pacman's
+transaction for review, installs official Arch packages, materializes backed-up
+user files, creates an isolated color environment, and seeds a wallpaper and
+palette. It does not install from AUR or enable a VPN or remote service. The
+terminal must have a PTY, including when connecting over SSH (`ssh -t`).
+
+For optional Zed, Kate, Ark, btop and appearance utilities, add
+`--with-recommended`; `--with-ocr-english` adds Tesseract and English data.
+`--with-recording` adds recording tools. Review `./setup.sh --help` before
+selecting options, especially the GPU-specific Vulkan driver for Zed.
+
+At the next local text login, start the graphical desktop with:
 
 ```sh
-./install.sh --yes --activate
+~/.local/bin/nyvorel session
 ```
 
-> The installer backs up every managed file it replaces and records the
-> installation under `~/.local/state/nyvorel/installations/`.
+The installed launcher starts Hyprland with Nyvorel's configuration; the session
+activates user services and Quickshell. A display manager may use the installed
+Nyvorel session entry. The setup refuses to replace existing managed files
+unless you review the conflict and pass `--replace-existing`, which backs them
+up. It records the installation under
+`~/.local/state/nyvorel/installations/`.
+
+The tested clean VM used Hyprland 0.56. Its `.conf` configuration entry is
+accepted there but carries a removal warning for 0.57, so that future version
+needs compatibility work. Software-rendered VMs can also show high compositor
+CPU use. See [`INSTALL.md`](./INSTALL.md) for hardware and recovery limits.
 
 See [`INSTALL.md`](./INSTALL.md) for the complete installation and recovery
 model.
 
 ## First-run guide
 
-After reviewing the installer preview and installing Nyvorel, use the new
-read-only onboarding command:
+After setup, use the read-only onboarding command:
 
 ```sh
 nyvorel welcome --no-session  # installed files, dependencies and safe next steps
@@ -464,7 +485,9 @@ See [`RELEASES.md`](./RELEASES.md) for resume and immutability rules.
 | [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) | third-party notices |
 | [`TRADEMARKS.md`](./TRADEMARKS.md) | trademark and affiliation notices |
 
-A dedicated Nyvorel documentation website is planned as the project grows.
+The documentation website is maintained in the separate `nyvorel-web`
+repository. Its updated setup guide is an unpublished candidate until it is
+deployed alongside a published Nyvorel source revision.
 
 ## Project direction
 

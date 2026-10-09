@@ -1,10 +1,14 @@
 # Nyvorel dependency contract
 
-Nyvorel targets an existing **Arch Linux + Hyprland + Quickshell** desktop.
+The complete `./setup.sh` workflow targets a minimal Arch Linux installation
+with internet and sudo and installs Hyprland, Quickshell, and core desktop
+packages. The lower-level `./install.sh` only materializes user files and
+expects the runtime packages to be present already.
 
 The canonical machine-readable contract is
 [`dependencies/arch.json`](dependencies/arch.json). This document explains the
-policy around it.
+policy around it. The contract is a diagnostic floor, not the whole fresh
+desktop package list; `setup.sh --plan` shows that list.
 
 ## Classification
 
@@ -58,15 +62,13 @@ Schema 2 distinguishes alternatives from sets that must all exist:
 Each entry has exactly one command or file selector. Runtime asset detection
 remains the evidence for dependency presence. Package names are planning hints.
 
-Fresh-install validation remains incomplete: the source installer includes
-Nyvorel's Matugen templates. The package metadata includes official Arch
-`python-pillow` and `python-pip`; source-clone users must review and install
-those packages themselves. `nyvorel color-env --plan` explains the separate,
-explicit user-environment step. `nyvorel color-env --install --yes` installs a
-binary-only, version-pinned `materialyoucolor` wheel from PyPI into a virtual
-environment, while `--wheelhouse PATH` supports an offline reviewed wheel.
-Neither `./install.sh --yes` nor package installation silently runs pip. A
-dependency PASS is not a desktop readiness or clean-install certification.
+The source installer includes Nyvorel's Matugen templates. The complete setup
+installs official `python-pillow` and `python-pip`, then explicitly invokes
+`nyvorel color-env --install --yes` for a binary-only, version-pinned
+`materialyoucolor` wheel in an isolated virtual environment. `--wheelhouse
+PATH` supports a reviewed local wheel instead of PyPI. The lower-level
+`./install.sh --yes` and package installation do not run pip. A dependency
+PASS alone is not a desktop readiness certification.
 
 ## Bootstrap policy
 
@@ -104,4 +106,5 @@ The output is a reviewable package plan. Install reviewed packages through the
 machine's normal Arch full-upgrade/package-management workflow, then rerun
 `nyvorel doctor --dependencies`.
 
-Automatic package installation remains disabled.
+This last rule applies to `nyvorel bootstrap`; `./setup.sh --install --yes`
+does install the selected official packages after a reviewable plan.
