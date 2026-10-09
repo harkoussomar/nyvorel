@@ -40,6 +40,9 @@ jobs:
       - name: Validate style-sync outputs
         run: python3 scripts/ci/test-style-sync.py
 
+      - name: Validate optional screenshot content detection
+        run: bash scripts/ci/test-content-regions.sh
+
       - name: Validate user-unit syntax and style-sync coalescing
         run: bash scripts/ci/test-systemd-units.sh
 
