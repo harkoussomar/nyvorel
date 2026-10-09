@@ -83,7 +83,7 @@ core=(
   qt6-positioning qt6-5compat kirigami
   noto-fonts noto-fonts-emoji ttf-dejavu ttf-material-symbols-variable
   ttf-jetbrains-mono-nerd adwaita-cursors
-  kitty fish firefox dolphin hyprlock qt6-multimedia-ffmpeg
+  kitty fish firefox dolphin plasma-integration hyprlock qt6-multimedia-ffmpeg
   pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
   matugen jq bc xdg-utils xdg-user-dirs

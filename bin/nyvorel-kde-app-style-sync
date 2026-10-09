@@ -390,7 +390,20 @@ def load_baseline():
         return {"ColorScheme": "IllogicalImpulse", "ColorSchemeHash": ""}
 
 
-def patch_kdeglobals(target: str, target_hash: str | None):
+COLOR_SECTION = re.compile(r"(?ms)^\[(?:Colors|ColorEffects):[^\n]+\n.*?(?=^\[|\Z)")
+
+
+def apply_scheme_colors(text: str, scheme_body: str) -> str:
+    sections = COLOR_SECTION.findall(scheme_body)
+    if not any(section.startswith("[Colors:Window]") for section in sections):
+        raise RuntimeError("KDE scheme lacks Colors:Window")
+    # KDE applications read the actual palette from kdeglobals, not just the
+    # named .colors file. Keep unrelated user settings while replacing colors.
+    text = COLOR_SECTION.sub("", text).rstrip()
+    return text + "\n\n" + "\n\n".join(section.strip() for section in sections) + "\n"
+
+
+def patch_kdeglobals(target: str, target_hash: str | None, scheme_body: str | None = None):
     missing = not KDEGLOBALS.exists()
     text = "[General]\nColorScheme=IllogicalImpulse\n" if missing else KDEGLOBALS.read_text(encoding="utf-8")
     current, current_hash = read_current_scheme(text)
@@ -435,6 +448,8 @@ def patch_kdeglobals(target: str, target_hash: str | None):
             1,
         )
 
+    if scheme_body is not None:
+        text = apply_scheme_colors(text, scheme_body)
     atomic_write(KDEGLOBALS, text)
 
 
@@ -457,17 +472,19 @@ def main():
     SCHEME_DIR.mkdir(parents=True, exist_ok=True)
 
     hashes = {}
+    schemes = {}
     for name in ("prism", "inlay", "default"):
         body = render_scheme(name, c)
         path = SCHEME_DIR / f"IllogicalImpulse{name.title()}.colors"
         atomic_write(path, body)
         hashes[name] = hashlib.sha1(body.encode()).hexdigest()
+        schemes[name] = body
 
     if current == "fluid":
         patch_kdeglobals("fluid", None)
     else:
         target = f"IllogicalImpulse{current.title()}"
-        patch_kdeglobals(target, hashes[current])
+        patch_kdeglobals(target, hashes[current], schemes[current])
 
 
 if __name__ == "__main__":

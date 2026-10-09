@@ -76,6 +76,8 @@ with tempfile.TemporaryDirectory(prefix="nyvorel-style-sync-") as raw:
             assert "Nyvorel System" in code
         else:
             assert f"ColorScheme=IllogicalImpulse{style.title()}" in kde
+            assert "[Colors:Window]\n" in kde
+            assert "BackgroundNormal=" in kde
             assert f"Nyvorel {style.title()}" in code
         print(f"PASS {style}: btop, Fuzzel, KDE, Zen and Code outputs")
 
@@ -92,6 +94,8 @@ with tempfile.TemporaryDirectory(prefix="nyvorel-style-sync-") as raw:
         )
         assert result.returncode == 0, result.stderr or result.stdout
         assert f"ColorScheme={expected}\n" in kdeglobals.read_text()
+        if style == "default":
+            assert "[Colors:View]\n" in kdeglobals.read_text()
         print(f"PASS first-run KDE globals creation: {style}")
 
     # Optional app configuration is absent on a clean Arch home.
