@@ -76,7 +76,7 @@ Rectangle {
 
             active:
                 Config.options.sidebar.quickSliders.showBrightness
-                && root.brightnessMonitor
+                && !!root.brightnessMonitor
 
             visible: active
 
@@ -102,7 +102,7 @@ Rectangle {
 
             active:
                 Config.options.sidebar.quickSliders.showVolume
-                && Audio.sink?.audio
+                && !!Audio.sink?.audio
 
             visible: active
 
@@ -128,7 +128,7 @@ Rectangle {
 
             active:
                 Config.options.sidebar.quickSliders.showMic
-                && Audio.source?.audio
+                && !!Audio.source?.audio
 
             visible: active
 
