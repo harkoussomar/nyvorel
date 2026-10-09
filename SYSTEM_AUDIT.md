@@ -1,17 +1,19 @@
-# Nyvorel stabilization audit — 2026-10-08
+# Nyvorel stabilization audit — 2026-10-09
 
 This is an in-progress engineering audit, not a release-readiness certificate.
-The desktop, clean installation, and website phases are not complete.
+The clean graphical installation has been exercised in a disposable Arch VM;
+remaining release gates are listed below. The public `v0.1.0`
+release has not been changed.
 
 ## Baseline and boundaries
 
 - Source began clean on `main`, commit `d8090edb3bc9c89d7a54e3578c89bf5e7a34df8a`, version 0.1.0.
-- Website began clean at `d1161510f75aeb309f2ee0e22bdc6c612d36a9c5`; inspected, not modified.
+- Website baseline was `d1161510f75aeb309f2ee0e22bdc6c612d36a9c5`; documentation updates are a separate workstream and are not a deployed site.
 - Main PC baseline: Hyprland 0.56.2, Quickshell 0.3.1 (AUR quickshell-git revision `2d3b3e9`). The approved stabilization installed a local Quickshell 0.3.2 package against Qt 6.12.0; live `hyprctl configerrors` remains empty.
 - One Quickshell process runs `qs -c nyvorel` under `nyvorel-quickshell.service`. The operations monitor is active. The shell RSS sample was about 1 GiB after approximately 20 hours of uptime; this alone does not establish a leak.
 - Main PC has no `current-install` pointer. A normal reinstall is unsafe for this customized desktop. The installed Hyprland tree contains a customization differing from source.
 - After the narrow appearance patch, comparison found 911 matching shell files; Hyprland had 31 matching and one differing file; 18 source helpers matched and five were absent. Python caches were excluded from comparison.
-- `arch-fresh` exists in system libvirt but was shut off. No snapshots were listed. Its current IP and a clean pre-Nyvorel baseline have **not** been established.
+- The disposable system-libvirt guest `nyvorel-fresh-20261009` was created from a SHA-verified official Arch cloud image with a 25 GiB disk, 3 GiB RAM, two virtual CPUs and virtio graphics. A `clean-minimal` disk snapshot predates Nyvorel, Hyprland and Quickshell. It was restored before the final installation rehearsal. Earlier `arch-fresh`/`192.168.122.39` observations are obsolete.
 - Arch Remote has a separate sibling Git repository. Nyvorel includes a controller copy, and the installed `arch-remote` wrapper points at that copy. No separate-project or remote-access changes were made.
 
 ## Findings
@@ -22,22 +24,36 @@ The desktop, clean installation, and website phases are not complete.
 | Critical | Appearance apply | Isolated `applycolor.sh` exits 1 with nonexistent `quickshell/ii`; installed and source files matched before patch | Legacy shell directory in five active helpers | Theme transaction fails on renamed installation | Fixed active paths in source and five backed-up installed scripts; retained intentional compatibility identifiers | Six isolated regressions pass; real generator fixture passes; installed palette reader exits 0; live panel opens with rendered icons |
 | High | Required dependencies | Settings imports QtPositioning and Qt5Compat; font ligatures need Material Symbols Rounded | Contract only checked commands | Preflight can pass while core UI cannot load | Added required QML/font asset probes, jq/bc, promoted Matugen; synchronized local package metadata | Five probe regressions; doctor, contract and package metadata checks pass; installed assets detected |
 | Medium | GeoClue detection | Installed daemon is `/usr/lib/geoclue`; agent and system unit are present | Contract looked for `geoclue` on PATH | False missing-dependency warning | Check daemon, agent, and unit files together | All/partial/missing file fixtures and actual main-PC file probes pass; location acquisition remains untested |
-| Critical | Clean color generation | Source initially contained no Matugen templates or Python provisioning | Runtime depended on prerequisites present on maintainer desktop | Path fix alone could not produce a fresh working installation | Added source-owned Matugen templates and an explicit `nyvorel color-env` plan/check/install helper; automatic integration into a consented beginner install remains open | Real Matugen rendered all eight outputs; a disposable source install provisioned a Python 3.14 venv from a reviewed local wheel and passed generator smoke/repair; this is **not** clean-VM validation |
-| High | Python color runtime | System Python cannot import materialyoucolor; existing private environment is Python 3.12 while host Python is 3.14; scheme helper formerly imported cv2/numpy | Environment was assumed; shell used `eval` and sourced an unprovisioned activation file | Fragile generation and incomplete dependency contract | Source `switchwall.sh` invokes the resolved environment Python; wallpaper scheme detection uses Pillow and standard statistics; `nyvorel color-env --install --yes` provisions a version-pinned binary wheel in a user venv after an explicit plan | Existing v2.0.10 and disposable v3.0.4 engines both pass the full real-generator fixture; v3 key-role aliases preserve every v2 SCSS name; source image/representative colorfulness scores stayed within 0.014 of old detector and chose the same schemes; no clean-VM claim |
+| Critical | Clean color generation | Source initially contained no Matugen templates or Python provisioning | Runtime depended on prerequisites present on maintainer desktop | Path fix alone could not produce a fresh working installation | Added source-owned Matugen templates, a guarded `nyvorel color-env` helper and automatic first-run generation in the consented setup | Real Matugen rendered all eight outputs; the restored clean Arch VM installed `materialyoucolor` 3.0.4 in its user venv, generated the first palette and passed `first-run --check`; Appearance Studio rendered and preview/cancel restored the sampled configuration hashes |
+| High | Python color runtime | System Python cannot import materialyoucolor; existing private environment is Python 3.12 while host Python is 3.14; scheme helper formerly imported cv2/numpy | Environment was assumed; shell used `eval` and sourced an unprovisioned activation file | Fragile generation and incomplete dependency contract | Source `switchwall.sh` invokes the resolved environment Python; wallpaper scheme detection uses Pillow and standard statistics; `nyvorel color-env --install --yes` provisions a version-pinned binary wheel in a user venv after an explicit plan | Existing v2.0.10 and disposable v3.0.4 engines both pass the real-generator fixture; the clean Arch VM provisioned v3.0.4 and generated its first palette successfully; v3 key-role aliases preserve the v2 SCSS names |
 | High | Theme service lifecycle | btop, fuzzel, kde-app and zen-code services/path units failed with `start-limit-hit`; preceding exits were 0 and all four started at the same times | A burst of shared style/palette changes triggered the four independent paths; precise producer remains unproven | Theme propagation stops until recovery | Source and backed-up live paths now trigger one-second coalescing timers before their services, retaining start limits | Rendered units pass `systemd-analyze verify`; all four live paths remained active through five appearance previews and their journals show successful repeated service runs with no Nyvorel failed units; 11 current generated style files exactly matched fresh isolated renders from the restored Fluid palette; long-term behavior still needs observation |
 | Medium | Startup screen geometry | New Quickshell trial logged an undefined OSD screen; standalone Settings logged `availableGeometry.width` before geometry existed | Focused monitor and window geometry can lag QML object creation | Transient startup warnings and possible misplacement on first show | OSD falls back to the first Quickshell screen and Settings guards geometry; the two byte-matched installed QML files were backed up and narrowly deployed | Quickshell restarted once at PID 447193 with Result=success, NRestarts=0, `Configuration Loaded`, visible bar layer and no Hyprland config errors; the OSD screen warning did not recur; Settings mapped for five seconds with no width TypeError; full OSD behavior remains unverified |
 | High | Runtime ownership | Glass/Fluid helpers wrote `hypr/custom/rules.conf`; radius wrote `custom/general.conf`; video restore script was regenerated inside the managed tree | Runtime and manifest-managed files overlapped | Normal use looked like drift and complicated updates | Source now stores style/radius in `custom/appearance-runtime.conf`, explicitly marks that file runtime-owned in manifests, and stores generated video restore commands under `~/.config/nyvorel/`; the managed video script is a launcher | Isolated helper/update/doctor/uninstall tests pass; a synthetic legacy migration preserves Fluid/radius while rejecting unrelated edits; backed-up main-PC migration preserved selected Fluid, all 13 deployed hashes, unchanged Quickshell PID and empty Hyprland config errors; Default/Inlay/Prism/Fluid live previews each cancelled to the exact 24-path/GSettings baseline |
-| High | Startup selection | Current source installs `.conf`; modern Hyprland may select existing `.lua` | No explicit Nyvorel session entry/config selection | Shell may run on autogenerated compositor configuration | Added `nyvorel session` launcher and package-owned Wayland session entry that invokes `start-hyprland -- --config` with the installed config | Fake launcher argument/active-session tests pass; disposable source install passed `Hyprland --verify-config` on host 0.56.2; no new graphical session launched |
-| High | First-run completeness | Source install left wallpaper, Matugen palettes, terminal colors and initial appearance state ungenerated | Source installer only copied shell/config trees | The first graphical login could start with missing generated assets | Added `nyvorel first-run` with staged color generation, private checksummed backup, guarded rollback and refusal to overwrite personal GTK/Fuzzel files; `setup.sh` now calls it after provisioning a color venv | Real disposable-home setup generated all initial assets, passed `first-run --check` and Hyprland config parsing, then separate fixture rollback restored original bytes/absence; six transaction tests pass. No graphical VM claim |
+| High | Startup selection | Source installs `.conf`; future Hyprland 0.57 is expected to remove that format | No explicit Nyvorel session entry/config selection | Shell could run on autogenerated compositor configuration, and a future compositor upgrade could reject the source config | Added `nyvorel session` launcher and package-owned Wayland session entry that invokes `start-hyprland -- --config` with the installed config; a Lua migration remains open | `Hyprland --verify-config` passed on 0.56.2; a fresh VM tty1 login through `nyvorel session` rendered the desktop, and reboot repeated it. This does not validate 0.57 |
+| High | First-run completeness | Source install left wallpaper, Matugen palettes, terminal colors and initial appearance state ungenerated | Source installer only copied shell/config trees | The first graphical login could start with missing generated assets | Added `nyvorel first-run` with staged color generation, private checksummed backup, guarded rollback and refusal to overwrite personal GTK/Fuzzel files; `setup.sh` calls it after provisioning a color venv | Disposable-home transaction tests and actual clean VM setup passed; first graphical login displayed wallpaper, bar and Welcome, with no failed Nyvorel user units after reboot |
 | High | Installer payload | Python imports created ignored bytecode containing an extra template token; fresh install failed with count 30 instead of 29 | Installer included interpreter caches | Local testing can break reproducibility and distribute stale paths | Exclude caches from source installation and disposable package payload; tests suppress cache creation | Contaminated-source install regression passes without deleting source caches; first-run and installer recovery pass |
 | Medium | Historical files | Four tracked `.before-*` and `.pre-*` source snapshots include stale references | Installer and package copied all source files | Unnecessary stale payload and confusing audits | Narrow payload filters now exclude historical snapshots while retaining them in Git | Installer cache/backup-file fixture and package-layout checks pass; package build not rerun yet |
 | Medium | Arch Remote loopback classification | Controller marks non-tailnet port 5900 critical and labels it LAN/broader | Strict bind compliance conflated with exposure scope; classification is port-based | Misleading security presentation for loopback | Separate-project scope must be agreed before remediation; preserve Tailscale/WayVNC policy | Source confirmed; current listener sample contained SSH but no port 5900 |
 | Medium | SSH effective configuration | Controller invokes unprivileged `sshd -T`; user reported unavailable host keys | Inability to read protected keys is a plausible cause, not proof keys are missing | Effective-policy verification unavailable | Open: verify with approved read-only privileged check, never loosen key permissions/authentication | Hypothesis distinguished from confirmed source behavior; no SSH changes |
 | Medium | Transaction recovery coverage | Controller snapshots known targets and re-synchronizes runtime; rollback helpers suppressed file errors | Preview/transaction snapshots omitted compositor rules, Kitty config and generated terminal files; Glass/Fluid helpers can normalize restored rules; Code Insiders settings were absent from the editor list | A cancelled preview or failed apply might not restore personal compositor/terminal/editor edits exactly | Added affected files to snapshots; replay exact bytes after runtime re-synchronization; refuse symlinked targets and surface restore failures; cover Code Insiders; skip compositor/terminal resync for palette-only previews | Injected helper rewrite, symlink, editor-failure and palette-only regressions pass; approved live previews returned tracked paths and GSettings to exact baseline |
 | Low | Glass runtime idempotence | Applying the already-selected Fluid/wallpaper theme added one blank line to `appearance-runtime.conf`; isolated repeated Glass/Fluid cycles added another each time | Glass helper removed and re-appended its existing block after Fluid, preserving an extra separator on every cycle | Runtime file grows on repeated applies and needlessly reloads the compositor | Existing exact Glass block is now left in place | New repeated-sync regression passes; second live committed apply left runtime file byte-identical |
+| High | Fresh Arch package resolution | The beginner setup reaches a large pacman transaction with provider choices and Qt/KDE integration needs | Some dependencies were implicit in app packages or absent from the original plan | An unattended beginner install could stop at an ambiguous provider or open apps without expected styling | Added explicit official provider packages and `plasma-integration`; retained optional recommended, OCR, recording and NetworkManager groups | Restored clean VM completed one interactive `pacman -Syu` transaction for 521 packages, about 806 MiB download and 3.25 GiB installed, with recommended apps and English OCR; no AUR helper was used. Native Dolphin opened with the generated dark palette |
+| Medium | Generated theme ownership | Kitty/Fish colors and KDE/Zed settings are generated after install | Earlier manifests treated some generated paths as managed source files and fresh homes lacked initial app style state | A normal update could flag drift or overwrite the active palette | Seed fresh-home style files, treat generated Kitty/Fish files as runtime-owned and preserve them on update/uninstall | Clean VM update passed without force or residual drift; four interface profile backends returned success with no failed user units; real uninstall archived five generated appearance/Kitty/Fish paths in `uninstall-conflicts` |
+| Low | Screenshot content hints | Minimal install has no OpenCV/numpy detector environment | Optional region helper emitted invalid detector output when these libraries were absent | QML warning during otherwise functional screenshot/OCR capture | Return a valid empty region list when optional detection is unavailable | VM region drag produced a 300×200 PNG; English OCR copied recognizable Firefox text; after the helper update the optional detector returned `[]` without the invalid-JSON warning. Automatic content-target detection remains unverified |
+| Low | Update-check command lookup | The shell called `which checkupdates`, but the minimal package set did not include `which` | A command lookup used an optional executable even though `checkupdates` was installed by `pacman-contrib` | Update status could appear unavailable with a noisy startup failure | Use Bash's `command -v` for the availability probe | Updated shell copied to the VM; a Quickshell-only restart returned active without a new `which` warning |
+| Low | Portal backend after logout | VM `hyprctl dispatch exit` returned to tty1 and automatically entered a new Nyvorel session; the old GTK portal backend logged `Broken pipe` and the Hyprland backend was initially inactive | Old Wayland display closed during logout; portal backends can be activated by requests in the new session | The immediate service snapshot alone could look like a persistent portal failure | Exercise real Screenshot and FileChooser portal requests after relogin | Screenshot reactivated the Hyprland backend; FileChooser.OpenFile reactivated GTK and rendered a chooser. Both were active afterward, so no persistent failure or source fix was indicated |
+| Medium | Fresh bar/sidebar layout | A pristine home used ten dot workspaces, three utility buttons and different quick toggles from the main Nyvorel desktop | Source defaults diverged from the intended current desktop layout | Fresh installs did not look or navigate like the showcased desktop | Set source `Config.qml` defaults to five numbered workspaces, no utility buttons, six requested quick toggles and visible volume/brightness sliders; guard absent slider devices with strict booleans | VM updated through `8f79483`, Quickshell restarted, and screenshot showed workspace numbers 1–5, the six two-column tiles, notification history and sliders. VM wallpaper/palette stayed its own; no QuickSliders or undefined warnings appeared |
 
 ## Tests actually executed
 
+- Clean-VM rehearsal: restored the `clean-minimal` Arch snapshot, installed Git from the official repository, cloned the public baseline and applied the unpublished local candidate through a verified Git bundle. `./setup.sh --plan --with-recommended --with-ocr-english` showed the transaction before `./setup.sh --install --yes --with-recommended --with-ocr-english` ran from an interactive SSH terminal. Pacman completed its full synchronized transaction; setup installed 1,004 managed files without replacement and generated a first-run recovery snapshot. `nyvorel doctor --no-session` reported 10 PASS, 0 WARN, 0 FAIL and 6 SKIP before graphical login. `Hyprland --verify-config` passed. The VM has no prior Nyvorel/home state outside this rehearsal.
+- The VM's first graphical tty1 login through `nyvorel session` showed wallpaper, bar and Welcome. After a VM-only reboot, the Hyprland, Quickshell and portal session returned with `XDG_SESSION_TYPE=wayland` and no failed user units. The built-in Quickshell Polkit agent displayed its prompt for a harmless `pkexec true` attempt. Dolphin, Settings and Appearance Studio opened and rendered; Dolphin used a dark native KDE palette. The VM initially started its user manager from SSH before the first console session, which prevented the Polkit agent from owning its name until reboot. That setup issue did not recur after the console-started login.
+- The VM previewed a preset and cancelled it with byte-identical hashes for sampled appearance config, colors and compositor runtime rules. The Default, Inlay, Prism and Fluid backend profile operations each returned `{"ok":true}` and left no failed user units; this backend result does not by itself prove every pixel or optional application integration. Operations Center showed no issues; Internet and Audio controls rendered; notification history received a harmless notification; clipboard history and launcher search/Firefox launch worked. Quickshell region selection copied a valid PNG, and English OCR copied recognizable text. The optional automatic content-region detector is not installed on this minimal guest, so manual capture and OCR are the proven paths.
+- VM update lifecycle: `nyvorel update --dry-run` and `--yes` completed without force after generated-theme ownership corrections. The post-rehearsal `d7e806d` candidate was transferred as a verified bundle; a normal dry-run showed one source change and no drift, `--yes` passed, and a repeat dry-run reported up to date. A separate offline snapshot preserved the installed guest. In that guest, `./uninstall.sh --dry-run` reported 1,004 managed files, zero changed and zero missing; `./uninstall.sh --yes` deactivated services, removed all 1,004 files created by setup, left CLI/shell/current-install pointer absent, marked the manifest `uninstalled`, retained runtime `~/.config/nyvorel`, and archived five generated appearance/Kitty/Fish paths under `uninstall-conflicts`. The installed VM snapshot was then restored, updated normally through `8f79483`, and left running with source and installed state matching. That infrastructure restore does not replace an end-user application rollback test. The public stable release remains `v0.1.0`.
+- Live VM doctor reported 16 PASS, 1 WARN and 0 FAIL; the warning concerned optional dependency groups. Recommended Zed launched and rendered, but its software `llvmpipe` graphics backend warned about support/performance. In a five-second idle sample the VM CPU bar showed about 97.2% across two virtual CPUs; Quickshell used about 632 MiB RSS and Hyprland about 252 MiB RSS. These measurements describe the software-rendered VM, not a physical-GPU baseline. After deploying the `command -v` update probe, Quickshell restarted successfully and did not repeat the earlier `which` warning.
+- VM-only lock/unlock passed using a temporary guest password and virtual keyboard; Quickshell remained active. A subsequent `hyprctl dispatch exit` restarted the tty1 autologin graphical session: Hyprland PID 480→1164 and Quickshell PID 618→1302 within eight seconds. The old GTK portal backend logged `Broken pipe` as its display closed, but a Screenshot request activated the new Hyprland backend and FileChooser.OpenFile activated GTK, rendered a file chooser, and left both backends active. This establishes on-demand portal recovery after relogin. None of these steps touched the main PC's Hyprland session or credentials.
+- The final VM update to `8f79483` first showed one QuickSliders payload change and zero drift, completed with `--yes`, then reported already up to date. After a user-manager daemon reload and VM-only Quickshell restart, the bar showed five numbered workspaces and the sidebar showed the requested six quick toggles, notification history, and brightness/volume sliders. The VM retained its own wallpaper-derived palette. There were no new QuickSliders, undefined-value or `checkupdates` warnings after opening the sidebar. Final live doctor was 16 PASS, 1 optional-group WARN, 0 FAIL; no user units failed. The temporary VM password was removed and its password field returned to locked state. Kitty rendered a prompt; Zed rendered with its `llvmpipe` warning. The VM remained running.
+- CI and isolated checks for this candidate passed: `test-setup.sh`, `test-session-entry.sh`, `test-style-sync.py`, `test-installer-sandbox.sh`, `test-update.sh`, `test-content-regions.sh` and `validate-source.sh`. The AUR Git package lifecycle also passed in a disposable Arch container; it did not publish a package.
 - `python3 scripts/ci/test-appearance-studio.py`: eleven passing tests. Uses a stubbed generator/session in its subprocess fixture and injected controller failures; checks that a crafted virtual-environment value is not executed, preview rollback restores compositor rules and Kitty configuration, symlinked personal configuration is not overwritten, a failed editor integration restores Code Insiders settings, and palette-only previews skip unnecessary runtime reloads.
 - `python3 scripts/ci/test-runtime-dependencies.py`: five passing tests for file presence, alternatives, complete groups and invalid selectors.
 - Real-generator fixture (now retained as `scripts/ci/test-appearance-runtime.py --venv PATH`): source-owned Matugen templates rendered all eight configured outputs; dark/light preset application for Default, Inlay, Prism and Fluid; preview/cancel; preview/keep; wallpaper-derived apply; injected failure recovery. Uses actual Matugen 4.2.0 and an explicitly supplied existing Python environment, isolated HOME/XDG paths and stubbed compositor calls. It does not verify visual output, terminal escape propagation, or a fresh Python installation.
@@ -114,68 +130,58 @@ units were already failed before deployment, so rolling back would reintroduce
 that service-limit defect. The prior auto-generated Fuzzel style was also
 backed up separately; the live output now correctly reflects selected Fluid.
 
-## Phase 5 source progress (2026-10-09)
+## Clean Arch setup and release-candidate state (2026-10-09)
 
-Local stabilization commits are `df65e347512457be8fcd9267c0e6e8202ba9b30f`
-and `c81a63bcd195f2abfa788bc236fbcbbda4442baa`. Neither was pushed.
-The first includes the appearance ownership, QML, startup and test fixes
-described above; the second makes the AUR Git package test actually execute
-its container script. A source-owned beginner setup change is under review
-after those commits.
+The source candidate has local commits through `8f79483`, including a guarded
+beginner setup, session launcher, first-run generation, runtime ownership and
+optional screenshot-detector fallback. These are unpublished changes on `main`;
+no stable tag, AUR package or website deployment has been produced. The
+independent AUR Git packaging container test is a validation of packaging
+mechanics, not a published install path.
 
-The new `setup.sh` prints a Bash-only package plan before Python is present.
-Its consented path selects official pacman packages for the graphical session,
-Qt/QML imports, fonts, browser/file manager, audio, shell integrations, and
-safe defaults. Recommended apps, English OCR data and recording tools are
-explicit groups. It uses a full `pacman -Syu` when packages are missing or
-Quickshell is older than 0.3.2, and refuses to materialize user files if that
-version gate still fails. A refreshed disposable Arch container installed the
-current official `quickshell` and reported 0.3.2. Existing host sync metadata
-still reported 0.3.1; this is precisely why the setup checks the installed
-binary after the synchronized transaction. The default flow does not use AUR,
-start NetworkManager, enable VPN/remote services, or enter an active Hyprland
-desktop. Enabling NetworkManager requires an explicit option to avoid
-overriding an existing network setup.
+`setup.sh` gives a Bash-only plan before Python is present. Its consented
+install path uses official pacman repositories for the graphical session,
+Qt/QML modules, fonts, browser/file manager, audio and system integration. It
+performs a full `pacman -Syu` and checks that Quickshell is at least 0.3.2
+before writing the home payload. Recommended apps, English OCR, recording and
+NetworkManager are explicit options. The real VM run used recommended apps and
+English OCR. Its pacman transaction was interactive; the `--yes` option did
+not bypass review of the system package transaction. The default does not use
+an AUR helper or enable VPN/remote services. NetworkManager was deliberately
+not enabled in the VM because its SSH connection used systemd-networkd.
 
-Source install now tags Matugen-generated Hyprland and Hyprlock color files as
-runtime-owned. Update preserves their live bytes, including older manifests
-where Appearance Studio already changed them; doctor accepts these known
-runtime destinations, and uninstall archives them. Update/doctor/install and
-uninstall sandbox regressions pass. First-session activation has its own
-`nyvorel activate` command: it imports the Wayland environment, enables the
-Nyvorel style paths/monitor, Polkit agent and PipeWire user units, starts the
-shell and checks its active state. Hyprland calls that command on first login.
-The activation control flow passed a fake-manager test, but a real new login
-has not been exercised.
+The `nyvorel session` launcher entered Hyprland from tty1 with the installed
+config, and `nyvorel activate` brought up the shell and user services on first
+graphical login. The VM reboot proved a second console-started login, the
+portal, and built-in Polkit prompt. The first run generated wallpaper, palette,
+terminal colors and recovery state. Update then preserved generated state
+without requiring a forced overwrite. Detailed command and UI evidence is in
+"Tests actually executed" above. This VM is a 2-vCPU software-rendered guest;
+its measured 97.2% idle CPU bar is not a representative physical-GPU
+benchmark. It still warrants a separate performance check before treating the
+experience as polished on low-end hardware.
 
-An isolated real setup run, with a fake pacman/sudo that would fail on any
-system mutation and a reviewed local materialyoucolor wheel, passed user
-materialization, color environment creation, first-run palette generation,
-`first-run --check`, `activate --check`, and session launcher inspection. An
-explicit second run with `--resume` was idempotent; a run without `--resume`
-refused the already-installed home. `Hyprland --verify-config` passed for an
-independent first-run fixture. The fresh package lifecycle also passed again
-from a sanitized mirror of the current source: real makepkg/pacman install,
-upgrade, remove, reinstall, source-to-package migration and recovery in a
-disposable Arch container. No graphical output was verified by those runs.
-
-The previously documented VM is no longer registered in system or user
-libvirt, and SSH to `192.168.122.39` returns no route. The Arch installer ISO
-is present in the libvirt ISO pool, but no clean graphical guest has been
-recreated. README and website therefore remain unchanged.
+After the VM run exposed the need for pacman review, source setup gained an
+early interactive-terminal guard: when package installation is required, it
+exits with a local-terminal/`ssh -t` instruction before calling pacman if stdin
+is not a TTY. The update-check availability probe now uses Bash's built-in
+`command -v` instead of depending on the optional `which` package. The
+committed source update passed the normal VM update path, and a Quickshell-only
+restart produced no new lookup warning. The interactive-terminal guard passed
+its source regression before this final VM cycle.
 
 ## Remaining phase gates
 
-1. Finish Phase 2/3: generated-file ownership is live and passed four style previews plus one wallpaper-derived Light preview, all with exact core-state cancel restoration and 11 style outputs converged to the restored palette. A committed apply of the existing wallpaper/dark/Fluid theme persisted through a Quickshell restart, and a second apply was byte-stable after the Glass helper fix. A different theme's committed persistence and video wallpaper remain unverified on the active desktop. Longer-term style-sync burst behavior still needs observation.
-2. Complete actual main-PC functional checks, including all appearance paths and external integrations. Quickshell 0.3.2 and the two QML geometry guards are live. Startup no longer logged the OSD screen assignment warning, but Qt cross-thread warnings remain and the complete OSD interaction is still unverified. Lock/logout/compositor restart need separate scheduling.
-3. Review the Phase 5 candidate diff, finish relevant CI and create a scoped local commit. The earlier two stabilization commits are local; nothing has been pushed or tagged.
-4. Complete the beginner install validation, including a real first graphical login, audio/portal/Polkit checks, and any package gaps discovered there. Its present isolated setup and package tests are narrower evidence.
-5. Establish a genuinely clean VM baseline and follow only public instructions through install, reboot, update, recovery and uninstall. The previous VM is unavailable.
-6. Synchronize README and website only after those steps pass. Website deployment/release/AUR publication remain prohibited without explicit approval.
+1. Keep the remaining integration limits visible: Kitty rendered a prompt and Zed opened, but Zed warned about `llvmpipe` graphics support/performance. The VM has no physical microphone, display backlight, battery or Bluetooth adapter, so those controls need capable hardware. A source-level first-run rollback fixture and real VM uninstall passed; the VM snapshot restore is infrastructure recovery rather than proof of a user-facing rollback workflow.
+2. Resolve or document the Hyprland 0.57 `.conf` compatibility risk before claiming forward compatibility. The observed source and live VM use Hyprland 0.56.2. Watch the remaining Qt cross-thread warnings and verify OSD interaction; their root causes and practical impact are not yet settled.
+3. Keep main-PC logout, lock, full Hyprland restart and reboot out of the live test scope until separately authorized. The approved Quickshell-only restarts and appearance preview/cancel succeeded; they do not substitute for a whole-session test. Video wallpaper and a committed switch to a different live theme remain unverified on the main PC.
+4. Review the final candidate diff and maintain README/website documentation against verified instructions. README and website changes have been committed locally and their checks passed; the site is not deployed. Source commits remain local; pushing, release tagging, AUR publication and website deployment require separate authorization.
 
-Current assessment: **not release-ready**. The confirmed appearance path defect
-is repaired, but the complete clean-install experience remains unproven and has
-known blockers.
+Current assessment: **release candidate, not release-ready**. The former clean
+installation blocker is resolved on the tested Arch 0.56.2 VM, and update,
+uninstall, lock/unlock, desktop relogin, portal reactivation and the final
+bar/sidebar layout have passed there. Hyprland version-forward compatibility,
+hardware-dependent controls and physical-GPU performance remain unverified.
 
 ## External verification
 
