@@ -6,7 +6,7 @@
 -- This source has been parser-checked on 0.56.2; no 0.57 compatibility claim.
 local config_home = os.getenv("XDG_CONFIG_HOME") or ((os.getenv("HOME") or "") .. "/.config")
 local nyvorel_config_root = NYVOREL_CONFIG_ROOT or (config_home .. "/hypr")
-local super_scroll = ((os.getenv("HOME") or "") .. "/.local/bin/nyvorel-super-scroll")
+local super_scroll = "~/.local/bin/nyvorel-super-scroll"
 local function load_optional(path)
   local chunk = loadfile(path)
   if chunk then chunk() end
@@ -681,7 +681,7 @@ hl.bind("SUPER + F", hl.dsp.window.fullscreen({mode = "fullscreen"}), {})
 -- hyprland/keybinds.conf:103
 hl.bind("SUPER+ALT + F", hl.dsp.window.fullscreen_state({internal = 0, client = 3}), {})
 -- hyprland/keybinds.conf:104
-hl.bind("SUPER + P", hl.dsp.window.pin(), {})
+-- Project Launcher owns Super+P; pin remains available on Super+Alt+P.
 -- hyprland/keybinds.conf:108
 hl.bind("SUPER+ALT + code:10", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 1"), {})
 -- hyprland/keybinds.conf:109
@@ -905,6 +905,12 @@ hl.bind("CTRL+SUPER + Backslash", hl.dsp.window.resize({x = 640, y = 480, relati
 dofile(nyvorel_config_root .. "/custom/appearance-runtime.lua")
 -- hyprland.conf:24
 -- hyprland.conf:25
+-- custom/keybinds.conf: Project Launcher and desktop tools.
+hl.bind("SUPER + P", hl.dsp.global("quickshell:projectsToggle"), { ["description"] = "Project command center" })
+hl.bind("SUPER+ALT + P", hl.dsp.window.pin(), {})
+hl.bind("SUPER+ALT + T", hl.dsp.global("quickshell:appearanceStudioToggle"), { ["description"] = "Appearance Studio" })
+hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Arch Remote Control Center" })
+hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Backup & Recovery Center" })
 -- custom/nyvorel-super-scroll.conf:15
 -- custom/nyvorel-super-scroll.conf:18
 hl.bind("SUPER + Super_L", hl.dsp.exec_cmd(super_scroll .. " press left"), {["ignore_mods"] = true, ["description"] = "Toggle search on tap"})

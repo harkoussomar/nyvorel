@@ -48,6 +48,38 @@ if grep -qF 'systemctl --user start nyvorel-quickshell.service' \
   exit 1
 fi
 
+# The native Lua entry must retain the desktop actions formerly supplied by
+# custom/keybinds.conf, and the Super-tap helper must use a package-rewritable
+# path (package installs do not populate ~/.local/bin).
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+lua = (root / "hypr/hyprland.lua").read_text()
+required = {
+    '"SUPER + P"': "quickshell:projectsToggle",
+    '"SUPER+ALT + T"': "quickshell:appearanceStudioToggle",
+    '"SUPER + Y"': "quickshell:archRemoteToggle",
+    '"SUPER + U"': "quickshell:backupRecoveryToggle",
+}
+for keys, target in required.items():
+    assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
+assert 'hl.bind("SUPER+ALT + P", hl.dsp.window.pin()' in lua
+assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' not in lua
+assert 'local super_scroll = "~/.local/bin/nyvorel-super-scroll"' in lua
+helper = (root / "bin/nyvorel-super-scroll").read_text()
+assert 'hyprctl dispatch \'hl.dsp.global("quickshell:searchToggle")\'' in helper
+assert 'hyprctl dispatch global quickshell:searchToggle' not in helper
+for target, path in (
+    ("projectsToggle", "quickshell/modules/nyvorel/projectLauncher/ProjectLauncher.qml"),
+    ("appearanceStudioToggle", "quickshell/shell.qml"),
+    ("archRemoteToggle", "quickshell/modules/nyvorel/archRemote/ArchRemote.qml"),
+    ("backupRecoveryToggle", "quickshell/modules/nyvorel/backupRecovery/BackupRecovery.qml"),
+):
+    assert f'name: "{target}"' in (root / path).read_text(), target
+PY
+
 # Native Lua is preferred when present, while explicit launcher selection wins.
 printf 'return true\n' >"$HOME_TEST/.config/hypr/hyprland.lua"
 env -u XDG_CONFIG_HOME -u HYPRLAND_INSTANCE_SIGNATURE \

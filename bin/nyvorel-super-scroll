@@ -253,7 +253,7 @@ release() {
     unlock_state
 
     if (( should_toggle )); then
-        hyprctl dispatch global quickshell:searchToggle >/dev/null
+        hyprctl dispatch 'hl.dsp.global("quickshell:searchToggle")' >/dev/null
     fi
 }
 
