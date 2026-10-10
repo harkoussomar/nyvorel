@@ -228,7 +228,7 @@ Item {
                                 onPressed: {
                                     if (root.draggingTargetWorkspace === -1) {
                                         GlobalStates.overviewOpen = false
-                                        Hyprland.dispatch(`workspace ${workspace.workspaceValue}`)
+                                        Hyprland.dispatch(`hl.dsp.focus({workspace = "${workspace.workspaceValue}"})`)
                                     }
                                 }
                             }
