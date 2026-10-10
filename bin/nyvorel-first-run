@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import runpy
 from pathlib import Path
 import shutil
 import stat
@@ -162,7 +163,7 @@ def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -
         config = {
             "background": {"wallpaperPath": str(wallpaper), "thumbnailPath": ""},
             "appearance": {
-                "interfaceStyle": "default",
+                "interfaceStyle": "fluid",
                 "fonts": {
                     "main": "Noto Sans", "numbers": "Noto Sans", "title": "Noto Sans",
                     "iconNerd": "JetBrainsMono Nerd Font", "monospace": "JetBrainsMono Nerd Font",
@@ -172,12 +173,22 @@ def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -
                 "wallpaperTheming": {"enableAppsAndShell": True, "enableQtApps": False, "enableTerminal": True},
             },
         }
+        # Reuse Appearance Studio's Fluid profile so a fresh desktop matches
+        # the main Nyvorel layout and terminal glass settings.
+        profile_source = shell / "scripts/appearance-studio/appearance_studio.py"
+        fluid_patch = runpy.run_path(str(profile_source))["UI_PROFILES"]["fluid"]["patch"]
+        for dotted_key, value in fluid_patch.items():
+            target = config
+            parts = dotted_key.split(".")
+            for part in parts[:-1]:
+                target = target.setdefault(part, {})
+            target[parts[-1]] = value
         studio = {
             "version": 4,
             "active": {
                 "source": "wallpaper", "preset": "", "seed": "",
                 "scheme": SCHEME, "mode": SEED_MODE, "wallpaper": str(wallpaper),
-                "uiProfile": "default",
+                "uiProfile": "fluid",
             },
             "targets": {
                 "shell": True, "hyprland": True, "hyprlock": True,
