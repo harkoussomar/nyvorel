@@ -18,7 +18,7 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def repaired_manifest(payload: dict, home: Path) -> tuple[dict, int]:
+def repaired_manifest(payload: dict, home: Path, project_backend: Path | None = None) -> tuple[dict, int]:
     """Reject unexplained content/mode changes; never bless arbitrary live files."""
     updated = copy.deepcopy(payload)
     files = updated.get("files")
@@ -34,6 +34,7 @@ def repaired_manifest(payload: dict, home: Path) -> tuple[dict, int]:
         str(legacy / "modules/ii/archRemote/ArchRemoteContent.qml"):
             (current / "modules/nyvorel/archRemote/ArchRemoteContent.qml", "qml"),
     }
+    backend_target = current / "scripts/arch-remote/control_center.py"
     changed = 0
     for item in files:
         path = Path(item["path"])
@@ -54,6 +55,16 @@ def repaired_manifest(payload: dict, home: Path) -> tuple[dict, int]:
         elif kind == "launcher":
             original = data.replace(b'ROOT="${NYVOREL_ROOT:-$HOME/.config/quickshell/nyvorel}"',
                                     b'ROOT="${II_ROOT:-$HOME/.config/quickshell/ii}"')
+        elif project_backend is not None and target == backend_target:
+            expected = project_backend.read_bytes().replace(b'@HOME@', str(home).encode())
+            if data != expected:
+                raise ValueError("Live backend differs from the supplied project source")
+            # Only this explicitly verified, committed project backend may be
+            # rebaselined after a Nyvorel update of the shared file.
+            if digest(data) != item["sha256"]:
+                item["sha256"] = digest(data)
+                changed += 1
+                continue
         if digest(original) != item["sha256"]:
             raise ValueError(f"Unexplained content change; manifest left untouched: {target}")
         if str(target) != item["path"] or digest(data) != item["sha256"]:
@@ -66,12 +77,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument("--apply", action="store_true", help="Back up and atomically repair the manifest")
+    parser.add_argument("--sync-project-backend", action="store_true",
+                        help="Also trust the byte-identical project backend after an intentional update")
     args = parser.parse_args()
     home = args.home.resolve()
     manifest = home / ".local/state/nyvorel/arch-remote/deployment.json"
     payload = json.loads(manifest.read_text())
-    updated, count = repaired_manifest(payload, home)
-    print(f"Verified all {len(updated['files'])} entries; {count} proven rename(s).")
+    project_backend = (Path(__file__).resolve().parent.parent
+                       / "quickshell/scripts/arch-remote/control_center.py") if args.sync_project_backend else None
+    updated, count = repaired_manifest(payload, home, project_backend)
+    print(f"Verified all {len(updated['files'])} entries; {count} verified change(s).")
     if not args.apply or not count:
         return
     backup = manifest.with_name(f"deployment.before-nyvorel-repair-{time.time_ns()}.json")

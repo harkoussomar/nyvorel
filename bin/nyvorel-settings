@@ -2,17 +2,18 @@
 set -euo pipefail
 
 SETTINGS_QML="$HOME/.config/quickshell/nyvorel/settings.qml"
-# Reopen the existing Settings window, including one closed to the tray-like
-# Quickshell process. Avoid rebuilding the entire QML tree on every shortcut.
-if command -v qs >/dev/null 2>&1; then
-    if qs -p "$SETTINGS_QML" ipc call settings open >/dev/null 2>&1; then
-        exit 0
-    fi
+SETTINGS_SIGNAL_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/nyvorel"
+SETTINGS_SIGNAL="$SETTINGS_SIGNAL_DIR/settings-open"
+mkdir -p "$SETTINGS_SIGNAL_DIR"
+
+# The standalone Settings process remains alive after its window closes.
+# Signal that process to show the existing window instead of loading QML again.
+if pgrep -u "$(id -u)" -f "^(qs|quickshell) -p $SETTINGS_QML$" >/dev/null; then
+    printf '%s\n' "$(date +%s%N)" > "$SETTINGS_SIGNAL"
+    exit 0
 fi
 
-# Remove stale standalone Settings processes only.
-pkill -f '^qs -p .*/settings\.qml$' 2>/dev/null || true
-pkill -f '^quickshell -p .*/settings\.qml$' 2>/dev/null || true
+touch "$SETTINGS_SIGNAL"
 
 if command -v qs >/dev/null 2>&1; then
     exec env XDG_CURRENT_DESKTOP=gnome \

@@ -21,17 +21,19 @@ import Quickshell.Hyprland
 ApplicationWindow {
     id: root
 
-    IpcHandler {
-        target: "settings"
+    function reopen(): void {
+        root.allowImmediateClose = false
+        root.closing = false
+        root.show()
+        root.raise()
+        root.requestActivate()
+        frameFocus.forceActiveFocus()
+    }
 
-        function open(): void {
-            root.allowImmediateClose = false
-            root.closing = false
-            root.show()
-            root.raise()
-            root.requestActivate()
-            frameFocus.forceActiveFocus()
-        }
+    FileView {
+        path: `${Quickshell.env("XDG_RUNTIME_DIR")}/nyvorel/settings-open`
+        watchChanges: true
+        onFileChanged: root.reopen()
     }
 
     property string firstRunFilePath:
