@@ -105,25 +105,39 @@ Singleton {
     // Power-management UI state
     // ============================================================
 
-    property bool batteryAware: true
+    property bool batteryAware: false
+    property bool batteryAwareAvailable: false
+    property bool chargeLimitAvailable: false
+    property string chargeLimitMessage: "Checking battery controls…"
+    property string actionError: ""
+    readonly property bool actionRunning: powerAction.running
+    property int currentChargeLimit: -1
+    property int persistentChargeLimit: 100
+
+    function acceptChargeStatus(text) {
+        try {
+            const status = JSON.parse(text);
+            chargeLimitAvailable = status.available === true;
+            currentChargeLimit = status.current;
+            persistentChargeLimit = status.persistent;
+            chargeLimitMessage = status.message || "";
+        } catch (error) {
+            chargeLimitAvailable = false;
+            chargeLimitMessage = "Could not read battery controls";
+        }
+    }
 
     function fileInt(file, fallbackValue) {
         const raw = file.text().trim();
-        const value = Number(raw);
+        const value = raw.length ? Number(raw) : NaN;
 
         return Number.isFinite(value)
             ? Math.round(value)
             : fallbackValue;
     }
 
-    readonly property int currentChargeLimit:
-        fileInt(currentChargeLimitFile, 100)
-
-    readonly property int persistentChargeLimit:
-        fileInt(persistentChargeLimitFile, 100)
-
     readonly property bool chargeProtectionEnabled:
-        persistentChargeLimit < 100
+        chargeLimitAvailable && persistentChargeLimit < 100
 
     readonly property int cycleCount:
         fileInt(cycleCountFile, 0)
@@ -143,30 +157,30 @@ Singleton {
     // Sysfs / persistent files
     // ============================================================
 
-    FileView {
-        id: currentChargeLimitFile
-
-        path:
-            "/sys/class/power_supply/BAT0/"
-            + "charge_control_end_threshold"
-
-        printErrors: false
-        watchChanges: true
-
-        onFileChanged:
-            reload()
+    Process {
+        id: chargeStatusQuery
+        command: ["python3", Directories.scriptPath + "/battery/control.py", "status"]
+        stdout: StdioCollector {
+            onStreamFinished: root.acceptChargeStatus(this.text)
+        }
+        onExited: (code, status) => {
+            if (code !== 0) {
+                root.chargeLimitAvailable = false;
+                root.chargeLimitMessage = "Could not read battery controls";
+            }
+        }
     }
 
-    FileView {
-        id: persistentChargeLimitFile
-
-        path: "/etc/nyvorel-battery-threshold"
-
-        printErrors: false
-        watchChanges: true
-
-        onFileChanged:
-            reload()
+    Process {
+        id: powerAction
+        stderr: StdioCollector { id: actionStderr }
+        stdout: StdioCollector {}
+        onExited: (code, status) => {
+            root.actionError = code === 0 ? "" : (actionStderr.text.trim() || "Power setting could not be changed");
+            root.refreshPowerSettings();
+            batteryAwareRefreshTimer.restart();
+            thresholdRefreshTimer.restart();
+        }
     }
 
     FileView {
@@ -222,14 +236,12 @@ Singleton {
             "query-battery-aware"
         ]
 
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const value =
-                    this.text.trim().toLowerCase();
-
-                root.batteryAware =
-                    value.indexOf("true") !== -1;
-            }
+        stdout: StdioCollector { id: batteryAwareOutput }
+        onExited: (code, status) => {
+            const value = batteryAwareOutput.text.trim().toLowerCase();
+            root.batteryAwareAvailable = code === 0 && /\b(true|false)\b/.test(value);
+            if (root.batteryAwareAvailable)
+                root.batteryAware = /\btrue\b/.test(value);
         }
     }
 
@@ -264,8 +276,8 @@ Singleton {
     }
 
     function refreshLocalPowerState() {
-        currentChargeLimitFile.reload();
-        persistentChargeLimitFile.reload();
+        if (!chargeStatusQuery.running && !powerAction.running)
+            chargeStatusQuery.running = true;
         cycleCountFile.reload();
         platformProfileFile.reload();
         eppFile.reload();
@@ -276,44 +288,32 @@ Singleton {
         refreshLocalPowerState();
     }
 
+    function runPowerAction(command) {
+        if (powerAction.running)
+            return;
+        actionError = "";
+        powerAction.command = command;
+        powerAction.running = true;
+    }
+
+    function setPowerProfile(profile) {
+        if (["power-saver", "balanced", "performance"].indexOf(profile) !== -1)
+            runPowerAction(["powerprofilesctl", "set", profile]);
+    }
+
     function setBatteryAware(enabled) {
-        root.batteryAware = enabled;
-
-        Quickshell.execDetached([
-            "powerprofilesctl",
-            "configure-battery-aware",
-            enabled ? "--enable" : "--disable"
-        ]);
-
-        batteryAwareRefreshTimer.restart();
+        if (batteryAwareAvailable && enabled !== batteryAware)
+            runPowerAction(["powerprofilesctl", "configure-battery-aware", enabled ? "--enable" : "--disable"]);
     }
 
     function setChargeLimit(limit) {
-        const allowed = [60, 70, 80, 90, 100];
-
-        if (allowed.indexOf(limit) === -1)
-            return;
-
-        Quickshell.execDetached([
-            "sudo",
-            "-n",
-            "/usr/local/bin/nyvorel-battery-threshold",
-            "set",
-            String(limit)
-        ]);
-
-        thresholdRefreshTimer.restart();
+        if (chargeLimitAvailable && [60, 70, 80, 90, 100].indexOf(limit) !== -1)
+            runPowerAction(["python3", Directories.scriptPath + "/battery/control.py", "set", String(limit)]);
     }
 
     function chargeToFullOnce() {
-        Quickshell.execDetached([
-            "sudo",
-            "-n",
-            "/usr/local/bin/nyvorel-battery-threshold",
-            "once"
-        ]);
-
-        thresholdRefreshTimer.restart();
+        if (chargeProtectionEnabled)
+            runPowerAction(["python3", Directories.scriptPath + "/battery/control.py", "once"]);
     }
 
 
@@ -414,6 +414,13 @@ Singleton {
     // ============================================================
     // Initial state
     // ============================================================
+
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.available
+        onTriggered: root.refreshPowerSettings()
+    }
 
     Component.onCompleted:
         refreshPowerSettings()

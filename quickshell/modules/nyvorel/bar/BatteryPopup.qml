@@ -155,9 +155,11 @@ StyledPopup {
         property bool checked: false
         property string accessibleName: ""
 
+        opacity: enabled ? 1 : 0.42
+
         signal toggled(bool checked)
 
-        activeFocusOnTab: true
+        activeFocusOnTab: enabled
         Accessible.role: Accessible.Switch
         Accessible.name: toggle.accessibleName
         Accessible.checkable: true
@@ -789,6 +791,15 @@ StyledPopup {
         // Power mode
         // ========================================================
 
+        StyledText {
+            Layout.fillWidth: true
+            visible: Battery.actionError.length > 0
+            text: Battery.actionError
+            wrapMode: Text.Wrap
+            color: Appearance.m3colors.m3error
+            font.pixelSize: Appearance.font.pixelSize.small
+        }
+
         SectionLabel {
             text:
                 Translation.tr("POWER MODE")
@@ -810,9 +821,8 @@ StyledPopup {
                     PowerProfiles.profile
                     === PowerProfile.PowerSaver
 
-                onClicked:
-                    PowerProfiles.profile =
-                        PowerProfile.PowerSaver
+                buttonEnabled: !Battery.actionRunning
+                onClicked: Battery.setPowerProfile("power-saver")
             }
 
             ModeButton {
@@ -823,9 +833,8 @@ StyledPopup {
                     PowerProfiles.profile
                     === PowerProfile.Balanced
 
-                onClicked:
-                    PowerProfiles.profile =
-                        PowerProfile.Balanced
+                buttonEnabled: !Battery.actionRunning
+                onClicked: Battery.setPowerProfile("balanced")
             }
 
             ModeButton {
@@ -838,15 +847,13 @@ StyledPopup {
                     Translation.tr("Performance")
 
                 buttonEnabled:
-                    PowerProfiles.hasPerformanceProfile
+                    PowerProfiles.hasPerformanceProfile && !Battery.actionRunning
 
                 selected:
                     PowerProfiles.profile
                     === PowerProfile.Performance
 
-                onClicked:
-                    PowerProfiles.profile =
-                        PowerProfile.Performance
+                onClicked: Battery.setPowerProfile("performance")
             }
         }
 
@@ -933,6 +940,8 @@ StyledPopup {
                         Layout.minimumWidth: 0
 
                         text: {
+                            if (!Battery.batteryAwareAvailable)
+                                return Translation.tr("Automatic tuning unavailable");
                             if (!Battery.batteryAware)
                                 return Translation.tr(
                                     "Dynamic tuning disabled"
@@ -972,6 +981,7 @@ StyledPopup {
                     accessibleName:
                         Translation.tr("Automatic power tuning")
 
+                    enabled: Battery.batteryAwareAvailable && !Battery.actionRunning
                     checked:
                         Battery.batteryAware
 
@@ -1075,6 +1085,8 @@ StyledPopup {
                             Layout.minimumWidth: 0
 
                             text: {
+                                if (!Battery.chargeLimitAvailable)
+                                    return Battery.chargeLimitMessage;
                                 if (
                                     !Battery.chargeProtectionEnabled
                                 ) {
@@ -1088,7 +1100,7 @@ StyledPopup {
                                     === 100
                                 ) {
                                     return Translation.tr(
-                                        "Full charge once · returns to %1%"
+                                        "Until restart · then %1%"
                                     ).arg(
                                         Battery.persistentChargeLimit
                                     );
@@ -1122,6 +1134,7 @@ StyledPopup {
                         accessibleName:
                             Translation.tr("Battery charge protection")
 
+                        enabled: Battery.chargeLimitAvailable && !Battery.actionRunning
                         checked:
                             Battery.chargeProtectionEnabled
 
@@ -1142,7 +1155,7 @@ StyledPopup {
 
                     LimitButton {
                         limit: 60
-                        buttonEnabled: Battery.chargeProtectionEnabled
+                        buttonEnabled: Battery.chargeLimitAvailable && !Battery.actionRunning
 
                         onClicked:
                             Battery.setChargeLimit(60)
@@ -1150,7 +1163,7 @@ StyledPopup {
 
                     LimitButton {
                         limit: 70
-                        buttonEnabled: Battery.chargeProtectionEnabled
+                        buttonEnabled: Battery.chargeLimitAvailable && !Battery.actionRunning
 
                         onClicked:
                             Battery.setChargeLimit(70)
@@ -1158,7 +1171,7 @@ StyledPopup {
 
                     LimitButton {
                         limit: 80
-                        buttonEnabled: Battery.chargeProtectionEnabled
+                        buttonEnabled: Battery.chargeLimitAvailable && !Battery.actionRunning
 
                         onClicked:
                             Battery.setChargeLimit(80)
@@ -1166,7 +1179,7 @@ StyledPopup {
 
                     LimitButton {
                         limit: 90
-                        buttonEnabled: Battery.chargeProtectionEnabled
+                        buttonEnabled: Battery.chargeLimitAvailable && !Battery.actionRunning
 
                         onClicked:
                             Battery.setChargeLimit(90)
@@ -1183,7 +1196,7 @@ StyledPopup {
                         Appearance.radius.control
 
                     enabled:
-                        Battery.chargeProtectionEnabled
+                        Battery.chargeProtectionEnabled && !Battery.actionRunning
 
                     opacity: enabled ? 1 : 0.42
                     activeFocusOnTab: enabled
@@ -1192,8 +1205,8 @@ StyledPopup {
                     Accessible.name:
                         Battery.currentChargeLimit === 100
                         && Battery.chargeProtectionEnabled
-                            ? Translation.tr("Charging to 100% once")
-                            : Translation.tr("Charge to 100% once")
+                            ? Translation.tr("Full charge until restart")
+                            : Translation.tr("Allow full charge until restart")
                     Accessible.focusable: enabled
                     Accessible.focused: activeFocus
                     Accessible.onPressAction: {
@@ -1250,10 +1263,10 @@ StyledPopup {
                                 Battery.currentChargeLimit === 100
                                 && Battery.chargeProtectionEnabled
                                     ? Translation.tr(
-                                        "Charging to 100% once"
+                                        "Full charge until restart"
                                     )
                                     : Translation.tr(
-                                        "Charge to 100% once"
+                                        "Allow full charge until restart"
                                     )
 
                             font.weight:
