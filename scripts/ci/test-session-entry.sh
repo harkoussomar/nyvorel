@@ -66,7 +66,7 @@ required = {
 for keys, target in required.items():
     assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
 assert 'hl.bind("SUPER+ALT + P", hl.dsp.window.pin()' in lua
-assert 'hl.bind("SUPER + Backslash", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
+assert 'hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
 assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' not in lua
 assert 'local super_scroll = "~/.local/bin/nyvorel-super-scroll"' in lua
 helper = (root / "bin/nyvorel-super-scroll").read_text()
