@@ -255,6 +255,19 @@ Singleton {
             return
         }
 
+        const previous = root.captureRegions[id]
+        if (
+            previous
+            && previous.screenName === screenName
+            && previous.x === x
+            && previous.y === y
+            && previous.width === width
+            && previous.height === height
+            && previous.priority === (priority ?? 100)
+            && previous.label === (label || root.exclusiveSurfaceLabel(id))
+            && previous.captureOutset === Math.max(0, captureOutset ?? 0)
+        ) return
+
         const next = ({})
 
         for (const key in root.captureRegions)

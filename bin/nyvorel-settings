@@ -2,16 +2,10 @@
 set -euo pipefail
 
 SETTINGS_QML="$HOME/.config/quickshell/nyvorel/settings.qml"
-SETTINGS_TITLE="Nyvorel Settings"
-
-# Reuse the mapped window if Settings is already open.
-if command -v hyprctl >/dev/null 2>&1; then
-    if hyprctl clients 2>/dev/null \
-        | grep -Fq "title: $SETTINGS_TITLE"; then
-
-        hyprctl dispatch focuswindow \
-            'title:^(Nyvorel Settings)$' \
-            >/dev/null 2>&1 || true
+# Reopen the existing Settings window, including one closed to the tray-like
+# Quickshell process. Avoid rebuilding the entire QML tree on every shortcut.
+if command -v qs >/dev/null 2>&1; then
+    if qs -p "$SETTINGS_QML" ipc call settings open >/dev/null 2>&1; then
         exit 0
     fi
 fi

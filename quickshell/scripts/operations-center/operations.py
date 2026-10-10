@@ -2097,6 +2097,20 @@ def stop_process(
         )
 
     if unit:
+        # Some Node-based services exit with code 143 after systemd's expected
+        # SIGTERM. Clear only that stop-induced failed state after proving the
+        # process stayed gone; preserve every other failed service for review.
+        status = run(
+            [systemctl, "--user", "show", unit,
+             "--property=ActiveState", "--property=Result",
+             "--property=ExecMainStatus", "--no-pager"],
+            timeout=3.0,
+        )
+        props = _parse_systemd_show(status.stdout) if status.returncode == 0 else {}
+        if (props.get("ActiveState") == "failed"
+                and props.get("Result") == "exit-code"
+                and props.get("ExecMainStatus") == "143"):
+            run([systemctl, "--user", "reset-failed", unit], timeout=3.0)
         suffix = " (forced final PID teardown)" if escalated else ""
         return {
             "ok": True,

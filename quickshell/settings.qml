@@ -10,6 +10,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import Quickshell
+import Quickshell.Io
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -19,6 +20,19 @@ import Quickshell.Hyprland
 
 ApplicationWindow {
     id: root
+
+    IpcHandler {
+        target: "settings"
+
+        function open(): void {
+            root.allowImmediateClose = false
+            root.closing = false
+            root.show()
+            root.raise()
+            root.requestActivate()
+            frameFocus.forceActiveFocus()
+        }
+    }
 
     property string firstRunFilePath:
         CF.FileUtils.trimFileProtocol(

@@ -306,30 +306,21 @@ def run_sshd_effective(privileged=False) -> dict:
         prefix = [pkexec]
         source_prefix = "pkexec "
 
-    # Prefer a user-specific effective context so Match rules are resolved.
-    # Some OpenSSH builds/environments are happier with plain `sshd -T`; the
-    # second attempt keeps verification available on this machine without
-    # weakening the evidence requirement.
-    attempts = [
-        ([binary, "-T", "-C", f"user={USER},host=localhost,addr=127.0.0.1"], f"{source_prefix}/usr/bin/sshd -T -C user={USER},host=localhost,addr=127.0.0.1"),
-        ([binary, "-T"], f"{source_prefix}/usr/bin/sshd -T"),
-    ]
+    # Resolve Match rules for the intended account. Never replace failed
+    # contextual evidence with a context-free policy result.
+    command = [binary, "-T", "-C", f"user={USER},host=localhost,addr=127.0.0.1"]
+    source = f"{source_prefix}{binary} -T -C user={USER},host=localhost,addr=127.0.0.1"
     required = {"permitrootlogin", "pubkeyauthentication", "passwordauthentication", "kbdinteractiveauthentication"}
-    errors = []
-
-    for base_command, source in attempts:
-        result = run(prefix + base_command, timeout=20.0 if privileged else 7.0)
-        values = parse_sshd_effective(result.stdout) if result.returncode == 0 else {}
-        if result.returncode == 0 and required.issubset(values.keys()):
-            return {"ok": True, "values": values, "error": "", "source": source}
-        errors.append((result.stderr or result.stdout).strip()[:600] or f"exit {result.returncode}")
-
-    return {
-        "ok": False,
-        "values": {},
-        "error": " ; ".join(error for error in errors if error)[:1000] or "sshd -T produced no verifiable output",
-        "source": f"{source_prefix}/usr/bin/sshd -T",
-    }
+    result = run(prefix + command, timeout=20.0 if privileged else 7.0)
+    values = parse_sshd_effective(result.stdout) if result.returncode == 0 else {}
+    if result.returncode == 0 and required.issubset(values):
+        return {"ok": True, "values": values, "error": "", "source": source}
+    error = (result.stderr or result.stdout).strip()[:600] or f"exit {result.returncode}"
+    if not privileged and "no hostkeys available" in error.lower():
+        error = ("The unprivileged SSH check could not load host keys. "
+                 "Root-owned keys may be present but unreadable to this app. "
+                 "Use Verify SSH to authorize a read-only policy check.")
+    return {"ok": False, "values": {}, "error": error, "source": source}
 
 
 def save_ssh_effective_cache(values: dict, source: str) -> None:

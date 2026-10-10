@@ -516,13 +516,7 @@ Item {
                 onClicked: {
                     GlobalStates.sidebarRightOpen = false
 
-                    Quickshell.execDetached(
-                        [
-                            "qs",
-                            "-p",
-                            root.settingsQmlPath
-                        ]
-                    )
+                    Quickshell.execDetached(["nyvorel-settings"])
                 }
 
                 StyledToolTip {

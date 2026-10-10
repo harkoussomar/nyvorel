@@ -119,6 +119,8 @@ Scope {
             // >>> SNIP-TARGETING-V3 sidebarRight >>>
             function syncShellCaptureRegion(): void {
                 if (
+                    !GlobalStates.regionSelectorOpen
+                    ||
                     !GlobalStates.sidebarRightOpen
                     || !panelWindow.screen
                     || !sidebarContentLoader.item
@@ -185,6 +187,10 @@ Scope {
     
             Connections {
                 target: GlobalStates
+
+                function onRegionSelectorOpenChanged() {
+                    panelWindow.syncShellCaptureRegion()
+                }
     
                 function onSidebarRightOpenChanged() {
                     panelWindow.syncDismissable()
