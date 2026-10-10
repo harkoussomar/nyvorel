@@ -575,7 +575,6 @@ Item {
         id: snapshotProc
         stdout: StdioCollector {
             onStreamFinished: {
-                const completedKind = root.snapshotRequestKind
                 root.loading = false
                 root.backgroundRefreshing = false
                 root.snapshotRequestKind = ""
@@ -591,8 +590,6 @@ Item {
                     root.stateContractError = ""
                     root.protectionState = data
                     root.initialStateReady = true
-                    if (completedKind === "instant")
-                        deferredFullRefreshTimer.restart()
                     if (data.action_running === true) {
                         if (!actionPollTimer.running) actionPollTimer.start()
                     } else if (!root.actionPending) {
@@ -609,8 +606,6 @@ Item {
                     root.toastError = true
                     root.toastMessage = "Backup state could not be parsed"
                     toastTimer.restart()
-                    if (completedKind === "instant")
-                        deferredFullRefreshTimer.restart()
                 }
             }
         }
@@ -742,25 +737,14 @@ Item {
     }
 
     Timer {
-        id: deferredFullRefreshTimer
-        interval: 120
-        repeat: false
-        onTriggered: {
-            if (!root.globallyBusy)
-                root.refresh(true, true)
-        }
-    }
-
-    Timer {
-        // Full Restic/SMART/Timeshift collection is intentionally not run every
-        // minute. The last verified state paints instantly; expensive domains
-        // refresh in the background every five minutes while the modal exists.
+        // Poll unprivileged live state while open. A full system refresh is
+        // reserved for explicit user action, so opening never asks for auth.
         interval: 300000
         repeat: true
         running: true
         onTriggered: {
             if (!root.globallyBusy)
-                root.refresh(true, true)
+                root.refresh(false, true)
         }
     }
     Timer {

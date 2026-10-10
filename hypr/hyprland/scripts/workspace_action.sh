@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
-curr_workspace="$(hyprctl activeworkspace -j | jq -r ".id")"
-dispatcher="$1"
-shift ## The target is now in $1, not $2
+set -Eeuo pipefail
 
-if [[ -z "${dispatcher}" || "${dispatcher}" == "--help" || "${dispatcher}" == "-h" || -z "$1" ]]; then
-  echo "Usage: $0 <dispatcher> <target>"
-  exit 1
+if (( $# != 2 )) || [[ "$1" != workspace && "$1" != movetoworkspacesilent ]]; then
+  echo "Usage: $0 {workspace|movetoworkspacesilent} <target>" >&2
+  exit 2
 fi
-if [[ "$1" == *"+"* || "$1" == *"-"* ]]; then ## Is this something like r+1 or -1?
-  hyprctl dispatch "${dispatcher}" "$1" ## $1 = workspace id since we shifted earlier.
-elif [[ "$1" =~ ^[0-9]+$ ]]; then ## Is this just a number?
-  target_workspace=$((((curr_workspace - 1) / 10 ) * 10 + $1))
-  hyprctl dispatch "${dispatcher}" "${target_workspace}"
+
+dispatcher="$1"
+target="$2"
+[[ "$target" =~ ^[a-zA-Z0-9:_+-]+$ ]] || {
+  echo "Invalid workspace target: $target" >&2
+  exit 2
+}
+
+# Keep each group of ten workspaces together when using the number row.
+if [[ "$target" =~ ^[0-9]+$ ]]; then
+  current="$(hyprctl activeworkspace -j | jq -er '.id | numbers')"
+  (( current >= 1 )) || current=1
+  target=$(( ((current - 1) / 10) * 10 + target ))
+fi
+
+# A Lua Hyprland session expects a Lua dispatcher expression. The old
+# `hyprctl dispatch workspace 2` syntax fails to parse under that mode.
+if [[ "$dispatcher" == workspace ]]; then
+  hyprctl dispatch "hl.dsp.focus({workspace = \"$target\"})"
 else
-  hyprctl dispatch "${dispatcher}" "$1" ## In case the target in a string, required for special workspaces.
-  exit 1
+  hyprctl dispatch "hl.dsp.window.move({workspace = \"$target\", follow = false})"
 fi

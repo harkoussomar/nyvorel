@@ -1023,7 +1023,9 @@ Item {
 
                     MaterialSymbol {
                         text:
-                            Network.materialSymbol
+                            Network.ethernet
+                                ? "signal_wifi_4_bar"
+                                : Network.materialSymbol
 
                         iconSize:
                             Appearance.font.pixelSize.larger

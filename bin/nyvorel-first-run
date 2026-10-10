@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -113,15 +114,24 @@ def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -
             "XDG_STATE_HOME": str(stage_state),
             "XDG_CACHE_HOME": str(stage / ".cache"),
         }
+        # The wallpaper's dominant pixels can be a dark background even when
+        # its visible focal color is warm and bright. Use the same accent
+        # ranking as Appearance Studio for the initial Material palette.
+        profile_script = shell / "scripts/appearance-studio/wallpaper_profile.py"
+        profile = json.loads(run(["python3", str(profile_script), str(wallpaper)], env=env))
+        candidates = profile.get("accentCandidates") or []
+        seed = candidates[0].get("hex", "") if candidates else ""
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", seed):
+            raise RuntimeError("Default wallpaper has no usable accent candidate")
         run([
-            "matugen", "image", str(wallpaper), "--mode", SEED_MODE,
-            "--type", SCHEME, "--source-color-index", "0",
+            "matugen", "color", "hex", seed, "--mode", SEED_MODE,
+            "--type", SCHEME,
         ], env=env)
         generator = shell / "scripts/colors/generate_colors_material.py"
         term_scheme = shell / "scripts/colors/terminal/scheme-base.json"
         color_path = stage_state / "quickshell/user/generated/color.txt"
         scss = run([
-            str(interpreter), str(generator), "--path", str(wallpaper),
+            str(interpreter), str(generator), "--color", seed,
             "--mode", SEED_MODE, "--scheme", SCHEME,
             "--termscheme", str(term_scheme), "--blend_bg_fg",
             "--cache", str(color_path),
@@ -290,7 +300,7 @@ def main() -> int:
         result = ready(paths)
         print("PASS initial appearance ready" if result else "FAIL initial appearance missing or incomplete")
         return 0 if result else 1
-    if ready(paths):
+    if ready(paths) and not args.repair:
         print("Existing initial appearance passes; no mutation")
         return 0
     if not args.yes:

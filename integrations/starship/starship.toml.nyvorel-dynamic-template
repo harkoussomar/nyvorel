@@ -1,0 +1,144 @@
+# ==============================================================
+# STARSHIP — Nyvorel contextual developer prompt
+# Dynamic semantic colors are supplied by nyvorel-terminal-theme-sync.
+# Git context lives in Kitty's bottom status bar.
+# ==============================================================
+
+add_newline = true
+command_timeout = 1200
+scan_timeout = 30
+palette = "ii"
+
+format = """
+[╭─](ii_muted)$username$hostname$directory$fill${custom.nextjs}$python$rust$golang$java$docker_context$cmd_duration$status
+[╰─](ii_muted)$character"""
+
+[palettes.ii]
+ii_primary = "#{{primary}}"
+ii_on_surface = "#{{on_surface}}"
+ii_secondary = "#{{secondary}}"
+ii_tertiary = "#{{tertiary}}"
+ii_muted = "#{{on_surface_variant}}"
+ii_error = "#{{error}}"
+ii_surface = "#{{surface}}"
+ii_surface_container = "#{{surface_container}}"
+ii_outline = "#{{outline_variant}}"
+
+[fill]
+symbol = " "
+
+[character]
+success_symbol = "[❯](bold ii_primary)"
+error_symbol = "[❯](bold ii_error)"
+vimcmd_symbol = "[❮](bold ii_on_surface)"
+
+[username]
+show_always = false
+style_user = "bold ii_primary"
+style_root = "bold ii_error"
+format = "[$user]($style)@"
+
+[hostname]
+ssh_only = true
+style = "bold ii_tertiary"
+format = "[$hostname]($style) "
+
+[directory]
+style = "bold ii_secondary"
+format = "[󰉋 $path]($style)"
+home_symbol = "~"
+read_only = " 󰌾"
+truncation_length = 6
+truncation_symbol = "…/"
+truncate_to_repo = false
+repo_root_style = "bold ii_primary"
+before_repo_root_style = "ii_muted"
+repo_root_format = "[󰉋 $before_root_path]($before_repo_root_style)[󰲋 $repo_root]($repo_root_style)[$path](ii_on_surface)"
+substitutions = [
+    { from = "dev-mine/projects/personal", to = "dev-mine/ personal" },
+    { from = "dev-mine/projects/work", to = "dev-mine/󰠖 work" },
+    { from = "Desktop", to = " Desktop" },
+    { from = "Documents", to = " Documents" },
+    { from = "Downloads", to = " Downloads" },
+    { from = "Music", to = "󰎈 Music" },
+    { from = "Pictures", to = " Pictures" },
+    { from = "Videos", to = " Videos" },
+]
+
+# Git is intentionally not duplicated in the prompt.
+[git_branch]
+disabled = true
+[git_status]
+disabled = true
+[git_state]
+disabled = true
+[git_commit]
+disabled = true
+
+# Meaningful latency only; quick commands stay visually silent.
+[cmd_duration]
+min_time = 3000
+show_milliseconds = false
+style = "ii_muted"
+format = " [󰔟 $duration]($style)"
+
+# Success is silent. Failures expose the real exit code.
+[status]
+disabled = false
+style = "bold ii_error"
+symbol = "✕ "
+success_symbol = ""
+not_executable_symbol = "✕ "
+not_found_symbol = "✕ "
+sigint_symbol = "INT "
+signal_symbol = "SIG "
+map_symbol = false
+format = " [$symbol$status]($style)"
+
+[custom.nextjs]
+description = "Next.js version from the current project"
+command = """node -p "require('next/package.json').version" """
+when = """node -e "try { require.resolve('next/package.json') } catch { process.exit(1) }" """
+symbol = "▲ Next "
+style = "bold ii_tertiary"
+format = " [$symbol$output]($style)"
+
+[nodejs]
+symbol = " "
+style = "bold ii_tertiary"
+format = " [$symbol$version]($style)"
+
+[python]
+symbol = " "
+style = "bold ii_tertiary"
+format = " [$symbol$version( $virtualenv)]($style)"
+
+[rust]
+symbol = " "
+style = "bold ii_tertiary"
+format = " [$symbol$version]($style)"
+
+[golang]
+symbol = " "
+style = "bold ii_tertiary"
+format = " [$symbol$version]($style)"
+
+[java]
+symbol = " "
+style = "bold ii_tertiary"
+format = " [$symbol$version]($style)"
+
+[docker_context]
+symbol = " "
+style = "ii_muted"
+format = " [$symbol$context]($style)"
+only_with_files = true
+
+[package]
+disabled = true
+[time]
+disabled = true
+[memory_usage]
+disabled = true
+[line_break]
+disabled = false

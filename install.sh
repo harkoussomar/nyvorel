@@ -217,6 +217,13 @@ for name in ("fish", "kitty"):
     if src.is_dir():
         add_tree(items, src, Path(f".config/{name}"))
 
+starship_template = root / "integrations/starship/starship.toml.nyvorel-dynamic-template"
+if starship_template.is_file():
+    items.append(Item(
+        src=starship_template,
+        rel=Path(".config/starship.toml.nyvorel-dynamic-template"),
+    ))
+
 if source_kind == "source-clone":
     add_tree(items, root / "bin", Path(".local/bin"))
     add_tree(items, root / "dependencies", Path(".local/share/nyvorel/dependencies"))

@@ -552,6 +552,7 @@ hl.bind("SUPER + O", hl.dsp.global("quickshell:sidebarLeftToggle"), {})
 hl.bind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"), {["description"] = "Toggle right sidebar"})
 -- hyprland/keybinds.conf:18
 hl.bind("SUPER + Slash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
+hl.bind("SUPER + Backslash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
 -- hyprland/keybinds.conf:19
 hl.bind("SUPER + K", hl.dsp.global("quickshell:oskToggle"), {["description"] = "Toggle on-screen keyboard"})
 -- hyprland/keybinds.conf:20
@@ -1024,6 +1025,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("easyeffects --hide-window --service-mode")
   hl.exec_cmd("wl-paste --type text --watch bash -c 'cliphist store && qs -c nyvorel ipc call cliphistService update'")
   hl.exec_cmd("wl-paste --type image --watch bash -c 'cliphist store && qs -c nyvorel ipc call cliphistService update'")
+  hl.exec_cmd("sh -lc 'if test -f \"$HOME/.local/share/icons/Bibata-Modern-Classic/cursor.theme\" || test -f /usr/share/icons/Bibata-Modern-Classic/cursor.theme; then hyprctl setcursor Bibata-Modern-Classic 24; else hyprctl setcursor Adwaita 24; fi'")
   hl.exec_cmd("numlockx on")
 end)
 hl.on("config.reloaded", function()

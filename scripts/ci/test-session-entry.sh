@@ -66,6 +66,7 @@ required = {
 for keys, target in required.items():
     assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
 assert 'hl.bind("SUPER+ALT + P", hl.dsp.window.pin()' in lua
+assert 'hl.bind("SUPER + Backslash", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
 assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' not in lua
 assert 'local super_scroll = "~/.local/bin/nyvorel-super-scroll"' in lua
 helper = (root / "bin/nyvorel-super-scroll").read_text()
@@ -79,6 +80,24 @@ for target, path in (
 ):
     assert f'name: "{target}"' in (root / path).read_text(), target
 PY
+
+cat >"$TMP/bin/hyprctl" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == activeworkspace ]]; then
+  printf '{"id":%s}\n' "$NYVOREL_TEST_WORKSPACE"
+elif [[ "$1" == dispatch ]]; then
+  printf '%s\n' "$2" >"$NYVOREL_TEST_DISPATCH"
+else
+  exit 2
+fi
+SH
+chmod 755 "$TMP/bin/hyprctl"
+NYVOREL_TEST_WORKSPACE=1 NYVOREL_TEST_DISPATCH="$TMP/workspace-dispatch" \
+  PATH="$TMP/bin:$PATH" "$ROOT/hypr/hyprland/scripts/workspace_action.sh" workspace 2
+grep -qxF 'hl.dsp.focus({workspace = "2"})' "$TMP/workspace-dispatch"
+NYVOREL_TEST_WORKSPACE=11 NYVOREL_TEST_DISPATCH="$TMP/workspace-dispatch" \
+  PATH="$TMP/bin:$PATH" "$ROOT/hypr/hyprland/scripts/workspace_action.sh" movetoworkspacesilent 2
+grep -qxF 'hl.dsp.window.move({workspace = "12", follow = false})' "$TMP/workspace-dispatch"
 
 # Native Lua is preferred when present, while explicit launcher selection wins.
 printf 'return true\n' >"$HOME_TEST/.config/hypr/hyprland.lua"

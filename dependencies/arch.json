@@ -556,6 +556,27 @@
       ]
     },
     {
+      "id": "terminal-shell",
+      "commands_any_of": ["fish"],
+      "arch_packages_any_of": ["fish"],
+      "feature": "Nyvorel Kitty shell and generated shell colors.",
+      "evidence": ["integrations/kitty/kitty.conf", "integrations/fish/config.fish"]
+    },
+    {
+      "id": "terminal-prompt",
+      "commands_any_of": ["starship"],
+      "arch_packages_any_of": ["starship"],
+      "feature": "Nyvorel contextual terminal prompt.",
+      "evidence": ["integrations/starship/starship.toml.nyvorel-dynamic-template"]
+    },
+    {
+      "id": "terminal-navigation",
+      "commands_all_of": ["zoxide", "fzf"],
+      "arch_packages_all_of": ["zoxide", "fzf"],
+      "feature": "Optional terminal directory and history navigation.",
+      "evidence": ["integrations/fish/config.fish"]
+    },
+    {
       "id": "open-files",
       "commands_any_of": [
         "xdg-open"
