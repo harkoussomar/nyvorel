@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='nyvorel-runtime-') as temp:
   shutil.copytree(root/'matugen',config/'matugen')
   generated=subprocess.run(['matugen','color','hex','#5368B7','--mode','dark','--type','scheme-tonal-spot'],env=env,text=True,capture_output=True,timeout=30)
   assert generated.returncode==0,generated.stderr
-  for output in (m.COLORS_JSON,config/'hypr/hyprland/colors.conf',config/'hypr/hyprlock/colors.conf',config/'fuzzel/fuzzel_theme.ini',config/'gtk-3.0/gtk.css',config/'gtk-4.0/gtk.css',m.COLOR_TXT,m.WALLPAPER_TXT):
+  for output in (m.COLORS_JSON,config/'hypr/hyprland/colors.conf',config/'hypr/hyprland/colors.lua',config/'hypr/hyprlock/colors.conf',config/'fuzzel/fuzzel_theme.ini',config/'gtk-3.0/gtk.css',config/'gtk-4.0/gtk.css',m.COLOR_TXT,m.WALLPAPER_TXT):
    assert output.is_file() and output.stat().st_size>0,output
   assert set(m.REQUIRED_PREVIEW_ROLES)<=set(json.loads(m.COLORS_JSON.read_text()))
   print('PASS source-owned Matugen templates and all eight outputs',flush=True)

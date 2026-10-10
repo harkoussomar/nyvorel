@@ -64,7 +64,7 @@
       "reason": "Nyvorel targets Hyprland and uses hyprctl for session control and diagnostics.",
       "evidence": [
         "README.md",
-        "hypr/hyprland.conf",
+        "hypr/hyprland.lua",
         "bin/nyvorel-doctor"
       ]
     },

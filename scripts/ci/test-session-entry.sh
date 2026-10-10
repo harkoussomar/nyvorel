@@ -38,4 +38,44 @@ fi
 [[ ! -e "$TMP/forbidden" ]]
 
 grep -q '^Exec=/usr/bin/nyvorel session$' "$ROOT/packaging/nyvorel.desktop"
+
+# The native entry must run the complete first-login activation workflow. A
+# direct Quickshell start skips the remaining user units enabled by activation.
+grep -qF 'nyvorel activate --session' "$ROOT/hypr/hyprland.lua"
+if grep -qF 'systemctl --user start nyvorel-quickshell.service' \
+  "$ROOT/hypr/hyprland.lua"; then
+  echo 'ERROR: native entry bypasses the Nyvorel activation workflow' >&2
+  exit 1
+fi
+
+# Native Lua is preferred when present, while explicit launcher selection wins.
+printf 'return true\n' >"$HOME_TEST/.config/hypr/hyprland.lua"
+env -u XDG_CONFIG_HOME -u HYPRLAND_INSTANCE_SIGNATURE \
+  HOME="$HOME_TEST" PATH="$TMP/bin:$PATH" NYVOREL_TEST_ARGS="$TMP/lua-args" \
+  "$ROOT/bin/nyvorel" session
+python3 - "$TMP/lua-args" "$HOME_TEST/.config/hypr/hyprland.lua" <<'PY'
+from pathlib import Path
+import sys
+assert Path(sys.argv[1]).read_text().splitlines() == ["--", "--config", sys.argv[2]]
+PY
+env -u XDG_CONFIG_HOME -u HYPRLAND_INSTANCE_SIGNATURE \
+  HOME="$HOME_TEST" PATH="$TMP/bin:$PATH" NYVOREL_TEST_ARGS="$TMP/explicit-args" \
+  HYPRLAND_CONFIG="$HOME_TEST/.config/hypr/hyprland.conf" \
+  "$ROOT/bin/nyvorel" session
+python3 - "$TMP/explicit-args" "$HOME_TEST/.config/hypr/hyprland.conf" <<'PY'
+from pathlib import Path
+import sys
+assert Path(sys.argv[1]).read_text().splitlines() == ["--", "--config", sys.argv[2]]
+PY
+python3 "$ROOT/quickshell/scripts/hyprland/get_keybinds.py" \
+  --path "$ROOT/hypr/hyprland/keybinds.conf" >"$TMP/lua-keybinds.json"
+python3 - "$TMP/lua-keybinds.json" <<'PY'
+import json
+import sys
+groups = json.load(open(sys.argv[1], encoding="utf-8"))["children"]
+binds = [binding for group in groups for section in group["children"] for binding in section["keybinds"]]
+assert len(binds) >= 100
+assert any(binding["key"] == "I" and binding["mods"] == ["SUPER"] for binding in binds)
+assert any(binding["key"] == "R" and set(binding["mods"]) == {"CTRL", "SUPER"} for binding in binds)
+PY
 echo 'PASS explicit config session launch, active-session guard and package entry'

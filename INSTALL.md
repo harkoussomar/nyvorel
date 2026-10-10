@@ -4,7 +4,7 @@ The complete setup workflow in this development checkout targets an installed
 minimal Arch Linux system with working internet, a normal user account, and
 working `sudo`. It installs desktop packages; it does not partition disks or
 install Arch itself. This workflow has been validated on a fresh Arch VM but
-is not in the immutable `v0.1.0` release or public `main` yet. The dependency
+is not in the immutable `v0.1.0` release. The dependency
 policy is in [`DEPENDENCIES.md`](DEPENDENCIES.md).
 
 ## From minimal Arch to the desktop
@@ -18,8 +18,8 @@ cd nyvorel
 ./setup.sh --plan
 ```
 
-The public clone will offer this workflow once the development commits are
-published. Until then, the commands below describe this local candidate only.
+These commands follow the development branch; they are not available from the
+immutable `v0.1.0` tag.
 Use a terminal with a PTY; SSH users can connect with `ssh -t`. The package
 transaction is interactive even with `--yes` so you can review pacman's full
 system upgrade and package selection:
@@ -52,7 +52,7 @@ At the next local text login run:
 ~/.local/bin/nyvorel session
 ```
 
-This explicitly starts Hyprland with `~/.config/hypr/hyprland.conf`, then
+This explicitly starts Hyprland with `~/.config/hypr/hyprland.lua`, then
 activates Nyvorel's user services and Quickshell. The installed desktop entry
 can be selected from a display manager if one is configured. The explicit path
 works even when a fresh Arch login has not added `~/.local/bin` to `PATH`.
@@ -61,14 +61,26 @@ Before entering the desktop, `~/.local/bin/nyvorel first-run --check`,
 `~/.local/bin/nyvorel doctor --no-session` help diagnose setup.
 After login, use `nyvorel doctor` and `nyvorel welcome`.
 
-Hyprland 0.56 accepted the explicit `.conf` session entry in the clean VM;
-the compositor warns that `.conf` support will be removed in 0.57. A future
-Hyprland update needs a compatible Nyvorel configuration before that version
-can be claimed as supported. A software-rendered QEMU VM may show high CPU use
+The native Lua entry has been verified on Hyprland 0.56.2 on the main machine.
+Hyprland 0.57 has not yet been tested on a released build, so that version is
+not claimed as supported yet. A software-rendered QEMU VM may show high CPU use
 and Quickshell shared-memory rendering; physical GPU behavior must be checked
 on the target machine. Brightness, Bluetooth, fingerprints, battery controls,
 recording and optional content-aware screenshot hints depend on the relevant
 hardware or optional packages and are not guaranteed by the core setup.
+
+Hyprland 0.56.2's standalone `--verify-config` crashes on the full native
+entry on both the working main machine and the disposable VM. A verification
+wrapper that suppresses startup hooks parses it successfully; the real main
+session also runs it. The disposable VM installation and Lua session-path
+checks passed, but that VM did not have Quickshell for a full desktop login.
+The standalone verifier result is therefore not a substitute for a full login
+test.
+
+For personal Hyprland changes in the native session, create
+`~/.config/hypr/custom/user.lua`. Nyvorel loads it after project defaults;
+the legacy `custom/*.conf` files are only used when launching the legacy
+`.conf` entry explicitly.
 
 If setup stops after installing packages, rerun `./setup.sh --install --yes
 --resume`. It refuses existing managed-file replacements by default; review

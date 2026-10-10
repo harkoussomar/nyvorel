@@ -44,7 +44,8 @@ FLUID_RUNTIME = HOME / ".local/bin/nyvorel-fluid-runtime"  # fluid-interface-v1
 EDITOR_COLOR_SCRIPT = NYVOREL_DIR / "scripts/colors/code/material-code-set-color.sh"
 QT_WRAPPER = XDG_CONFIG / "matugen/templates/kde/kde-material-you-colors-wrapper.sh"
 VIDEO_RESTORE_SCRIPT = XDG_CONFIG / "nyvorel/video-wallpaper-restore.sh"
-HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
+HYPR_LUA_ENTRY = XDG_CONFIG / "hypr/hyprland.lua"
+HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.lua" if HYPR_LUA_ENTRY.is_file() else XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
 HYPR_CUSTOM_RULES = HYPR_CUSTOM_GENERAL
 KITTY_CONFIG = XDG_CONFIG / "kitty/kitty.conf"
 TERMINAL_RUNTIME_FILES = [
@@ -402,7 +403,7 @@ EDITOR_SETTINGS = [
 
 TARGET_FILES = {
     "shell": [COLORS_JSON],
-    "hyprland": [XDG_CONFIG / "hypr/hyprland/colors.conf"],
+    "hyprland": [XDG_CONFIG / "hypr/hyprland/colors.conf", XDG_CONFIG / "hypr/hyprland/colors.lua"],
     "hyprlock": [XDG_CONFIG / "hypr/hyprlock/colors.conf"],
     "fuzzel": [XDG_CONFIG / "fuzzel/fuzzel_theme.ini"],
     "gtk": [XDG_CONFIG / "gtk-3.0/gtk.css", XDG_CONFIG / "gtk-4.0/gtk.css"],
@@ -588,6 +589,15 @@ def _resolved_radius(cfg: dict[str, Any], role: str) -> int:
 
 
 def _replace_managed_hypr_radius(text: str, value: int) -> str:
+    if HYPR_CUSTOM_GENERAL.suffix == ".lua":
+        begin = "-- >>> Appearance Studio: window radius >>>"
+        end = "-- <<< Appearance Studio: window radius <<<"
+        block = f'{begin}\nhl.config({{["decoration"] = {{["rounding"] = {int(value)}}}}})\n{end}'
+        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
+        if pattern.search(text):
+            return pattern.sub(block, text)
+        suffix = "" if not text or text.endswith("\n") else "\n"
+        return text + suffix + ("\n" if text else "") + block + "\n"
     begin = "# >>> Appearance Studio: window radius >>>"
     end = "# <<< Appearance Studio: window radius <<<"
     block = (

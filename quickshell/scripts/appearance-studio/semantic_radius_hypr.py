@@ -63,7 +63,20 @@ def main() -> int:
     )
 
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    persist_rounding(config_home / "hypr/custom/appearance-runtime.conf", value)
+    native = (config_home / "hypr/hyprland.lua").is_file()
+    runtime = config_home / "hypr/custom" / ("appearance-runtime.lua" if native else "appearance-runtime.conf")
+    if native:
+        # Keep the persistent value in a Lua file loaded by Nyvorel's entrypoint.
+        text = runtime.read_text() if runtime.exists() else ""
+        begin = "-- >>> Appearance Studio: window radius >>>"
+        end = "-- <<< Appearance Studio: window radius <<<"
+        block = f'{begin}\nhl.config({{["decoration"] = {{["rounding"] = {value}}}}})\n{end}'
+        managed = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.S)
+        text = managed.sub("", text).rstrip()
+        runtime.parent.mkdir(parents=True, exist_ok=True)
+        runtime.write_text((text + "\n\n" if text else "") + block + "\n")
+    else:
+        persist_rounding(runtime, value)
     return 0
 
 

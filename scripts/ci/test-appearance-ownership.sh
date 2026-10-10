@@ -6,6 +6,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/user/.config/hypr/custom" "$TMP/bin" "$TMP/runtime"
+cp "$ROOT/hypr/hyprland.lua" "$TMP/user/.config/hypr/hyprland.lua"
+cp "$ROOT/hypr/custom/appearance-runtime.lua" \
+  "$TMP/user/.config/hypr/custom/appearance-runtime.lua"
 cp "$ROOT/hypr/custom/rules.conf" "$TMP/user/.config/hypr/custom/rules.conf"
 cp "$ROOT/hypr/custom/appearance-runtime.conf" \
   "$TMP/user/.config/hypr/custom/appearance-runtime.conf"
@@ -20,16 +23,16 @@ export HYPRLAND_INSTANCE_SIGNATURE=''
 export PATH="$TMP/bin:$PATH"
 
 rules="$XDG_CONFIG_HOME/hypr/custom/rules.conf"
-runtime="$XDG_CONFIG_HOME/hypr/custom/appearance-runtime.conf"
+runtime="$XDG_CONFIG_HOME/hypr/custom/appearance-runtime.lua"
 rules_sha="$(sha256sum "$rules" | cut -d' ' -f1)"
 
 "$ROOT/bin/nyvorel-glass-runtime" glass >/dev/null
 "$ROOT/bin/nyvorel-fluid-runtime" fluid >/dev/null
 python3 "$ROOT/quickshell/scripts/appearance-studio/semantic_radius_hypr.py" \
   window 19
-grep -qF '# >>> appearance-studio-glass-runtime-v2 >>>' "$runtime"
-grep -qF '# >>> nyvorel-fluid-interface-v1 >>>' "$runtime"
-grep -qF 'rounding = 19' "$runtime"
+grep -qF -- '-- >>> appearance-studio-glass-runtime-v2 >>>' "$runtime"
+grep -qF -- '-- >>> nyvorel-fluid-interface-v1 >>>' "$runtime"
+grep -qF 'rounding"] = 19' "$runtime"
 [[ "$(sha256sum "$rules" | cut -d' ' -f1)" == "$rules_sha" ]]
 
 runtime_sha="$(sha256sum "$runtime" | cut -d' ' -f1)"
@@ -39,15 +42,15 @@ runtime_sha="$(sha256sum "$runtime" | cut -d' ' -f1)"
 
 "$ROOT/bin/nyvorel-glass-runtime" default >/dev/null
 "$ROOT/bin/nyvorel-fluid-runtime" default >/dev/null
-if grep -qF '# >>> appearance-studio-glass-runtime-v2 >>>' "$runtime"; then
+if grep -qF -- '-- >>> appearance-studio-glass-runtime-v2 >>>' "$runtime"; then
   echo 'ERROR: Glass runtime block remained after Default' >&2
   exit 1
 fi
-if grep -qF '# >>> nyvorel-fluid-interface-v1 >>>' "$runtime"; then
+if grep -qF -- '-- >>> nyvorel-fluid-interface-v1 >>>' "$runtime"; then
   echo 'ERROR: Fluid runtime block remained after Default' >&2
   exit 1
 fi
-grep -qF 'rounding = 19' "$runtime"
+grep -qF 'rounding"] = 19' "$runtime"
 [[ "$(sha256sum "$rules" | cut -d' ' -f1)" == "$rules_sha" ]]
 
 mkdir -p "$XDG_CONFIG_HOME/nyvorel"

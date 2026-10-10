@@ -12,74 +12,55 @@ import tempfile
 
 HOME = Path.home()
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
-CUSTOM_RULES = XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
+CUSTOM_RULES = XDG_CONFIG / "hypr/custom/appearance-runtime.lua"
 KITTY_CONF = XDG_CONFIG / "kitty/kitty.conf"
 STUDIO_STATE = XDG_CONFIG / "nyvorel/appearance-studio.json"
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "appearance-studio"
 LOG = STATE_DIR / "glass-runtime-v2.log"
 
-BEGIN = "# >>> appearance-studio-glass-runtime-v2 >>>"
-END = "# <<< appearance-studio-glass-runtime-v2 <<<"
+BEGIN = "-- >>> appearance-studio-glass-runtime-v2 >>>"
+END = "-- <<< appearance-studio-glass-runtime-v2 <<<"
 GLASS_BLOCK = f"""{BEGIN}
-# Runtime-only Glass overrides. Default removes this entire block.
-#
-# Every visible Quickshell material surface is alpha-shaped in QML. Hyprland
-# must therefore blur only pixels that belong to the rendered surface, never
-# the rectangular native/layer-shell backing buffer around it.
-layerrule = match:namespace ^quickshell:.*$, blur on
-layerrule = match:namespace ^quickshell:.*$, blur_popups on
-layerrule = match:namespace ^quickshell:.*$, xray off
-layerrule = match:namespace ^quickshell:.*$, ignore_alpha 0.12
+-- Runtime-only Glass overrides. Default removes this entire block.
+--
+-- Every visible Quickshell material surface is alpha-shaped in QML. Hyprland
+-- must therefore blur only pixels that belong to the rendered surface, never
+-- the rectangular native/layer-shell backing buffer around it.
+hl.layer_rule({{ match = {{ namespace = "^quickshell:.*$" }}, blur = true, blur_popups = true, xray = false, ignore_alpha = 0.12 }})
 
-# Explicit material surfaces use the same mask threshold. Keeping one policy
-# avoids special-case rectangles around popups, launchers, OSDs and media HUDs.
-layerrule = match:namespace ^quickshell:popup$, ignore_alpha 0.12
-layerrule = match:namespace ^quickshell:mediaControls$, ignore_alpha 0.12
-layerrule = match:namespace ^quickshell:onScreenDisplay$, ignore_alpha 0.12
-layerrule = match:namespace ^quickshell:wOnScreenDisplay$, ignore_alpha 0.12
-layerrule = match:namespace ^quickshell:projectLauncher$, blur on
-layerrule = match:namespace ^quickshell:projectLauncher$, blur_popups on
-layerrule = match:namespace ^quickshell:projectLauncher$, xray off
-layerrule = match:namespace ^quickshell:projectLauncher$, ignore_alpha 0.12
+-- Explicit material surfaces use the same mask threshold. Keeping one policy
+-- avoids special-case rectangles around popups, launchers, OSDs and media HUDs.
+hl.layer_rule({{ match = {{ namespace = "^quickshell:(popup|mediaControls|onScreenDisplay|wOnScreenDisplay)$" }}, ignore_alpha = 0.12 }})
+hl.layer_rule({{ match = {{ namespace = "^quickshell:projectLauncher$" }}, blur = true, blur_popups = true, xray = false, ignore_alpha = 0.12 }})
 
-# Utility/full-screen helper layers are not material panels. The generic rule
-# above intentionally excludes them here so Glass never creates a screen-sized
-# or invisible blur sheet.
-layerrule = match:namespace ^quickshell:background$, blur off
-layerrule = match:namespace ^quickshell:screenCorners$, blur off
-layerrule = match:namespace ^quickshell:regionSelector$, blur off
-layerrule = match:namespace ^quickshell:screenshot$, blur off
-layerrule = match:namespace ^quickshell:overlay$, blur off
-layerrule = match:namespace ^quickshell:lockWindowPusher$, blur off
-layerrule = match:namespace ^quickshell$, blur off
+-- Utility/full-screen helper layers are not material panels. The generic rule
+-- above intentionally excludes them here so Glass never creates a screen-sized
+-- or invisible blur sheet.
+hl.layer_rule({{ match = {{ namespace = "^quickshell:(background|screenCorners|regionSelector|screenshot|overlay|lockWindowPusher)$" }}, blur = false }})
+hl.layer_rule({{ match = {{ namespace = "^quickshell$" }}, blur = false }})
 
-# Settings is a normal Wayland window rather than a layer-shell surface. Blur is
-# enabled here; the global ignore_opacity switch applied by this helper makes
-# Hyprland respect the transparent pixels around its rounded QML modal.
-windowrule = match:title ^(Nyvorel Settings)$, no_blur off
-windowrule = match:title ^(Nyvorel Settings)$, xray off
-windowrule = match:title ^(Nyvorel Settings)$, rounding 23
-# >>> realistic-glass-optics-v3 >>>
-# Realistic Glass v3.2 — Hyprland 0.56-compatible optical material.
-# GLASS_BLOCK is a Python f-string, so literal Hyprland braces are doubled here.
-decoration {{
-    blur {{
-        enabled = true
-        size = 14
-        passes = 3
-        ignore_opacity = true
-        new_optimizations = true
-        xray = false
-        noise = 0.018
-        contrast = 0.93
-        brightness = 1.06
-        vibrancy = 0.12
-        vibrancy_darkness = 0.04
-        popups = true
-        popups_ignorealpha = 0.08
-    }}
-}}
-# <<< realistic-glass-optics-v3 <<<
+-- Settings is a normal Wayland window rather than a layer-shell surface. Blur is
+-- enabled here; ignore_opacity=false makes Hyprland respect the transparent
+-- pixels around its rounded QML modal.
+hl.window_rule({{ match = {{ title = "^(Nyvorel Settings)$" }}, no_blur = false, xray = false, rounding = 20 }})
+-- >>> realistic-glass-optics-v3 >>>
+-- Realistic Glass v3.2 — Hyprland 0.56-compatible optical material.
+hl.config({{ decoration = {{ blur = {{
+    enabled = true,
+    size = 14,
+    passes = 3,
+    ignore_opacity = false,
+    new_optimizations = true,
+    xray = false,
+    noise = 0.018,
+    contrast = 0.93,
+    brightness = 1.06,
+    vibrancy = 0.12,
+    vibrancy_darkness = 0.04,
+    popups = true,
+    popups_ignorealpha = 0.08,
+}} }} }})
+-- <<< realistic-glass-optics-v3 <<<
 
 {END}"""
 
@@ -133,9 +114,7 @@ def strip_glass_block(text: str) -> tuple[str, bool]:
 
 
 def sync_hypr_rules(mode: str, enabled: bool) -> bool:
-    if not CUSTOM_RULES.is_file():
-        raise RuntimeError(f"Missing Hyprland custom rules: {CUSTOM_RULES}")
-    original = CUSTOM_RULES.read_text(encoding="utf-8")
+    original = CUSTOM_RULES.read_text(encoding="utf-8") if CUSTOM_RULES.is_file() else ""
     want_glass = mode == "glass" and enabled
     if want_glass and original.count(BEGIN) == 1 and original.count(END) == 1:
         start = original.index(BEGIN)
@@ -174,11 +153,9 @@ def reload_hyprland() -> None:
 
 
 def sync_window_blur_alpha(mode: str, enabled: bool) -> str:
-    # Canonical II Default is ignore_opacity=true. Glass temporarily flips it
-    # so transparent native-window pixels do not receive a rectangular blur.
-    desired = "false" if mode == "glass" and enabled else "true"
-    _hyprctl("keyword", "decoration:blur:ignore_opacity", desired)
-    return desired
+    # Lua configuration is the source of truth. The Glass managed block sets
+    # ignore_opacity=false; removing it restores the base Lua config on reload.
+    return "false" if mode == "glass" and enabled else "true"
 
 
 def kitty_sockets() -> list[Path]:

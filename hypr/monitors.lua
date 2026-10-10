@@ -1,0 +1,4 @@
+-- Intentionally empty portable default. The native Hyprland Lua config
+-- already defines a generic preferred/auto fallback monitor rule.
+-- nwg-displays 0.4.3+ replaces this file with machine-specific hl.monitor()
+-- rules when a display layout is saved.

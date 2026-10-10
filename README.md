@@ -167,10 +167,10 @@ source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
 
 ### 1. Requirements
 
-The current development checkout can configure a **minimal Arch Linux**
+The current development branch can configure a **minimal Arch Linux**
 installation with working internet and sudo; Hyprland and Quickshell do not
 need to be preinstalled. This workflow is not part of the immutable `v0.1.0`
-release and is not public until these source changes are published.
+release.
 
 The versioned dependency contract covers diagnostic groups; `setup.sh` is the
 complete minimal-Arch package plan for the desktop:
@@ -237,10 +237,10 @@ unless you review the conflict and pass `--replace-existing`, which backs them
 up. It records the installation under
 `~/.local/state/nyvorel/installations/`.
 
-The tested clean VM used Hyprland 0.56. Its `.conf` configuration entry is
-accepted there but carries a removal warning for 0.57, so that future version
-needs compatibility work. Software-rendered VMs can also show high compositor
-CPU use. See [`INSTALL.md`](./INSTALL.md) for hardware and recovery limits.
+Nyvorel uses Hyprland's native Lua configuration on 0.56.2. This removes the
+deprecated `.conf` entry point, but Hyprland 0.57 has not yet been tested on a
+released build. Software-rendered VMs can show high compositor CPU use. See
+[`INSTALL.md`](./INSTALL.md) for hardware and recovery limits.
 
 See [`INSTALL.md`](./INSTALL.md) for the complete installation and recovery
 model.
@@ -486,8 +486,8 @@ See [`RELEASES.md`](./RELEASES.md) for resume and immutability rules.
 | [`TRADEMARKS.md`](./TRADEMARKS.md) | trademark and affiliation notices |
 
 The documentation website is maintained in the separate `nyvorel-web`
-repository. Its updated setup guide is an unpublished candidate until it is
-deployed alongside a published Nyvorel source revision.
+repository. Its development setup guide should be deployed alongside the
+matching public Nyvorel source revision.
 
 ## Project direction
 

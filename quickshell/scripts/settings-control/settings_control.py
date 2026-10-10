@@ -199,6 +199,9 @@ def current_hyprland_config():
     explicit = os.environ.get("HYPRLAND_CONFIG", "").strip()
     if explicit:
         return Path(os.path.expandvars(os.path.expanduser(explicit)))
+    native = XDG_CONFIG / "hypr/hyprland.lua"
+    if native.is_file():
+        return native
     return XDG_CONFIG / "hypr/hyprland.conf"
 
 

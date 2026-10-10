@@ -1,0 +1,3 @@
+-- Intentionally empty portable default: workspace-to-monitor assignments are
+-- hardware-specific. nwg-displays 0.4.3+ replaces this file with
+-- hl.workspace_rule(...) entries when a layout is saved.

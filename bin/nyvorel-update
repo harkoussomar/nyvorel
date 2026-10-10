@@ -25,7 +25,9 @@ STABLE_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 RUNTIME_REL = ".config/hypr/custom/appearance-runtime.conf"
 RUNTIME_RELS = {
     RUNTIME_REL,
+    ".config/hypr/custom/appearance-runtime.lua",
     ".config/hypr/hyprland/colors.conf",
+    ".config/hypr/hyprland/colors.lua",
     ".config/hypr/hyprlock/colors.conf",
     ".config/kitty/nyvorel-dynamic-theme.conf",
     ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
@@ -289,6 +291,7 @@ def validate_source(
             root / "package-metadata.json",
             root / "quickshell/shell.qml",
             root / "hypr/hyprland.conf",
+            root / "hypr/hyprland.lua",
             root / "dependencies/arch.json",
         ]
     else:

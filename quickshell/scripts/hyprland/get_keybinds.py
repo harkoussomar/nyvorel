@@ -2,6 +2,8 @@
 import argparse
 import re
 import os
+import json
+from pathlib import Path
 from os.path import expandvars as os_expandvars
 from typing import Dict, List
 
@@ -215,8 +217,44 @@ def parse_keys(path: str) -> Dict[str, List[KeyBinding]]:
     return get_binds_recursive(Section([], [], ""), 0)
 
 
-if __name__ == "__main__":
-    import json
+def parse_lua_keys(path: str):
+    """Read literal bind declarations and descriptions from native Hyprland Lua."""
+    source = open(path, encoding="utf-8").read()
+    binds = []
+    call = re.compile(r'^\s*hl\.bind(?:_release|_repeat)?\(\s*("(?:\\.|[^"\\])*")', re.M)
+    description = re.compile(r'\["description"\]\s*=\s*("(?:\\.|[^"\\])*")')
+    for line in source.splitlines():
+        match = call.search(line)
+        if not match:
+            continue
+        combo = json.loads(match.group(1))
+        tail = line[match.end():]
+        desc = description.search(tail)
+        comment = json.loads(desc.group(1)) if desc else ""
+        if not comment:
+            action = re.search(r'hl\.dsp\.([a-zA-Z_]+)', tail)
+            comment = action.group(1).replace("_", " ").capitalize() if action else ""
+        pieces = re.split(r"\s*\+\s*", combo)
+        key = pieces.pop().strip() if pieces else combo
+        mods = [part.strip() for part in pieces if part.strip()]
+        binds.append(KeyBinding(mods, key, "lua", "", comment))
+    return Section([Section([Section([], binds, "Nyvorel")], [], "Hyprland")], [], "")
 
-    ParsedKeys = parse_keys(args.path)
+
+def parse_config(path: str):
+    resolved = Path(os.path.expanduser(os.path.expandvars(path)))
+    if resolved.suffix.lower() == ".lua":
+        return parse_lua_keys(str(resolved))
+    # The installed source keeps the native entry beside the legacy tree. Prefer
+    # its real runtime binds when present, then retain the legacy parser fallback.
+    native = (resolved.parent if resolved.parent.name == "hypr" else resolved.parent.parent) / "hyprland.lua"
+    if native.is_file():
+        if resolved.parent.name == "custom":
+            return Section([], [], "")
+        return parse_lua_keys(str(native))
+    return parse_keys(str(resolved))
+
+
+if __name__ == "__main__":
+    ParsedKeys = parse_config(args.path)
     print(json.dumps(ParsedKeys))

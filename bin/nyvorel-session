@@ -7,7 +7,16 @@ if (($# > 1)) || { (($# == 1)) && [[ "$1" != --check ]]; }; then
 fi
 
 config_home="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
-config="$config_home/hypr/hyprland.conf"
+config="${HYPRLAND_CONFIG:-}"
+if [[ -z "$config" ]]; then
+  if [[ -f "$config_home/hypr/hyprland.lua" ]]; then
+    config="$config_home/hypr/hyprland.lua"
+  else
+    config="$config_home/hypr/hyprland.conf"
+  fi
+else
+  config="${config/#\~/$HOME}"
+fi
 [[ -f "$config" ]] || {
   echo "Nyvorel Hyprland configuration is missing: $config" >&2
   exit 1

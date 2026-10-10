@@ -194,7 +194,9 @@ for entry in entries:
         raise SystemExit(f"unsafe manifest destination: {rel}")
     if entry.get("ownership") == "runtime" and rel.as_posix() not in {
         ".config/hypr/custom/appearance-runtime.conf",
+        ".config/hypr/custom/appearance-runtime.lua",
         ".config/hypr/hyprland/colors.conf",
+        ".config/hypr/hyprland/colors.lua",
         ".config/hypr/hyprlock/colors.conf",
         ".config/kitty/nyvorel-dynamic-theme.conf",
         ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",
@@ -384,7 +386,9 @@ for entry in entries:
     rel = Path(entry["destination"])
     if entry.get("ownership") == "runtime" and rel.as_posix() not in {
         ".config/hypr/custom/appearance-runtime.conf",
+        ".config/hypr/custom/appearance-runtime.lua",
         ".config/hypr/hyprland/colors.conf",
+        ".config/hypr/hyprland/colors.lua",
         ".config/hypr/hyprlock/colors.conf",
         ".config/kitty/nyvorel-dynamic-theme.conf",
         ".config/fish/conf.d/99-nyvorel-dynamic-theme.fish",

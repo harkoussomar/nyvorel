@@ -24,7 +24,15 @@ esac
 home="${HOME:?HOME is required}"
 pointer="$home/.local/state/nyvorel/current-install"
 [[ -s "$pointer" ]] || { echo 'Nyvorel is not installed for this user.' >&2; exit 1; }
-[[ -f "$home/.config/hypr/hyprland.conf" ]] || { echo 'Nyvorel Hyprland config is missing.' >&2; exit 1; }
+config_home="${XDG_CONFIG_HOME:-$home/.config}"
+if [[ -n "${HYPRLAND_CONFIG:-}" ]]; then
+  hypr_config="${HYPRLAND_CONFIG/#\~/$home}"
+elif [[ -f "$config_home/hypr/hyprland.lua" ]]; then
+  hypr_config="$config_home/hypr/hyprland.lua"
+else
+  hypr_config="$config_home/hypr/hyprland.conf"
+fi
+[[ -f "$hypr_config" ]] || { echo "Nyvorel Hyprland config is missing: $hypr_config" >&2; exit 1; }
 if [[ "${NYVOREL_PACKAGE_MODE:-0}" == 1 && -x /usr/bin/nyvorel ]]; then
   first_run=/usr/bin/nyvorel
 elif [[ -x "$home/.local/bin/nyvorel" ]]; then
