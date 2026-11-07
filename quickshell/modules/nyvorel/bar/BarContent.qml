@@ -390,7 +390,7 @@ Item {
                 Layout.leftMargin:
                       Appearance.rounding.screenRounding
 
-                // icon is content, not another nested chip.
+                // Keep the brand name in the existing bar button surface.
                 colBackground:
                     barLeftSideMouseArea.hovered
                         ? Appearance.colors.colLayer1Hover
