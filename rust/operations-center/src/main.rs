@@ -24,7 +24,13 @@ fn now() -> f64 {
         .as_secs_f64()
 }
 fn home() -> PathBuf {
-    PathBuf::from(env::var("HOME").unwrap_or_else(|_| "/home/omar".into()))
+    env::var_os("HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            eprintln!("ERROR: HOME must be set for Nyvorel Operations Center");
+            std::process::exit(2);
+        })
 }
 fn state_dir() -> PathBuf {
     env::var("OPERATIONS_CENTER_STATE_DIR")

@@ -160,7 +160,7 @@ PY
 # self-tests. The placeholder is not a maintainer path and carries no machine
 # identity. Any other literal /home/<name>/ remains a CI failure.
 HOME_PATH_HITS="$(
-  git grep --untracked -nEI '/home/[A-Za-z0-9._-]+/' -- \
+  git grep --untracked -nEI '/home/[A-Za-z0-9._-]+(/|[^[:alnum:]._-])' -- \
     ':!scripts/ci/validate-source.sh' \
     ':!assets/showcase/**' \
     || true
