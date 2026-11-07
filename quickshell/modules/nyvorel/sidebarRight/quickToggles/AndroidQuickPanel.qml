@@ -15,18 +15,20 @@ AbstractQuickPanel {
     id: root
 
     property bool editMode: false
+    property int columnsOverride: 0
+    property real cellHeightOverride: 0
 
     Layout.fillWidth: true
 
     property real spacing: 8
     property real padding: 8
 
-    readonly property real baseCellHeight: 66
+    readonly property real baseCellHeight: cellHeightOverride > 0 ? cellHeightOverride : 66
 
     readonly property int columns:
         Math.max(
             1,
-            Config.options.sidebar.quickToggles.android.columns
+            (columnsOverride > 0 ? columnsOverride : Config.options.sidebar.quickToggles.android.columns)
         )
 
 

@@ -11,7 +11,7 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-STYLES = ("default", "inlay", "prism", "fluid")
+STYLES = ("default", "fluid")
 SERVICES = (
     "nyvorel-btop-style-sync",
     "nyvorel-fuzzel-style-sync",
@@ -68,9 +68,8 @@ with tempfile.TemporaryDirectory(prefix="nyvorel-style-sync-") as raw:
         assert f"interfaceStyle={style}" in marker
         assert f"interfaceStyle={style}" in fuzzel
         assert f"interfaceStyle={style}" in css
-        assert (home / ".config/btop/themes/nyvorel-prism.theme").is_file()
-        assert (home / ".local/share/color-schemes/IllogicalImpulsePrism.colors").is_file()
-        assert (home / ".vscode/extensions/nyvorel-interface-styles-1.0.0/themes/prism-color-theme.json").is_file()
+        assert (home / ".config/btop/themes/nyvorel-default.theme").is_file()
+        assert (home / ".local/share/color-schemes/IllogicalImpulseDefault.colors").is_file()
         if style == "fluid":
             assert "ColorScheme=IllogicalImpulse\n" in kde
             assert "Nyvorel System" in code

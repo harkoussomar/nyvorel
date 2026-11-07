@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.services
 
@@ -6,12 +7,14 @@ import QtQuick.Layouts
 
 MouseArea {
     id: root
+    property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
 
     property bool borderless:
         Config.options.bar.borderless
 
     property bool alwaysShowAllResources: false
-    property bool popupPinned: false
+    property bool axiomMode: false
+    readonly property bool popupPinned: GlobalStates.isBarPopupOpen("resources", root.barScreenName)
 
     readonly property bool swapWarning:
         ResourceUsage.swapUsedPercentage * 100
@@ -20,15 +23,16 @@ MouseArea {
     implicitWidth:
         resourceRow.implicitWidth
 
+    // nyvorel-phase3b-component-plane: stay level with clock/media/workspaces.
     implicitHeight:
-        Appearance.sizes.baseBarHeight
+        Appearance.barLayout.persistentHeight
 
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton
     cursorShape: Qt.PointingHandCursor
 
     onClicked:
-        root.popupPinned = !root.popupPinned
+        GlobalStates.toggleBarPopup("resources", root.barScreenName)
 
     RowLayout {
         id: resourceRow
@@ -37,13 +41,10 @@ MouseArea {
             parent
 
         spacing:
-            Appearance.inlayMode
-                ? Appearance.spacing.sm
-                : Appearance.fluidMode
-                    ? 6
-                    : 2
+            root.axiomMode ? 8 : Appearance.fluidMode ? 6 : 2
 
         Resource {
+            axiomMode: root.axiomMode
             iconName: "memory"
             label: "RAM"
             percentage:
@@ -56,7 +57,16 @@ MouseArea {
                     .memoryWarningThreshold
         }
 
+        Rectangle {
+            visible: root.axiomMode
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: 1
+            implicitHeight: 20
+            color: Appearance.barVisual.axiomDivider
+        }
+
         Resource {
+            axiomMode: root.axiomMode
             iconName: "developer_board"
             label: "CPU"
             percentage:
@@ -69,7 +79,16 @@ MouseArea {
                     .cpuWarningThreshold
         }
 
+        Rectangle {
+            visible: root.axiomMode && root.swapWarning
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: root.swapWarning ? 1 : 0
+            implicitHeight: 20
+            color: Appearance.barVisual.axiomDivider
+        }
+
         Resource {
+            axiomMode: root.axiomMode
             iconName: "swap_horiz"
             label: "SWP"
             percentage:
@@ -99,6 +118,6 @@ MouseArea {
         forceActive: root.popupPinned
 
         onCloseRequested:
-            root.popupPinned = false
+            GlobalStates.closeBarPopup("resources", root.barScreenName)
     }
 }

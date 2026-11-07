@@ -906,9 +906,10 @@ hl.bind("CTRL+SUPER + Backslash", hl.dsp.window.resize({x = 640, y = 480, relati
 dofile(nyvorel_config_root .. "/custom/appearance-runtime.lua")
 -- hyprland.conf:24
 -- hyprland.conf:25
--- custom/keybinds.conf: Project Launcher and desktop tools.
-hl.bind("SUPER + P", hl.dsp.global("quickshell:projectsToggle"), { ["description"] = "Project command center" })
-hl.bind("SUPER+ALT + P", hl.dsp.window.pin(), {})
+-- custom/keybinds.conf: desktop tools and display movement.
+hl.bind("SUPER + P", hl.dsp.window.pin(), {})
+hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true}), { ["description"] = "Move window to left display" })
+hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true}), { ["description"] = "Move window to right display" })
 hl.bind("SUPER+ALT + T", hl.dsp.global("quickshell:appearanceStudioToggle"), { ["description"] = "Appearance Studio" })
 hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Arch Remote Control Center" })
 hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Backup & Recovery Center" })
@@ -971,7 +972,6 @@ hl.config({["decoration"] = {["blur"] = {["ignore_opacity"] = true}}})
 -- nyvorel-terminal-glass.conf:9
 hl.config({["decoration"] = {["blur"] = {["new_optimizations"] = true}}})
 -- hyprland.conf:43
-hl.layer_rule({["xray"] = false, ["match"] = {["namespace"] = "quickshell:projectLauncher"}, ["name"] = "nyvorel-79"})
 -- hyprland.conf:50
 hl.layer_rule({["xray"] = false, ["match"] = {["namespace"] = "^quickshell:sidebarLeft$"}, ["name"] = "nyvorel-80"})
 -- hyprland.conf:51

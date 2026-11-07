@@ -13,6 +13,8 @@ StyledListView {
     property bool popup:
         false
 
+    property bool expandGroupsByDefault: false
+
 
     // Avoid creating a huge toast wall.
     property int popupMaxGroups:
@@ -53,6 +55,7 @@ StyledListView {
             popup:
                 root.popup
 
+            expanded: root.expandGroupsByDefault
 
             width:
                 ListView.view.width

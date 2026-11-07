@@ -43,31 +43,6 @@ Button {
 
     opacity: root.enabled ? 1 : 0.4
 
-    // prism-v2-phase6: spatial micro-motion is optional and disappears
-    // completely under Reduced Motion. Prism state remains readable through
-    // color/border semantics, so accessibility never depends on deformation.
-    readonly property bool prismMicroMotion:
-        Appearance?.prismMode === true
-        && Appearance?.expressiveMotion === true
-        && Appearance?.reducedMotion !== true
-
-    scale:
-        root.prismMicroMotion
-            ? (
-                root.down
-                    ? (Appearance?.prism?.pressedScale ?? 0.98)
-                    : root.hovered
-                        ? (Appearance?.prism?.hoverScale ?? 1.01)
-                        : 1
-              )
-            : 1
-
-    Behavior on scale {
-        MotionAnim {
-            type: MotionAnim.FastEffects
-        }
-    }
-
     property color buttonColor: ColorUtils.transparentize(root.toggled ? 
         (root.hovered ? colBackgroundToggledHover : 
             colBackgroundToggled) :

@@ -126,6 +126,13 @@ def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
         if ".before-" in src.name or ".pre-" in src.name:
             continue
         rel_inside = src.relative_to(src_root)
+        if rel_inside.as_posix() in {
+            "scripts/appearance-studio/nyvorel-appearance-studio",
+            "scripts/arch-remote/nyvorel-arch-remote",
+            "scripts/backup-recovery/nyvorel-backup-recovery",
+            "scripts/system/ookla-speedtest",
+        }:
+            continue
         items.append(Item(src=src, rel=dest_root / rel_inside))
 
 
@@ -329,9 +336,9 @@ def validate_source(
             token_count += count
 
     if source_kind == "source-clone":
-        if token_count != 29:
+        if token_count != 28:
             raise UpdateError(
-                f"portable source contract expects 29 install tokens, found {token_count}"
+                f"portable source contract expects 28 install tokens, found {token_count}"
             )
     else:
         try:
@@ -345,9 +352,9 @@ def validate_source(
             raise UpdateError(
                 "package metadata upstream_version does not match VERSION"
             )
-        if metadata.get("source_home_token_occurrences") != 29:
+        if metadata.get("source_home_token_occurrences") != 28:
             raise UpdateError(
-                "package metadata does not preserve the 29-token source contract"
+                "package metadata does not preserve the 28-token source contract"
             )
 
     return token_files, token_count
@@ -873,6 +880,15 @@ def main() -> int:
         raise UpdateError(
             f"candidate {candidate_version} is older than installed {old_version}; "
             "use --allow-downgrade only when intentional"
+        )
+
+    if source_kind == "source-clone" and os.environ.get("NYVOREL_SKIP_NATIVE_BUILD") != "1":
+        builder = source / "scripts/build-native.sh"
+        if not builder.is_file():
+            raise UpdateError(f"native builder missing: {builder}")
+        subprocess.run(
+            [str(builder), "--output", str(source / "quickshell/scripts/system")],
+            check=True,
         )
 
     items = build_items(source, source_kind)

@@ -14,7 +14,7 @@ II = XDG_CONFIG / "quickshell/nyvorel"
 CONFIG_QML = II / "modules/common/Config.qml"
 APPEARANCE_QML = II / "modules/common/Appearance.qml"
 NYVOREL_CONFIG = XDG_CONFIG / "nyvorel/config.json"
-HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.lua" if (XDG_CONFIG / "hypr/hyprland.lua").is_file() else XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
+HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.lua"
 
 RADIUS_DEFAULTS = {
     "global": 17,
@@ -250,9 +250,9 @@ def resolved_radius(cfg: dict, role: str) -> int:
 def ensure_hypr_override() -> bool:
     cfg = load_json(NYVOREL_CONFIG, {})
     value = resolved_radius(cfg, "window")
-    begin = "# >>> Appearance Studio: window radius >>>"
-    end = "# <<< Appearance Studio: window radius <<<"
-    block = f"{begin}\ndecoration {{\n    rounding = {value}\n}}\n{end}"
+    begin = "-- >>> Appearance Studio: window radius >>>"
+    end = "-- <<< Appearance Studio: window radius <<<"
+    block = f"{begin}\nhl.config({{decoration = {{rounding = {int(value)}}}}})\n{end}"
     text = HYPR_CUSTOM_GENERAL.read_text() if HYPR_CUSTOM_GENERAL.is_file() else ""
     pat = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
     if pat.search(text):

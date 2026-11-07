@@ -10,6 +10,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     readonly property int wideBreakpoint: 700
     readonly property int cardPadding: 16
@@ -18,15 +20,13 @@ ContentPage {
 
     readonly property string projectName: "Nyvorel"
     readonly property string projectRepository:
-        "https://github.com/end-4/dots-hyprland"
+        "https://github.com/harkoussomar/nyvorel"
     readonly property string projectDocumentation:
-        "https://end-4.github.io/dots-hyprland-wiki/en/ii-qs/02usage/"
+        "https://github.com/harkoussomar/nyvorel#quick-start"
     readonly property string projectIssues:
-        "https://github.com/end-4/dots-hyprland/issues"
-    readonly property string projectDiscussions:
-        "https://github.com/end-4/dots-hyprland/discussions"
-    readonly property string projectSponsors:
-        "https://github.com/sponsors/end-4"
+        "https://github.com/harkoussomar/nyvorel/issues"
+    readonly property string upstreamRepository:
+        "https://github.com/end-4/dots-hyprland"
 
     property string quickshellBuild: Translation.tr("Loading…")
     property string qtVersion: Translation.tr("Loading…")
@@ -155,18 +155,12 @@ ContentPage {
         implicitHeight: naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
 
         ColumnLayout {
@@ -216,7 +210,7 @@ ContentPage {
                         Layout.minimumWidth: 0
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -290,7 +284,7 @@ ContentPage {
                 text: runtimeRow.value
                 color: Appearance.colors.colSubtext
                 font.family: Appearance.font.family.numbers
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 horizontalAlignment: Text.AlignRight
                 wrapMode: Text.Wrap
             }
@@ -348,7 +342,7 @@ ContentPage {
                     Layout.minimumWidth: 0
                     text: linkRow.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
                 }
             }
@@ -396,7 +390,7 @@ ContentPage {
 
                 IconImage {
                     implicitSize: 88
-                    source: Quickshell.iconPath("nyvorel")
+                    source: "file://" + Quickshell.shellPath("assets/icons/nyvorel.svg")
                 }
 
                 ColumnLayout {
@@ -438,7 +432,7 @@ ContentPage {
                                 anchors.centerIn: parent
                                 text: Translation.tr("Quickshell")
                                 color: Appearance.colors.colOnPrimaryContainer
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 font.weight: Font.DemiBold
                             }
                         }
@@ -454,7 +448,7 @@ ContentPage {
                                 anchors.centerIn: parent
                                 text: Translation.tr("Hyprland")
                                 color: Appearance.colors.colOnLayer1
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                             }
                         }
                     }
@@ -484,9 +478,9 @@ ContentPage {
                 }
 
                 ActionButton {
-                    label: Translation.tr("Discussions")
-                    iconName: "forum"
-                    onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", root.projectDiscussions])
+                    label: Translation.tr("Original project")
+                    iconName: "history"
+                    onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", root.upstreamRepository])
                 }
             }
         }
@@ -577,7 +571,7 @@ ContentPage {
                 text: Translation.tr("Quickshell build: %1")
                     .arg(root.quickshellBuild)
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
 
@@ -586,7 +580,7 @@ ContentPage {
                 text: Translation.tr("Hyprland build: %1")
                     .arg(root.hyprlandBuild)
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
         }
@@ -635,7 +629,7 @@ ContentPage {
                             Layout.fillWidth: true
                             text: SystemInfo.homeUrl
                             color: Appearance.colors.colSubtext
-                            font.pixelSize: Appearance.font.pixelSize.smallest
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             elide: Text.ElideRight
                         }
                     }
@@ -679,35 +673,35 @@ ContentPage {
 
             InfoCard {
                 title: Translation.tr("Project & community")
-                subtitle: Translation.tr("Source, help, discussion, and project support for Nyvorel.")
+                subtitle: Translation.tr("Nyvorel source, help, and project history.")
                 iconName: "hub"
 
                 LinkRow {
                     title: Translation.tr("Source repository")
-                    subtitle: Translation.tr("Browse the end-4/dots-hyprland source on GitHub.")
+                    subtitle: Translation.tr("Browse the Nyvorel source on GitHub.")
                     iconName: "code"
                     url: root.projectRepository
                 }
 
                 LinkRow {
                     title: Translation.tr("Documentation")
-                    subtitle: Translation.tr("Usage documentation for the Nyvorel Quickshell setup.")
+                    subtitle: Translation.tr("Read the Nyvorel setup and usage guide.")
                     iconName: "auto_stories"
                     url: root.projectDocumentation
                 }
 
                 LinkRow {
-                    title: Translation.tr("Community discussions")
-                    subtitle: Translation.tr("Ask questions and discuss the project with the community.")
-                    iconName: "forum"
-                    url: root.projectDiscussions
+                    title: Translation.tr("Issues and feedback")
+                    subtitle: Translation.tr("Report a bug or suggest an improvement.")
+                    iconName: "bug_report"
+                    url: root.projectIssues
                 }
 
                 LinkRow {
-                    title: Translation.tr("Support the project")
-                    subtitle: Translation.tr("Open the existing GitHub Sponsors page.")
-                    iconName: "favorite"
-                    url: root.projectSponsors
+                    title: Translation.tr("Original project")
+                    subtitle: Translation.tr("Nyvorel began as a derivative of end-4/dots-hyprland.")
+                    iconName: "history"
+                    url: root.upstreamRepository
                 }
             }
         }
@@ -725,7 +719,7 @@ ContentPage {
 
             StyledText {
                 Layout.fillWidth: true
-                text: Translation.tr("The project source exposed by the current settings does not provide a verified license or contributor list here, so this page does not invent either. Use the repository for authoritative project metadata.")
+                text: Translation.tr("License terms and third-party notices are in the Nyvorel repository. See its history for contributors and upstream attribution.")
                 color: Appearance.colors.colSubtext
                 font.pixelSize: Appearance.font.pixelSize.small
                 wrapMode: Text.Wrap

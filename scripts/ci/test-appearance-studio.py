@@ -111,6 +111,10 @@ class AppearanceTests(unittest.TestCase):
         (self.shell / "scripts/colors/generate_colors_material.py").write_text(
             'print("$primary: #123456;")\n'
         )
+        native = self.shell / "scripts/system/nyvorel-appearance-studio"
+        native.parent.mkdir(parents=True)
+        native.write_text("#!/bin/sh\n[ \"$1\" = \"__material-scss\" ] || exit 2\nprintf '%s\\n' '$primary: #123456;'\n")
+        native.chmod(0o755)
         self.env.update(PATH=f"{commands}:{os.environ['PATH']}", NYVOREL_VIRTUAL_ENV=str(venv))
 
     def test_managed_switchwall_reaches_applycolor(self):
@@ -120,14 +124,15 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual((self.generated / "material_colors.scss").read_text(), "$primary: #123456;\n")
 
-    def test_missing_color_python_fails_without_evaluating_env(self):
+    def test_missing_native_backend_fails_without_evaluating_env(self):
         self.prepare_managed_switchwall()
+        (self.shell / "scripts/system/nyvorel-appearance-studio").unlink()
         marker = self.home / "unexpected execution"
         self.env["NYVOREL_VIRTUAL_ENV"] = f"$(touch '{marker}')"
         proc = self.run_script("switchwall.sh", "--noswitch", "--mode", "dark",
                                "--type", "scheme-tonal-spot", "--color", "#123456")
         self.assertNotEqual(proc.returncode, 0)
-        self.assertIn("Nyvorel color Python environment is missing", proc.stderr)
+        self.assertIn("Appearance Studio Rust backend is missing", proc.stderr)
         self.assertFalse(marker.exists())
 
     def controller(self):
@@ -232,7 +237,7 @@ class AppearanceTests(unittest.TestCase):
 
     def test_each_interface_profile_and_failed_profile_rollback(self):
         module = self.controller()
-        for profile in ("default", "inlay", "prism", "fluid"):
+        for profile in ("default", "fluid"):
             with self.subTest(profile=profile):
                 result = module.apply_ui_profile(profile)
                 self.assertTrue(result["ok"])

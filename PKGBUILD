@@ -5,7 +5,7 @@ pkgname=nyvorel
 pkgver=0.1.0.dev
 pkgrel=1
 pkgdesc='Nyvorel Hyprland + Quickshell desktop environment'
-arch=('any')
+arch=('x86_64')
 url='https://github.com/harkoussomar/nyvorel'
 license=('GPL-3.0-only' 'Apache-2.0' 'CC-BY-4.0' 'MIT')
 depends=(
@@ -63,11 +63,16 @@ optdepends=(
   'numlockx: Num Lock startup preference.'
   'curl: Favicon/download and network-backed shell helpers.'
   'file: Directory/file MIME inspection.'
+  'fish: Optional interactive shell integration.'
+  'starship: Optional prompt styling.'
+  'zoxide: Optional directory navigation.'
+  'fzf: Optional fuzzy selection.'
 )
 install=nyvorel.install
 source=()
 sha256sums=()
 options=('!strip')
+makedepends=('rust')
 
 _nyvorel_source="${NYVOREL_PKG_SOURCE:-$startdir}"
 
@@ -81,6 +86,10 @@ prepare() {
     echo "ERROR: Phase 7A ownership contract missing" >&2
     return 1
   }
+}
+
+build() {
+  "$_nyvorel_source/scripts/build-native.sh" --output "$srcdir/nyvorel-native"
 }
 
 package() {
@@ -104,9 +113,20 @@ package() {
 
   install -d "$_share"
   for _dir in quickshell hypr matugen integrations dependencies assets; do
-    cp -a "$_src/$_dir" "$_share/$_dir"
+    cp -a --no-preserve=ownership "$_src/$_dir" "$_share/$_dir"
   done
   install -m644 "$_src/VERSION" "$_share/VERSION"
+  # Local developer builds are ignored by Git and must never leak into a
+  # source-tree package. The reviewed Cargo build below owns these binaries.
+  rm -f "$_share/quickshell/scripts/appearance-studio/nyvorel-appearance-studio" \
+        "$_share/quickshell/scripts/arch-remote/nyvorel-arch-remote" \
+        "$_share/quickshell/scripts/backup-recovery/nyvorel-backup-recovery" \
+        "$_share/quickshell/scripts/system/ookla-speedtest"
+
+  for _name in nyvorel-appearance-studio nyvorel-arch-remote nyvorel-backup-recovery nyvorel-keybinds nyvorel-network nyvorel-operations nyvorel-settings-control nyvorel-wallpaper-utils; do
+    install -m755 "$srcdir/nyvorel-native/$_name" "$_share/quickshell/scripts/system/$_name"
+  done
+
 
   python3 - "$_share" "$_src/bin" <<'PYPAYLOAD'
 from pathlib import Path
@@ -232,7 +252,7 @@ PYUNITS
   install -Dm644 "$_src/DEPENDENCIES.md" "$pkgdir/usr/share/doc/nyvorel/DEPENDENCIES.md"
 
   install -Dm644 "$_src/LICENSE" "$pkgdir/usr/share/licenses/nyvorel/LICENSE"
-  cp -a "$_src/LICENSES" "$pkgdir/usr/share/licenses/nyvorel/LICENSES"
+  cp -a --no-preserve=ownership "$_src/LICENSES" "$pkgdir/usr/share/licenses/nyvorel/LICENSES"
   find "$pkgdir/usr/share/licenses/nyvorel/LICENSES" -type d -exec chmod 755 {} +
   find "$pkgdir/usr/share/licenses/nyvorel/LICENSES" -type f -exec chmod a+r,go-w {} +
 
@@ -296,8 +316,8 @@ payload={
 out.write_text(json.dumps(payload,indent=2)+"\n")
 PYMETA
 
-  [[ "$(python3 -c 'import json; print(json.load(open("'"$_share"'/package-metadata.json"))["source_home_token_occurrences"])')" == 29 ]] || {
-    echo "ERROR: package metadata lost the 29-token source contract" >&2
+  [[ "$(python3 -c 'import json; print(json.load(open("'"$_share"'/package-metadata.json"))["source_home_token_occurrences"])')" == 28 ]] || {
+    echo "ERROR: package metadata lost the 28-token source contract" >&2
     return 1
   }
 

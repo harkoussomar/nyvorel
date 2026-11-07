@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "$ROOT"
 die(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 CANDIDATE="$TMP/candidate"
-cp -a "$ROOT/." "$CANDIDATE/"
+mkdir -p "$CANDIDATE"
+git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
+  | tar -C "$ROOT" --null -T - -cf - \
+  | tar -C "$CANDIDATE" -xf -
 rm -rf "$CANDIDATE/.git"
 find "$CANDIDATE" -type d -name __pycache__ -prune -exec rm -rf {} +
 

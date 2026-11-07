@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 IMAGE="${NYVOREL_PACKAGE_IMAGE:-archlinux:base}"
@@ -31,12 +32,13 @@ echo "image=$IMAGE"
   "$IMAGE" \
   bash -lc '
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
 echo "== Bootstrap package build environment =="
 pacman -Syu --noconfirm --needed \
-  base-devel git python jq libarchive >/dev/null
+  base-devel git python jq libarchive rust >/dev/null
 
 useradd -m -U -s /bin/bash builder
 useradd -m -U -s /bin/bash nyvoreltest
@@ -48,7 +50,7 @@ MIG_HOME="$(getent passwd migratetest | cut -d: -f6)"
 [[ -n "$BUILDER_HOME" && -n "$TEST_HOME" && -n "$MIG_HOME" ]]
 
 install -d -o builder -g builder /work/source
-cp -a /src/. /work/source/
+git -C /src ls-files -z | tar -C /src --null -T - -cf - | tar -C /work/source -xf -
 chown -R builder:builder /work/source
 
 echo "== Build real package with makepkg =="

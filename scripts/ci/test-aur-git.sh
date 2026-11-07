@@ -76,7 +76,7 @@ set -Eeuo pipefail
 export LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 echo "== Bootstrap pristine Arch package builder =="
-pacman -Syu --noconfirm --needed base-devel git python jq libarchive >/dev/null
+pacman -Syu --noconfirm --needed base-devel git python jq libarchive rust >/dev/null
 
 mkdir -p /work/aur
 cp /aur/PKGBUILD /aur/.SRCINFO /aur/nyvorel.install /work/aur/

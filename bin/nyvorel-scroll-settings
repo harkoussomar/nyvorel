@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 HOME = Path.home()
-GENERAL = HOME / '.config/hypr/hyprland/general.conf'
+GENERAL = HOME / '.config/hypr/custom/scroll-settings.lua'
 FAST_ENV = HOME / '.config/hypr/custom/nyvorel-super-scroll.env'
 RUNTIME = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / f'nyvorel-super-scroll-{os.getuid()}'
 SNAPSHOT = RUNTIME / 'scroll-baseline'
@@ -61,19 +61,11 @@ def find_block(text, block_name, start=0, end=None):
 
 def read_normal():
     if not GENERAL.is_file():
-        fail(f'Missing Hyprland config: {GENERAL}')
-    text = GENERAL.read_text()
-    input_block = find_block(text, 'input')
-    if not input_block:
-        fail('Could not find input { } in Hyprland general.conf')
-    touch = find_block(text, 'touchpad', *input_block)
-    if not touch:
-        fail('Could not find touchpad { } in Hyprland general.conf')
-    body = text[touch[0]:touch[1]]
-    m = re.search(r'(?m)^\s*scroll_factor\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(?:#.*)?$', body)
-    if not m:
-        fail('Could not find touchpad scroll_factor in Hyprland general.conf')
-    return float(m.group(1))
+        fail(f'Missing Hyprland scroll settings: {GENERAL}')
+    matches = re.findall(r'(?m)^\s*scroll_factor\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*,?\s*(?:--.*)?$', GENERAL.read_text())
+    if len(matches) != 1:
+        fail(f'Expected exactly one touchpad scroll_factor, found {len(matches)}')
+    return float(matches[0])
 
 
 def atomic_write(path, text):
@@ -97,29 +89,17 @@ def write_normal(value):
     if SNAPSHOT.exists():
         fail('Release Super before changing normal touchpad scrolling')
     text = GENERAL.read_text()
-    input_block = find_block(text, 'input')
-    if not input_block:
-        fail('Could not find input { } in Hyprland general.conf')
-    touch = find_block(text, 'touchpad', *input_block)
-    if not touch:
-        fail('Could not find touchpad { } in Hyprland general.conf')
-    body = text[touch[0]:touch[1]]
-    pattern = re.compile(r'(?m)^(\s*scroll_factor\s*=\s*)([0-9]+(?:\.[0-9]+)?)(\s*(?:#.*)?)$')
-    matches = list(pattern.finditer(body))
-    if len(matches) != 1:
-        fail(f'Expected exactly one touchpad scroll_factor, found {len(matches)}')
-    updated_body = pattern.sub(lambda m: m.group(1) + fmt(value) + m.group(3), body, count=1)
-    updated = text[:touch[0]] + updated_body + text[touch[1]:]
-    atomic_write(GENERAL, updated)
-
+    pattern = re.compile(r'(?m)^(\s*scroll_factor\s*=\s*)([0-9]+(?:\.[0-9]+)?)(\s*,?\s*(?:--.*)?)$')
+    if len(list(pattern.finditer(text))) != 1:
+        fail('Expected exactly one touchpad scroll_factor in scroll-settings.lua')
+    atomic_write(GENERAL, pattern.sub(lambda m: m.group(1) + fmt(value) + m.group(3), text, count=1))
     try:
-        subprocess.run(
-            ['hyprctl', 'keyword', 'input:touchpad:scroll_factor', fmt(value)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-            timeout=2,
+        reply = subprocess.run(
+            ['hyprctl', 'eval', 'hl.config({input={touchpad={scroll_factor=' + fmt(value) + '}}})'],
+            capture_output=True, text=True, check=True, timeout=2,
         )
+        if reply.stdout.strip() != 'ok':
+            raise RuntimeError(reply.stdout.strip() or reply.stderr.strip() or 'no compositor reply')
     except Exception as exc:
         fail(f'Saved normal value, but live apply failed: {exc}')
 
@@ -177,7 +157,7 @@ def snapshot():
         'normal_touchpad': normal,
         'fast_touchpad': fast,
         'hold_ms': read_hold_ms(),
-        'runtime_touchpad': runtime_value('input:touchpad:scroll_factor'),
+        'runtime_touchpad': runtime_value('input.touchpad.scroll_factor'),
         'fast_active': SNAPSHOT.exists(),
     }
 

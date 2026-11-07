@@ -8,7 +8,10 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 C="$TMP/candidate"; O="$TMP/origin.git"; B="$TMP/bin"; S="$TMP/state"
 mkdir -p "$C" "$B" "$S"
-cp -a "$ROOT/." "$C/"; rm -rf "$C/.git"
+mkdir -p "$C"
+git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
+  | tar -C "$ROOT" --null -T - -cf - \
+  | tar -C "$C" -xf -; rm -rf "$C/.git"
 find "$C" -type d -name __pycache__ -prune -exec rm -rf {} +
 printf '0.1.1\n' >"$C/VERSION"
 

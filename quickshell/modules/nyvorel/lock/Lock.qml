@@ -24,11 +24,11 @@ LockScreen {
                 var monName = Quickshell.screens[j].name
                 var wsId = root.savedWorkspaces[monName]
                 if (wsId !== undefined) {
-                    batch += "dispatch focusmonitor " + monName + "; dispatch workspace " + wsId + "; "
+                    batch += HyprNative.focusWorkspaceCode(monName, wsId)
                 }
             }
             if (batch.length > 0) {
-                Quickshell.execDetached(["hyprctl", "--batch", batch + "reload"])
+                HyprNative.evalThenReload(batch)
             }
         }
     }
@@ -37,23 +37,23 @@ LockScreen {
         context: root.context
     }
 
-    // Single batch for lock and unlock so we don't race multiple hyprctl calls
+    // One Lua evaluation per transition preserves ordered monitor/workspace changes
     Connections {
         target: GlobalStates
         function onScreenLockedChanged() {
             if (GlobalStates.screenLocked) {
-                // Lock: save workspace per monitor and move all to temp workspace in one batch
+                // Lock: save workspace per monitor and move all to temp workspace in one Lua evaluation
                 var next = {}
-                var batch = "keyword animation workspaces,1,7,menu_decel,slidevert; "
+                var batch = 'hl.animation({leaf="workspaces", enabled=true, speed=7, bezier="menu_decel", style="slidevert"}); '
                 for (var i = 0; i < Quickshell.screens.length; ++i) {
                     var mon = Quickshell.screens[i].name
                     var mData = HyprlandData.monitors.find(m => m.name === mon)
                     var ws = (mData?.activeWorkspace?.id ?? 1)
                     next[mon] = ws
-                    batch += "dispatch focusmonitor " + mon + "; dispatch workspace " + (2147483647 - ws) + "; "
+                    batch += HyprNative.focusWorkspaceCode(mon, 2147483647 - ws)
                 }
                 root.savedWorkspaces = next
-                Quickshell.execDetached(["hyprctl", "--batch", batch + "reload"])
+                HyprNative.evalThenReload(batch)
             } else {
                 restoreTimer.start()
             }

@@ -8,6 +8,7 @@ import qs.modules.nyvorel.bar
 
 StyledPopup {
     id: root
+    irisAnimation: Appearance.barLayout.axiomComponents
 
     ColumnLayout {
         id: columnLayout

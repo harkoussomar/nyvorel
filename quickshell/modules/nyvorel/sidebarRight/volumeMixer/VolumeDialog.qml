@@ -10,25 +10,55 @@ import Quickshell.Services.Pipewire
 
 WindowDialog {
     id: root
-    interfaceStyleAware: true
+    atlasStyle: true
     property bool isSink: true
-    backgroundHeight: 600
+    readonly property int applicationCount: isSink ? Audio.outputAppNodes.length : Audio.inputAppNodes.length
+    backgroundWidth: 520
+    backgroundHeight: Math.min(height - 20, Math.max(290, 205 + Math.min(applicationCount, 6) * 70))
 
-    WindowDialogTitle {
-        text: root.isSink ? Translation.tr("Audio output") : Translation.tr("Audio input")
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 12
+        MaterialSymbol {
+            text: root.isSink ? "volume_up" : "mic"
+            iconSize: 24
+            color: Appearance.colors.colPrimary
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+            StyledText {
+                text: root.isSink ? Translation.tr("Audio output") : Translation.tr("Audio input")
+                font.pixelSize: Appearance.font.pixelSize.large
+                color: Appearance.material.textPrimary
+            }
+            StyledText {
+                text: root.applicationCount + " " + Translation.tr("applications")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.material.textMuted
+            }
+        }
     }
 
-    WindowDialogSeparator {
-        Layout.topMargin: -22
-        Layout.leftMargin: 0
-        Layout.rightMargin: 0
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
     }
 
     VolumeDialogContent {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         isSink: root.isSink
     }
 
-    WindowDialogButtonRow {
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
+    }
+    RowLayout {
+        Layout.fillWidth: true
         DialogButton {
             buttonText: Translation.tr("Details")
             onClicked: {
@@ -36,14 +66,6 @@ WindowDialog {
                 GlobalStates.sidebarRightOpen = false;
             }
         }
-
-        Item {
-            Layout.fillWidth: true
-        }
-
-        DialogButton {
-            buttonText: Translation.tr("Done")
-            onClicked: root.dismiss()
-        }
+        Item { Layout.fillWidth: true }
     }
 }

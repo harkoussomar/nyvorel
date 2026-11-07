@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-source $(eval echo $NYVOREL_VIRTUAL_ENV)/bin/activate
-GIO_USE_VFS=local "$SCRIPT_DIR/thumbgen.py" "$@"
-THUMBGEN_EXIT_CODE=$?
-deactivate
-
-exit $THUMBGEN_EXIT_CODE
+set -Eeuo pipefail
+binary="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/nyvorel/scripts/system/nyvorel-wallpaper-utils"
+if [[ ! -x "$binary" ]]; then
+    echo "Nyvorel wallpaper utility is missing: $binary" >&2
+    exit 1
+fi
+exec "$binary" thumbnails "$@"

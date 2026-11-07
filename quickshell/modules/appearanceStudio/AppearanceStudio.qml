@@ -17,8 +17,8 @@ import Quickshell.Hyprland
 Scope {
     id: root
 
-    property string managerPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/appearance-studio/appearance_studio.py`
-    property string managerPython: '/usr/bin/python3'
+    property string managerPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/system/nyvorel-appearance-studio`
+    property string managerPython: '/usr/bin/env'
     property var statusData: ({})
     property var variantsData: []
     property string variantsError: ""
@@ -140,52 +140,13 @@ Scope {
     property bool studioShown: false
     property bool studioClosing: false
 
-    // phase4e-consolidated-surface-deformation-v1
-    // phase4d-large-surface-deformation-v1
-    // prism-v2-phase6: Prism uses spatial lift + uniform scale. Preserve the
-    // historical deformation path for other styles without applying it to Prism.
-    readonly property bool largeSurfaceDeformationEnabled:
-        Appearance.surfaceDeformation.enabled
-        && !Appearance.prismMode
-
-    property real largeSurfaceScaleX: 1
-    property real largeSurfaceScaleY: 1
-    property real largeSurfaceRadiusScale: 1
-
-    function resetLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-        root.largeSurfaceScaleX = 1
-        root.largeSurfaceScaleY = 1
-        root.largeSurfaceRadiusScale = 1
-    }
-
-    function kickLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-
-        if (!root.largeSurfaceDeformationEnabled) {
-            root.resetLargeSurfaceDeformation()
-            return
-        }
-
-        root.largeSurfaceScaleX = Appearance.surfaceDeformation.largeStartX
-        root.largeSurfaceScaleY = Appearance.surfaceDeformation.largeStartY
-        root.largeSurfaceRadiusScale = Appearance.surfaceDeformation.largeRadiusStart
-        largeSurfaceDeformAnimation.restart()
-    }
-
-    onLargeSurfaceDeformationEnabledChanged: {
-        if (!root.largeSurfaceDeformationEnabled)
-            root.resetLargeSurfaceDeformation()
-    }
-
     // Interface settings are staged locally just like theme/wallpaper choices.
     // Preview and Apply send this complete draft to the controller atomically.
     property string selectedUiProfile: "custom"
     property string interfaceBaseProfile: ""
     property string interfaceFineTuneSection: "surfaces"
     property bool interfaceBarDetailsExpanded: false
-    // prism-v2-foundation: style identity survives fine-tuning independently
-    // from the exact profile-match label (e.g. "Prism · Modified").
+    // Style identity survives fine-tuning independently of the profile label.
     property string draftInterfaceStyle: ""
     property bool draftTransparencyEnable: false
     property bool draftTransparencyAutomatic: true
@@ -296,7 +257,7 @@ Scope {
     function syncUiDraft(ui, profileId) {
         const d = ui ?? ({})
         root.suppressDraftSignals = true
-        root.draftInterfaceStyle = (d["appearance.interfaceStyle"] ?? "") === "mica" ? "inlay" : (d["appearance.interfaceStyle"] ?? "")
+        root.draftInterfaceStyle = d["appearance.interfaceStyle"] ?? ""
         root.draftExtraBackgroundTint = d["appearance.extraBackgroundTint"] ?? true
         root.draftFakeScreenRounding = d["appearance.fakeScreenRounding"] ?? 0
         root.draftTransparencyEnable = d["appearance.transparency.enable"] ?? false
@@ -332,14 +293,14 @@ Scope {
         root.draftRadiusControlValue = d["appearance.geometry.radius.control.value"] ?? 12
         root.draftRadiusScreenFollowGlobal = d["appearance.geometry.radius.screen.followGlobal"] ?? false
         root.draftRadiusScreenValue = d["appearance.geometry.radius.screen.value"] ?? 8
-        const incomingProfile = profileId === "mica" ? "inlay" : (profileId ?? "custom")
+        const incomingProfile = profileId ?? "custom"
         const visibleProfile =
-            incomingProfile === "default" || incomingProfile === "inlay" || incomingProfile === "prism" || incomingProfile === "fluid"
+            incomingProfile === "default" || incomingProfile === "fluid"
                 ? incomingProfile
                 : "custom"
-        const identityStyle = root.draftInterfaceStyle === "mica" ? "inlay" : root.draftInterfaceStyle
+        const identityStyle = root.draftInterfaceStyle
         const identityProfile =
-            identityStyle === "default" || identityStyle === "inlay" || identityStyle === "prism" || identityStyle === "fluid"
+            identityStyle === "default" || identityStyle === "fluid"
                 ? identityStyle
                 : ""
         root.interfaceBaseProfile = visibleProfile === "custom" ? identityProfile : visibleProfile
@@ -986,7 +947,7 @@ Scope {
     onDraftParallaxSidebarChanged: root.markDraftChanged(true)
 
     // Motion preferences are global accessibility/timing choices, not profile
-    // styling; changing them must not turn Fluid/Prism/Inlay into "Custom".
+    // styling; changing them must not turn Fluid into "Custom".
     onDraftReducedMotionChanged: root.markDraftChanged(false)
     onDraftMotionScaleChanged: root.markDraftChanged(false)
     onDraftExpressiveMotionChanged: root.markDraftChanged(false)
@@ -2216,10 +2177,6 @@ component SectionTitle: ColumnLayout {
         }
     }
 
-                    // inlay-v2-foundation
-
-                    // prism-interface-v1
-
                     component UiProfileCard: RippleButton {
         id: profileCard
 
@@ -2232,8 +2189,6 @@ component SectionTitle: ColumnLayout {
 
         readonly property var traitMap: ({
             "default": ["Balanced", "Layered", "Familiar"],
-            "inlay": ["Structured", "Embedded", "Sharp"],
-            "prism": ["Spatial", "Dimensional", "Dynamic"],
             "fluid": ["Translucent", "Wireframe", "Fluid"],
             "floating": ["Elevated", "Spacious", "Detached bar"],
             "solid": ["Opaque", "Stable", "Readable"],
@@ -2242,8 +2197,6 @@ component SectionTitle: ColumnLayout {
 
         readonly property var iconMap: ({
             "default": "dashboard",
-            "inlay": "grid_view",
-            "prism": "view_in_ar",
             "fluid": "opacity",
             "floating": "layers",
             "solid": "crop_square",
@@ -3192,7 +3145,6 @@ component SectionTitle: ColumnLayout {
         studioCloseUnmapTimer.stop()
         if (root.studioMapped) {
             root.studioClosing = false
-            root.kickLargeSurfaceDeformation()
             root.studioShown = true
             return
         }
@@ -3204,7 +3156,6 @@ component SectionTitle: ColumnLayout {
 
     function beginStudioClose() {
         studioOpenKickTimer.stop()
-        root.resetLargeSurfaceDeformation()
         if (!root.studioMapped)
             return
         root.studioClosing = true
@@ -3219,80 +3170,7 @@ component SectionTitle: ColumnLayout {
         onTriggered: {
             if (GlobalStates.appearanceStudioOpen && root.studioMapped) {
                 root.studioClosing = false
-                root.kickLargeSurfaceDeformation()
                 root.studioShown = true
-            }
-        }
-    }
-
-    // phase4d-large-surface-deformation-v1
-    // Restrained production profile for large Prism modal surfaces.
-    ParallelAnimation {
-        id: largeSurfaceDeformAnimation
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: Appearance.surfaceDeformation.largeMiddleX
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: Appearance.surfaceDeformation.largeMiddleY
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultSpatial
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: Appearance.surfaceDeformation.largeRadiusMiddle
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastEffects
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
             }
         }
     }
@@ -3402,24 +3280,10 @@ Region {
             // The Fluid host window intentionally remains mapped for material
             // stability. Tie the shadow to the card itself so its cached layer
             // cannot survive after the card has finished closing.
-            visible:
-                !Appearance.prismMode
-                && studioCard.visible
-                && studioCard.opacity > 0.001
+            visible: studioCard.visible && studioCard.opacity > 0.001
             opacity: studioCard.opacity
             target: studioCard
             radius: studioCard.radius
-        }
-
-        // prism-v2-phase6: Appearance Studio itself now demonstrates the final
-        // depth-4 Prism language instead of looking like a legacy generic modal.
-        PrismSurface {
-            visible: Appearance.prismMode
-            anchors.fill: studioCard
-            depth: Appearance.prism.depthModal
-            surfaceRadius: Appearance.prism.radiusModal
-            elevated: true
-            borderWidth: 1
         }
 
         Rectangle {
@@ -3440,19 +3304,9 @@ Region {
                 720
             )
 
-            color:
-                Appearance.prismMode
-                    ? "transparent"
-                    : Appearance.colors.colLayer0Base
-            property real prismBaseModalRadius: Appearance.radius.modal
-            radius:
-                (
-                    Appearance.prismMode
-                        ? Appearance.prism.radiusModal
-                        : prismBaseModalRadius
-                )
-                * root.largeSurfaceRadiusScale
-            border.width: Appearance.prismMode ? 0 : 1
+            color: Appearance.colors.colLayer0Base
+            radius: Appearance.radius.modal
+            border.width: 1
             border.color:
                 Appearance.fluidMode
                     ? Appearance.colors.fluidBorderStrong
@@ -3471,7 +3325,7 @@ Region {
                     : (
                         root.studioClosing
                             ? 0.985
-                            : (Appearance.prismMode ? Appearance.prism.enterScale : 0.970)
+                            : 0.970
                     )
 
             transform: [
@@ -3484,7 +3338,7 @@ Region {
                             : (
                                 root.studioClosing
                                     ? 18
-                                    : (Appearance.prismMode ? Appearance.prism.enterDistance * 2 : 34)
+                                    : 34
                             )
 
                     onYChanged:
@@ -3498,15 +3352,6 @@ Region {
                                     : MotionExpressiveAnim.Enter
                         }
                     }
-                },
-
-                // phase4d-large-surface-deformation-v1
-                Scale {
-                    id: studioDeformationScale
-                    origin.x: studioCard.width / 2
-                    origin.y: studioCard.height / 2
-                    xScale: root.largeSurfaceScaleX
-                    yScale: root.largeSurfaceScaleY
                 }
             ]
 
@@ -5870,7 +5715,7 @@ Region {
 
                                     Repeater {
                                         model: (root.statusData.uiProfiles ?? []).filter(
-                                            profile => profile.id === "default" || profile.id === "inlay" || profile.id === "prism" || profile.id === "fluid"
+                                            profile => profile.id === "default" || profile.id === "fluid"
                                         )
 
                                         UiProfileCard {
@@ -6335,8 +6180,8 @@ Region {
 
                                             InterfaceSwitchRow {
                                                 Layout.fillWidth: true
-                                                title: "Prism expressive motion"
-                                                subtitle: "Allow the restrained overshoot used by Prism spatial surfaces."
+                                                title: "Expressive motion"
+                                                subtitle: "Allow expressive overshoot in supported animations."
                                                 checked: root.draftExpressiveMotion
                                                 switchEnabled: !root.draftReducedMotion
                                                 onCheckedChanged: root.draftExpressiveMotion = checked

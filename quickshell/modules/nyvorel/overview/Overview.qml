@@ -1,3 +1,4 @@
+import qs.modules.common.functions
 import qs
 import qs.services
 import qs.modules.common
@@ -145,10 +146,10 @@ Scope {
                     GlobalStates.overviewOpen = false;
                 } else if (event.key === Qt.Key_Left) {
                     if (!panelWindow.searchingText)
-                        Hyprland.dispatch('hl.dsp.focus({workspace = "r-1"})');
+                        HyprNative.workspace("r-1");
                 } else if (event.key === Qt.Key_Right) {
                     if (!panelWindow.searchingText)
-                        Hyprland.dispatch('hl.dsp.focus({workspace = "r+1"})');
+                        HyprNative.workspace("r+1");
                 }
             }
 

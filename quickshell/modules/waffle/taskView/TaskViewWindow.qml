@@ -62,14 +62,14 @@ WMouseAreaButton {
     }
 
     function closeWindow() {
-        Hyprland.dispatch(`closewindow address:${root.hyprlandClient?.address}`);
+        HyprNative.closeWindow(root.hyprlandClient?.address);
     }
 
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
     onClicked: event => {
         if (event.button === Qt.LeftButton) {
             GlobalStates.overviewOpen = false;
-            Hyprland.dispatch(`focuswindow address:${root.hyprlandClient?.address}`);
+            HyprNative.focusWindow(root.hyprlandClient?.address);
             GlobalStates.overviewOpen = false;
         } else if (event.button === Qt.MiddleButton) {
             root.closeWindow();
@@ -143,7 +143,7 @@ WMouseAreaButton {
             icon.name: isPinned ? "checkmark" : "empty"
             text: Translation.tr("Show this window on all desktops")
             onTriggered: {
-                Hyprland.dispatch(`pin address:${root.hyprlandClient?.address}`);
+                HyprNative.pinWindow(root.hyprlandClient?.address);
             }
         }
         Action {

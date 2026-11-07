@@ -12,29 +12,25 @@ GroupButton {
     baseWidth: content.implicitWidth + 46
     clickedWidth: baseWidth + 6
 
-    buttonRadius: Appearance.inlayMode ? 0 : baseHeight / 2
-    buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.rounding.small
-    colBackground: Appearance.inlayMode ? Appearance.inlay.insetFill : Appearance.colors.colLayer2
-    colBackgroundHover: Appearance.inlayMode ? Appearance.inlay.hoverFill : Appearance.colors.colLayer2Hover
-    colBackgroundActive: Appearance.inlayMode ? Appearance.inlay.pressedFill : Appearance.colors.colLayer2Active
-    colBackgroundToggled: Appearance.inlayMode ? Appearance.inlay.selectedFill : Appearance.colors.colPrimary
-    colBackgroundToggledHover: Appearance.inlayMode ? Appearance.inlay.hoverFill : Appearance.colors.colPrimaryHover
-    colBackgroundToggledActive: Appearance.inlayMode ? Appearance.inlay.pressedFill : Appearance.colors.colPrimaryActive
+    buttonRadius: baseHeight / 2
+    buttonRadiusPressed: Appearance.rounding.small
+    colBackground: Appearance.colors.colLayer2
+    colBackgroundHover: Appearance.colors.colLayer2Hover
+    colBackgroundActive: Appearance.colors.colLayer2Active
+    colBackgroundToggled: Appearance.colors.colPrimary
+    colBackgroundToggledHover: Appearance.colors.colPrimaryHover
+    colBackgroundToggledActive: Appearance.colors.colPrimaryActive
     property color colText:
-        Appearance.inlayMode
-            ? Appearance.colors.colOnLayer1
-            : toggled
-                ? Appearance.m3colors.m3onPrimary
-                : Appearance.colors.colOnLayer1
+         toggled
+            ? Appearance.m3colors.m3onPrimary
+            : Appearance.colors.colOnLayer1
 
     background: Rectangle {
         radius: button.radius
         color: button.color
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : (button.tabbedTo ? 2 : 0)
+        border.width: (button.tabbedTo? 2 : 0)
         border.color:
-            Appearance.inlayMode
-                ? (button.toggled ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                : Appearance.colors.colSecondary
+             Appearance.colors.colSecondary
     }
 
     contentItem: Item {

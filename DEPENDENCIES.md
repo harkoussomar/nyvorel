@@ -5,6 +5,11 @@ with internet and sudo and installs Hyprland, Quickshell, and core desktop
 packages. The lower-level `./install.sh` only materializes user files and
 expects the runtime packages to be present already.
 
+Source installs and updates compile the native helpers once from locked Rust
+sources and therefore require Cargo. The Arch package uses Rust as a build
+dependency; an installed package does not need Cargo at runtime. The optional
+Ookla speed test uses the separately installed `speedtest` command.
+
 The canonical machine-readable contract is
 [`dependencies/arch.json`](dependencies/arch.json). This document explains the
 policy around it. The contract is a diagnostic floor, not the whole fresh

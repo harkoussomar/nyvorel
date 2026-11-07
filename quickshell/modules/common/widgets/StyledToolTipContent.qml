@@ -23,34 +23,18 @@ Item {
             horizontalCenter: root.horizontalCenter
         }
         color:
-            Appearance?.inlayMode === true
-                ? Appearance.inlay.controlFill
-                : Appearance?.prismMode === true
-                    ? Appearance.prism.transientFill
-                    : (Appearance?.colors.colTooltip ?? "#3C4043")
+              (Appearance?.colors.colTooltip ?? "#3C4043")
         radius:
-            Appearance?.inlayMode === true
-                ? 0
-                : Appearance?.prismMode === true
-                    ? Appearance.prism.radiusControl
-                    : (Appearance?.rounding.verysmall ?? 7)
+              (Appearance?.rounding.verysmall ?? 7)
         border.width:
-            Appearance?.inlayMode === true
-                ? Appearance.inlay.borderWidth
-                : Appearance?.prismMode === true ? 1 : 0
+             0
         border.color:
-            Appearance?.inlayMode === true
-                ? Appearance.inlay.borderControl
-                : Appearance?.prismMode === true
-                    ? Appearance.prism.borderStrong
-                    : "transparent"
+              "transparent"
         opacity: shown ? 1 : 0
         scale:
             shown
                 ? 1
-                : (Appearance?.inlayMode === true
-                    ? 1
-                    : Appearance?.prismMode === true && !Appearance.reducedMotion ? 0.98 : 1)
+                : (false && !Appearance.reducedMotion ? 0.98 : 1)
         implicitWidth: shown ? (tooltipTextObject.implicitWidth + 2 * root.horizontalPadding) : 0
         implicitHeight: shown ? (tooltipTextObject.implicitHeight + 2 * root.verticalPadding) : 0
         clip: true
@@ -77,11 +61,7 @@ Item {
             font.pixelSize: Appearance?.font.pixelSize.smaller ?? 14
             font.hintingPreference: Font.PreferNoHinting // Prevent shaky text
             color:
-                Appearance?.inlayMode === true
-                    ? Appearance.colors.colOnLayer1
-                    : Appearance?.prismMode === true
-                        ? Appearance.colors.colOnLayer2
-                        : (Appearance?.colors.colOnTooltip ?? "#FFFFFF")
+                  (Appearance?.colors.colOnTooltip ?? "#FFFFFF")
             wrapMode: Text.Wrap
         }
     }   

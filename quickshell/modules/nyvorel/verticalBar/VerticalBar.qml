@@ -172,7 +172,9 @@ Scope {
                                 }
 
                                 implicitSize: Appearance.rounding.screenRounding
-                                color: showBarBackground ? Appearance.colors.colLayer0 : "transparent"
+                                color: showBarBackground ? Appearance.barVisual.attachedSurfaceFill : "transparent"
+                                outlineColor: Appearance.colors.colLayer0Border
+                                outlineWidth: 1
 
                                 corner: RoundCorner.CornerEnum.TopLeft
                                 states: State {
@@ -191,7 +193,9 @@ Scope {
                                     right: Config.options.bar.bottom ? parent.right : undefined
                                 }
                                 implicitSize: Appearance.rounding.screenRounding
-                                color: showBarBackground ? Appearance.colors.colLayer0 : "transparent"
+                                color: showBarBackground ? Appearance.barVisual.attachedSurfaceFill : "transparent"
+                                outlineColor: Appearance.colors.colLayer0Border
+                                outlineWidth: 1
 
                                 corner: RoundCorner.CornerEnum.BottomLeft
                                 states: State {

@@ -20,6 +20,7 @@ Singleton {
     property bool wifiEnabled: false
     property bool wifiScanning: false
     property bool wifiConnecting: connectProc.running
+    property string wifiError: ""
     property WifiAccessPoint wifiConnectTarget
     readonly property list<WifiAccessPoint> wifiNetworks: []
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
@@ -72,6 +73,7 @@ Singleton {
         if (!accessPoint || connectProc.running)
             return;
 
+        wifiError = "";
         accessPoint.askingPassword = false;
         root.wifiConnectTarget = accessPoint;
         connectProc.errorText = "";
@@ -102,8 +104,12 @@ exec nmcli device wifi connect "$SSID"
         });
     }
 
-    function disconnectWifiNetwork(): void {
-        if (active) disconnectProc.exec(["nmcli", "connection", "down", active.ssid]);
+    function disconnectWifiNetwork(device = ""): void {
+        wifiError = "";
+        if (device)
+            disconnectProc.exec(["nmcli", "device", "disconnect", device]);
+        else if (active)
+            disconnectProc.exec(["nmcli", "connection", "down", active.ssid]);
     }
 
     function openPublicWifiPortal() {
@@ -156,8 +162,10 @@ exec nmcli device wifi connect "$SSID"
 
                 // Do not turn every NetworkManager/driver failure into a password prompt.
                 target.askingPassword = secretRequired;
-                if (!secretRequired)
+                if (!secretRequired) {
+                    root.wifiError = connectProc.errorText.trim() || "Could not connect to this network";
                     print("Wi-Fi connection failed:", connectProc.errorText.trim());
+                }
             }
 
             root.wifiConnectTarget = null;

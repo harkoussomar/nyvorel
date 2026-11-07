@@ -9,9 +9,7 @@ StyledListView {
     id: root
 
     spacing:
-        Appearance.prismMode
-            ? Appearance.prism.islandGap
-            : 8
+         8
 
     interactive:
         false
@@ -48,11 +46,7 @@ StyledListView {
                         "x"
 
                     from:
-                        Appearance.inlayMode
-                            ? Appearance.inlay.enterDistance
-                            : Appearance.prismMode
-                                ? Appearance.prism.enterDistance
-                                : 28
+                          28
 
                     to:
                         0
@@ -68,11 +62,7 @@ StyledListView {
                         "scale"
 
                     from:
-                        Appearance.inlayMode
-                            ? 1
-                            : Appearance.prismMode && !Appearance.reducedMotion
-                                ? Appearance.prism.enterScale
-                                : 1
+                          1
 
                     to:
                         1
@@ -102,11 +92,7 @@ StyledListView {
                         "x"
 
                     to:
-                        Appearance.inlayMode
-                            ? Appearance.inlay.enterDistance
-                            : Appearance.prismMode
-                                ? Appearance.prism.enterDistance
-                                : 28
+                          28
 
                     type:
                         MotionAnim.FastSpatial
@@ -119,11 +105,7 @@ StyledListView {
                         "scale"
 
                     to:
-                        Appearance.inlayMode
-                            ? 1
-                            : Appearance.prismMode && !Appearance.reducedMotion
-                                ? 0.985
-                                : 1
+                          1
 
                     type:
                         MotionAnim.FastEffects

@@ -1,0 +1,402 @@
+{
+  "presets": [
+    {
+      "id": "midnight",
+      "name": "Cobalt",
+      "seed": "#5368B7",
+      "scheme": "scheme-tonal-spot",
+      "description": "Deep tailored blue with crisp, confident contrast."
+    },
+    {
+      "id": "arctic",
+      "name": "Fjord",
+      "seed": "#4F7E8C",
+      "scheme": "scheme-tonal-spot",
+      "description": "Cool blue-gray with quiet, architectural surfaces."
+    },
+    {
+      "id": "ocean",
+      "name": "Teal",
+      "seed": "#3F7C72",
+      "scheme": "scheme-tonal-spot",
+      "description": "Refined blue-green with a calm modern character."
+    },
+    {
+      "id": "evergreen",
+      "name": "Pine",
+      "seed": "#50715D",
+      "scheme": "scheme-tonal-spot",
+      "description": "Deep natural green with restrained, premium neutrals."
+    },
+    {
+      "id": "forest",
+      "name": "Olive",
+      "seed": "#7A7B4F",
+      "scheme": "scheme-content",
+      "description": "Muted olive with organic warmth and editorial balance."
+    },
+    {
+      "id": "ember",
+      "name": "Amber",
+      "seed": "#B77A3D",
+      "scheme": "scheme-tonal-spot",
+      "description": "Burnished amber with warm, sophisticated accents."
+    },
+    {
+      "id": "sandstone",
+      "name": "Terracotta",
+      "seed": "#A85F4E",
+      "scheme": "scheme-content",
+      "description": "Earthy terracotta with rich warmth and controlled chroma."
+    },
+    {
+      "id": "rosewood",
+      "name": "Rosewood",
+      "seed": "#8E5367",
+      "scheme": "scheme-fidelity",
+      "description": "Smoky wine-rose with grounded, elegant depth."
+    },
+    {
+      "id": "amethyst",
+      "name": "Plum",
+      "seed": "#6E5686",
+      "scheme": "scheme-tonal-spot",
+      "description": "Deep plum with subtle creative energy and soft neutrals."
+    },
+    {
+      "id": "graphite",
+      "name": "Graphite",
+      "seed": "#7B8189",
+      "scheme": "scheme-monochrome",
+      "description": "Balanced cool graphite for a focused, low-noise desktop."
+    }
+  ],
+  "schemes": [
+    {
+      "id": "auto",
+      "name": "Auto"
+    },
+    {
+      "id": "scheme-tonal-spot",
+      "name": "Balanced"
+    },
+    {
+      "id": "scheme-fidelity",
+      "name": "Faithful"
+    },
+    {
+      "id": "scheme-content",
+      "name": "Natural"
+    },
+    {
+      "id": "scheme-expressive",
+      "name": "Vibrant"
+    },
+    {
+      "id": "scheme-neutral",
+      "name": "Minimal"
+    },
+    {
+      "id": "scheme-monochrome",
+      "name": "Monochrome"
+    },
+    {
+      "id": "scheme-rainbow",
+      "name": "Varied"
+    },
+    {
+      "id": "scheme-fruit-salad",
+      "name": "Playful"
+    }
+  ],
+  "modes": [
+    {
+      "id": "light",
+      "name": "Light"
+    },
+    {
+      "id": "dark",
+      "name": "Dark"
+    },
+    {
+      "id": "dim",
+      "name": "Dim"
+    },
+    {
+      "id": "oled",
+      "name": "OLED"
+    },
+    {
+      "id": "high-contrast",
+      "name": "High Contrast"
+    }
+  ],
+  "uiProfiles": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Nyvorel defaults",
+      "patch": {
+        "appearance.interfaceStyle": "default",
+        "appearance.geometry.radius.global": 17,
+        "appearance.geometry.radius.window.followGlobal": false,
+        "appearance.geometry.radius.window.value": 8,
+        "appearance.geometry.radius.bar.followGlobal": false,
+        "appearance.geometry.radius.bar.value": 8,
+        "appearance.geometry.radius.modal.followGlobal": false,
+        "appearance.geometry.radius.modal.value": 23,
+        "appearance.geometry.radius.sidebar.followGlobal": false,
+        "appearance.geometry.radius.sidebar.value": 23,
+        "appearance.geometry.radius.popup.followGlobal": true,
+        "appearance.geometry.radius.popup.value": 17,
+        "appearance.geometry.radius.card.followGlobal": true,
+        "appearance.geometry.radius.card.value": 17,
+        "appearance.geometry.radius.control.followGlobal": false,
+        "appearance.geometry.radius.control.value": 12,
+        "appearance.geometry.radius.screen.followGlobal": false,
+        "appearance.geometry.radius.screen.value": 8,
+        "appearance.transparency.enable": false,
+        "appearance.transparency.automatic": true,
+        "appearance.transparency.backgroundTransparency": 0.0,
+        "appearance.transparency.contentTransparency": 0.0,
+        "appearance.extraBackgroundTint": true,
+        "bar.cornerStyle": 1,
+        "bar.floatStyleShadow": true,
+        "bar.borderless": false,
+        "bar.showBackground": true,
+        "bar.verbose": true
+      }
+    },
+    {
+      "id": "fluid",
+      "name": "Fluid",
+      "description": "Caelestia-inspired translucent HUD with wireframe depth",
+      "patch": {
+        "appearance.interfaceStyle": "fluid",
+        "appearance.geometry.radius.global": 8,
+        "appearance.geometry.radius.window.followGlobal": false,
+        "appearance.geometry.radius.window.value": 8,
+        "appearance.geometry.radius.bar.followGlobal": false,
+        "appearance.geometry.radius.bar.value": 8,
+        "appearance.geometry.radius.modal.followGlobal": false,
+        "appearance.geometry.radius.modal.value": 10,
+        "appearance.geometry.radius.sidebar.followGlobal": false,
+        "appearance.geometry.radius.sidebar.value": 10,
+        "appearance.geometry.radius.popup.followGlobal": false,
+        "appearance.geometry.radius.popup.value": 8,
+        "appearance.geometry.radius.card.followGlobal": false,
+        "appearance.geometry.radius.card.value": 6,
+        "appearance.geometry.radius.control.followGlobal": false,
+        "appearance.geometry.radius.control.value": 4,
+        "appearance.geometry.radius.screen.followGlobal": false,
+        "appearance.geometry.radius.screen.value": 8,
+        "appearance.transparency.enable": true,
+        "appearance.transparency.automatic": false,
+        "appearance.transparency.backgroundTransparency": 0.4,
+        "appearance.transparency.contentTransparency": 0.8,
+        "appearance.extraBackgroundTint": false,
+        "bar.cornerStyle": 1,
+        "bar.floatStyleShadow": false,
+        "bar.borderless": false,
+        "bar.showBackground": true,
+        "bar.verbose": true
+      }
+    },
+    {
+      "id": "floating",
+      "name": "Floating",
+      "description": "Elevated floating bar with subtle transparency",
+      "patch": {
+        "appearance.interfaceStyle": "floating",
+        "appearance.geometry.radius.global": 17,
+        "appearance.geometry.radius.window.followGlobal": false,
+        "appearance.geometry.radius.window.value": 12,
+        "appearance.geometry.radius.bar.followGlobal": false,
+        "appearance.geometry.radius.bar.value": 24,
+        "appearance.geometry.radius.modal.followGlobal": false,
+        "appearance.geometry.radius.modal.value": 23,
+        "appearance.geometry.radius.sidebar.followGlobal": false,
+        "appearance.geometry.radius.sidebar.value": 23,
+        "appearance.geometry.radius.popup.followGlobal": true,
+        "appearance.geometry.radius.popup.value": 17,
+        "appearance.geometry.radius.card.followGlobal": true,
+        "appearance.geometry.radius.card.value": 17,
+        "appearance.geometry.radius.control.followGlobal": false,
+        "appearance.geometry.radius.control.value": 12,
+        "appearance.geometry.radius.screen.followGlobal": false,
+        "appearance.geometry.radius.screen.value": 8,
+        "appearance.transparency.enable": true,
+        "appearance.transparency.automatic": false,
+        "appearance.transparency.backgroundTransparency": 0.1,
+        "appearance.transparency.contentTransparency": 0.72,
+        "appearance.extraBackgroundTint": true,
+        "bar.cornerStyle": 1,
+        "bar.floatStyleShadow": true,
+        "bar.borderless": false,
+        "bar.showBackground": true,
+        "bar.verbose": true
+      }
+    },
+    {
+      "id": "solid",
+      "name": "Solid",
+      "description": "Opaque, quiet surfaces with maximum readability",
+      "patch": {
+        "appearance.interfaceStyle": "solid",
+        "appearance.geometry.radius.global": 8,
+        "appearance.geometry.radius.window.followGlobal": false,
+        "appearance.geometry.radius.window.value": 8,
+        "appearance.geometry.radius.bar.followGlobal": false,
+        "appearance.geometry.radius.bar.value": 8,
+        "appearance.geometry.radius.modal.followGlobal": false,
+        "appearance.geometry.radius.modal.value": 12,
+        "appearance.geometry.radius.sidebar.followGlobal": false,
+        "appearance.geometry.radius.sidebar.value": 12,
+        "appearance.geometry.radius.popup.followGlobal": true,
+        "appearance.geometry.radius.popup.value": 8,
+        "appearance.geometry.radius.card.followGlobal": true,
+        "appearance.geometry.radius.card.value": 8,
+        "appearance.geometry.radius.control.followGlobal": false,
+        "appearance.geometry.radius.control.value": 8,
+        "appearance.geometry.radius.screen.followGlobal": false,
+        "appearance.geometry.radius.screen.value": 0,
+        "appearance.transparency.enable": false,
+        "appearance.transparency.automatic": false,
+        "appearance.transparency.backgroundTransparency": 0.0,
+        "appearance.transparency.contentTransparency": 0.0,
+        "appearance.extraBackgroundTint": false,
+        "bar.cornerStyle": 0,
+        "bar.floatStyleShadow": false,
+        "bar.borderless": false,
+        "bar.showBackground": true,
+        "bar.verbose": true
+      }
+    },
+    {
+      "id": "minimal",
+      "name": "Minimal",
+      "description": "Simple rectangular bar and reduced visual noise",
+      "patch": {
+        "appearance.interfaceStyle": "minimal",
+        "appearance.geometry.radius.global": 0,
+        "appearance.geometry.radius.window.followGlobal": false,
+        "appearance.geometry.radius.window.value": 0,
+        "appearance.geometry.radius.bar.followGlobal": false,
+        "appearance.geometry.radius.bar.value": 0,
+        "appearance.geometry.radius.modal.followGlobal": false,
+        "appearance.geometry.radius.modal.value": 0,
+        "appearance.geometry.radius.sidebar.followGlobal": false,
+        "appearance.geometry.radius.sidebar.value": 0,
+        "appearance.geometry.radius.popup.followGlobal": true,
+        "appearance.geometry.radius.popup.value": 0,
+        "appearance.geometry.radius.card.followGlobal": true,
+        "appearance.geometry.radius.card.value": 0,
+        "appearance.geometry.radius.control.followGlobal": false,
+        "appearance.geometry.radius.control.value": 0,
+        "appearance.geometry.radius.screen.followGlobal": false,
+        "appearance.geometry.radius.screen.value": 0,
+        "appearance.transparency.enable": false,
+        "appearance.transparency.automatic": false,
+        "appearance.transparency.backgroundTransparency": 0.0,
+        "appearance.transparency.contentTransparency": 0.0,
+        "appearance.extraBackgroundTint": false,
+        "bar.cornerStyle": 2,
+        "bar.floatStyleShadow": false,
+        "bar.borderless": true,
+        "bar.showBackground": true,
+        "bar.verbose": false
+      }
+    }
+  ],
+  "radiusDefaults": {
+    "global": 17,
+    "window": {
+      "followGlobal": false,
+      "value": 8
+    },
+    "bar": {
+      "followGlobal": false,
+      "value": 8
+    },
+    "modal": {
+      "followGlobal": false,
+      "value": 23
+    },
+    "sidebar": {
+      "followGlobal": false,
+      "value": 23
+    },
+    "popup": {
+      "followGlobal": true,
+      "value": 17
+    },
+    "card": {
+      "followGlobal": true,
+      "value": 17
+    },
+    "control": {
+      "followGlobal": false,
+      "value": 12
+    },
+    "screen": {
+      "followGlobal": false,
+      "value": 8
+    }
+  },
+  "radiusRoles": [
+    "window",
+    "bar",
+    "modal",
+    "sidebar",
+    "popup",
+    "card",
+    "control",
+    "screen"
+  ],
+  "snapshotKeys": [
+    "appearance.interfaceStyle",
+    "appearance.extraBackgroundTint",
+    "appearance.fakeScreenRounding",
+    "appearance.transparency.enable",
+    "appearance.transparency.automatic",
+    "appearance.transparency.backgroundTransparency",
+    "appearance.transparency.contentTransparency",
+    "bar.cornerStyle",
+    "bar.floatStyleShadow",
+    "bar.borderless",
+    "bar.showBackground",
+    "bar.verbose",
+    "bar.bottom",
+    "bar.vertical",
+    "background.parallax.enableWorkspace",
+    "background.parallax.enableSidebar",
+    "appearance.motion.reduced",
+    "appearance.motion.scale",
+    "appearance.motion.expressive",
+    "appearance.geometry.radius.global",
+    "appearance.geometry.radius.window.followGlobal",
+    "appearance.geometry.radius.window.value",
+    "appearance.geometry.radius.bar.followGlobal",
+    "appearance.geometry.radius.bar.value",
+    "appearance.geometry.radius.modal.followGlobal",
+    "appearance.geometry.radius.modal.value",
+    "appearance.geometry.radius.sidebar.followGlobal",
+    "appearance.geometry.radius.sidebar.value",
+    "appearance.geometry.radius.popup.followGlobal",
+    "appearance.geometry.radius.popup.value",
+    "appearance.geometry.radius.card.followGlobal",
+    "appearance.geometry.radius.card.value",
+    "appearance.geometry.radius.control.followGlobal",
+    "appearance.geometry.radius.control.value",
+    "appearance.geometry.radius.screen.followGlobal",
+    "appearance.geometry.radius.screen.value"
+  ],
+  "legacyAliases": {
+    "mica": "fluid",
+    "prism": "fluid",
+    "inlay": "fluid",
+    "glass": "fluid",
+    "solid": "default",
+    "minimal": "default"
+  }
+}

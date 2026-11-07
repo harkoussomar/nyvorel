@@ -159,21 +159,10 @@ Scope { // Scope
 
             // Background
             StyledRectangularShadow {
-                visible: !Appearance.prismMode && !Appearance.inlayMode
+                visible: true
                 target: cheatsheetBackground
             }
 
-            // prism-v2-phase7: cheatsheet/keybinds join the depth-4 modal plane.
-            PrismSurface {
-                visible: Appearance.prismMode && root.stableCheatsheetOpen
-                x: cheatsheetBackground.x
-                y: cheatsheetBackground.y
-                width: cheatsheetBackground.width
-                height: cheatsheetBackground.height
-                depth: Appearance.prism.depthModal
-                surfaceRadius: Appearance.prism.radiusModal
-                elevated: true
-            }
 
             Rectangle {
                 id: cheatsheetBackground
@@ -189,27 +178,13 @@ Scope { // Scope
                     cheatsheetRoot.syncShellCaptureRegion()
                 anchors.centerIn: parent
                 color:
-                    Appearance.prismMode
-                        ? "transparent"
-                        : Appearance.inlayMode
-                            ? Appearance.inlay.surfaceFill
-                            : Appearance.colors.colLayer0
+                      Appearance.colors.colLayer0
                 border.width:
-                    Appearance.prismMode
-                        ? 0
-                        : Appearance.inlayMode
-                            ? Appearance.inlay.borderWidth
-                            : 1
+                      1
                 border.color:
-                    Appearance.inlayMode
-                        ? Appearance.inlay.borderControl
-                        : Appearance.colors.colLayer0Border
+                     Appearance.colors.colLayer0Border
                 radius:
-                    Appearance.inlayMode
-                        ? 0
-                        : Appearance.prismMode
-                            ? Appearance.prism.radiusModal
-                            : Appearance.rounding.windowRounding
+                      Appearance.rounding.windowRounding
                 property real padding: 20
                 implicitWidth:
                     Math.min(
@@ -273,28 +248,20 @@ Scope { // Scope
                     }
 
                     color:
-                        Appearance.prismMode
-                            ? (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
-                                ? Appearance.prism.persistentActiveFill
-                                : "transparent")
-                            : (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
-                                ? Appearance.colors.colPrimary
-                                : Qt.rgba(
-                                    Appearance.colors.colOnSurfaceVariant.r,
-                                    Appearance.colors.colOnSurfaceVariant.g,
-                                    Appearance.colors.colOnSurfaceVariant.b,
-                                    0.07
-                                  ))
+                         (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
+                            ? Appearance.colors.colPrimary
+                            : Qt.rgba(
+                                Appearance.colors.colOnSurfaceVariant.r,
+                                Appearance.colors.colOnSurfaceVariant.g,
+                                Appearance.colors.colOnSurfaceVariant.b,
+                                0.07
+                              ))
 
                     border.width: 1
                     border.color:
-                        Appearance.prismMode
-                            ? (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
-                                ? Appearance.prism.focusBorder
-                                : Appearance.prism.borderSubtle)
-                            : (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
-                                ? Appearance.colors.colPrimary
-                                : Appearance.colors.colLayer0Border)
+                         (cheatsheetCloseArea.containsMouse || closeButton.activeFocus
+                            ? Appearance.colors.colPrimary
+                            : Appearance.colors.colLayer0Border)
 
                     MaterialSymbol {
                         anchors.centerIn: parent
@@ -303,9 +270,7 @@ Scope { // Scope
                         text: "close"
                         color:
                             cheatsheetCloseArea.containsMouse || closeButton.activeFocus
-                                ? (Appearance.prismMode
-                                    ? Appearance.colors.colPrimary
-                                    : Appearance.colors.colOnPrimary)
+                                ? (Appearance.colors.colOnPrimary)
                                 : Appearance.colors.colOnSurfaceVariant
                     }
 

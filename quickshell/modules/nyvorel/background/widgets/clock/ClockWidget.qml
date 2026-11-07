@@ -82,7 +82,7 @@ AbstractBackgroundWidget {
             visible:
                 statusTextBg.visible
                 && root.clockStyle === "cookie"
-                && (Appearance.fluidMode || Appearance.prismMode)
+                && (Appearance.fluidMode)
             opacity: statusTextBg.opacity
         }
         Rectangle {
@@ -94,33 +94,21 @@ AbstractBackgroundWidget {
             implicitHeight: statusTextRow.implicitHeight + 5 * 2
             implicitWidth: statusTextRow.implicitWidth + 5 * 2
             radius:
-                Appearance.inlayMode
-                    ? 0
-                    : Appearance.prismMode
-                        ? Appearance.prism.radiusControl
-                        : Appearance.fluidMode
-                            ? Appearance.rounding.small
-                            : Appearance.radius.control
+                  Appearance.fluidMode
+                     ? Appearance.rounding.small
+                     : Appearance.radius.control
             color:
                 root.clockStyle !== "cookie"
                     ? "transparent"
-                    : Appearance.inlayMode
-                        ? Appearance.inlay.controlFill
-                        : Appearance.prismMode
-                            ? Appearance.prism.interactiveFill
-                            : Appearance.fluidMode
-                                ? Appearance.colors.colSecondaryContainer
-                                : Appearance.colors.colLayer1
+                    : Appearance.fluidMode
+                        ? Appearance.colors.colSecondaryContainer
+                        : Appearance.colors.colLayer1
             border.width:
-                root.clockStyle === "cookie" && (Appearance.inlayMode || Appearance.prismMode)
+                root.clockStyle === "cookie" && (false)
                     ? 1
                     : 0
             border.color:
-                Appearance.inlayMode
-                    ? Appearance.inlay.borderControl
-                    : Appearance.prismMode
-                        ? Appearance.prism.borderStrong
-                        : "transparent"
+                  "transparent"
 
             Behavior on implicitWidth {
                 animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
@@ -182,8 +170,8 @@ AbstractBackgroundWidget {
             anchors.verticalCenter: statusTextRow.verticalCenter
             iconSize: Appearance.font.pixelSize.huge
             color: statusTextRow.textColor
-            style: Appearance.inlayMode ? Text.Normal : Text.Raised
-            styleColor: Appearance.inlayMode ? "transparent" : Appearance.colors.colShadow
+            style: Text.Raised
+            styleColor: Appearance.colors.colShadow
         }
         ClockText {
             id: statusTextWidget
@@ -194,8 +182,8 @@ AbstractBackgroundWidget {
                 pixelSize: Appearance.font.pixelSize.large
                 weight: Font.Normal
             }
-            style: Appearance.inlayMode ? Text.Normal : Text.Raised
-            styleColor: Appearance.inlayMode ? "transparent" : Appearance.colors.colShadow
+            style: Text.Raised
+            styleColor: Appearance.colors.colShadow
         }
     }
 }

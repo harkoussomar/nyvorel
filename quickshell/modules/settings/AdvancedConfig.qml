@@ -7,6 +7,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     readonly property int cardPadding: 14
     readonly property int sectionGap: 12
@@ -33,18 +35,12 @@ ContentPage {
         implicitHeight: naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
 
         ColumnLayout {
@@ -91,7 +87,7 @@ ContentPage {
                         Layout.minimumWidth: 0
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -129,7 +125,7 @@ ContentPage {
             Layout.minimumWidth: 0
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -201,7 +197,7 @@ ContentPage {
                     Layout.minimumWidth: 0
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -247,7 +243,7 @@ ContentPage {
                 Layout.minimumWidth: 0
                 text: box.text
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
         }
@@ -336,7 +332,7 @@ ContentPage {
                         Layout.minimumWidth: 0
                         text: setting.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -345,7 +341,7 @@ ContentPage {
                     text: setting.valueLabel
                     color: Appearance.colors.colSubtext
                     font.family: Appearance.font.family.numbers
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                 }
             }
 

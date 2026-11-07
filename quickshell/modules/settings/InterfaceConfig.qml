@@ -8,6 +8,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Page-local layout values only. Corner geometry always comes from the
     // project's semantic Appearance.radius.* system.
@@ -52,7 +54,8 @@ ContentPage {
 
         onTriggered: {
             Quickshell.execDetached([
-                "@HOME@/.config/quickshell/nyvorel/scripts/appearance-studio/semantic_radius_hypr.py",
+                Quickshell.shellPath("scripts/system/nyvorel-appearance-studio"),
+                "__semantic-radius",
                 "window",
                 String(root.pendingWindowRadius)
             ])
@@ -83,20 +86,11 @@ ContentPage {
         Layout.preferredHeight: Math.max(card.naturalHeight, card.matchedHeight)
         implicitHeight: card.naturalHeight
 
-        radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
-        color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
+        radius: Appearance.radius.card
+        color: Appearance.colors.colLayer2
         clip: true
-        border.width: 1
-        border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+        border.width: 0
+        border.color: Appearance.colors.colLayer0Border
 
         ColumnLayout {
             id: cardColumn
@@ -142,7 +136,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -177,7 +171,7 @@ ContentPage {
             Layout.fillWidth: true
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -246,7 +240,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -376,7 +370,7 @@ ContentPage {
                 color: box.warning
                     ? Appearance.colors.colOnTertiaryContainer
                     : Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
         }
@@ -448,7 +442,7 @@ ContentPage {
                             ? Translation.tr("Using Global")
                             : Translation.tr("Custom value")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -457,7 +451,7 @@ ContentPage {
                     text: editor.resolvedValue + " px"
                     color: Appearance.colors.colSubtext
                     font.family: Appearance.font.family.numbers
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                 }
             }
 
@@ -481,7 +475,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Follow Global radius")
                         color: Appearance.colors.colOnLayer2
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
 
@@ -530,7 +524,7 @@ ContentPage {
                         text: editor.storedValue + " px"
                         color: Appearance.colors.colSubtext
                         font.family: Appearance.font.family.numbers
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                     }
                 }
 
@@ -600,7 +594,7 @@ ContentPage {
                     anchors.centerIn: parent
                     text: Translation.tr("Window")
                     color: Appearance.colors.colOnPrimaryContainer
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                 }
             }
 
@@ -630,7 +624,7 @@ ContentPage {
                         anchors.centerIn: parent
                         text: Translation.tr("Control")
                         color: Appearance.colors.colOnPrimaryContainer
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                     }
                 }
             }
@@ -775,7 +769,7 @@ ContentPage {
                 .arg(Math.round(Config.options.overview.scale * 100))
 
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
         }
     }
 
@@ -898,60 +892,6 @@ ContentPage {
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: filePickerRow.implicitHeight + 18
-                    radius: Appearance.radius.control
-                    color: Appearance.colors.colLayer1
-                    clip: true
-
-                    RowLayout {
-                        id: filePickerRow
-
-                        anchors {
-                            fill: parent
-                            margins: 9
-                        }
-
-                        spacing: 10
-
-                        MaterialSymbol {
-                            text: "wallpaper_slideshow"
-                            iconSize: 18
-                            color: Appearance.colors.colPrimary
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-
-                            StyledText {
-                                text: Translation.tr("System wallpaper file picker")
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.Medium
-                                wrapMode: Text.Wrap
-                            }
-
-                            StyledText {
-                                text: Translation.tr("Use the desktop system file dialog when choosing a wallpaper.")
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                                wrapMode: Text.Wrap
-                            }
-                        }
-
-                        StyledSwitch {
-                            checked:
-                                Config.options.wallpaperSelector.useSystemFileDialog
-
-                            onToggled: {
-                                Config.options.wallpaperSelector.useSystemFileDialog =
-                                    checked
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -1080,7 +1020,7 @@ ContentPage {
                                 Layout.minimumWidth: 0
                                 text: Translation.tr("Used wherever the cheat sheet renders the Super key.")
                                 color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 wrapMode: Text.Wrap
                             }
                         }

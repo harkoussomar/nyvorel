@@ -56,26 +56,19 @@ Variants {
         readonly property bool verticalParallax: (Config.options.background.parallax.autoVertical && wallpaperHeight > wallpaperWidth) || Config.options.background.parallax.vertical
         // Colors
         // Lock-background identity. Fluid keeps the exact configured blur/zoom.
-        // Prism uses a shallower spatial blur, Inlay uses no blur at all, and
         // Default stays restrained.
         property bool shouldBlur:
             GlobalStates.screenLocked
             && Config.options.lock.blur.enable
-            && !Appearance.inlayMode
+            && !false
         property real lockBlurRadius:
             Appearance.fluidMode
                 ? Config.options.lock.blur.radius
-                : Appearance.prismMode
-                    ? Math.min(Config.options.lock.blur.radius, 52)
-                    : Math.min(Config.options.lock.blur.radius, 30)
+                : Math.min(Config.options.lock.blur.radius, 30)
         property real lockZoom:
             Appearance.fluidMode
                 ? Config.options.lock.blur.extraZoom
-                : Appearance.prismMode
-                    ? 1 + (Config.options.lock.blur.extraZoom - 1) * 0.50
-                    : Appearance.inlayMode
-                        ? 1
-                        : 1 + (Config.options.lock.blur.extraZoom - 1) * 0.25
+                : 1 + (Config.options.lock.blur.extraZoom - 1) * 0.25
         property color dominantColor: Appearance.colors.colPrimary // Default, to be changed
         property bool dominantColorIsDark: dominantColor.hslLightness < 0.5
         property color colText: {
@@ -225,15 +218,6 @@ Variants {
                         color: CF.ColorUtils.transparentize(Appearance.colors.colLayer0, 0.7)
                     }
                 }
-            }
-
-            // Inlay has no glass/blur language. Instead the wallpaper remains
-            // sharp beneath a strong matte shell-colored scrim. Fluid receives
-            // no additional overlay, preserving its existing lock appearance.
-            Rectangle {
-                anchors.fill: parent
-                visible: GlobalStates.screenLocked && Appearance.inlayMode
-                color: CF.ColorUtils.transparentize(Appearance.inlay.baseFill, 0.28)
             }
 
             WidgetCanvas {

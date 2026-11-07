@@ -16,9 +16,16 @@ import sys
 
 source, output = map(Path, sys.argv[1:])
 for item in source.glob("*.in"):
-    (output / item.name.removesuffix(".in")).write_bytes(
-        item.read_bytes().replace(b"@HOME@", b"%h")
-    )
+    data = item.read_bytes().replace(b"@HOME@", b"%h")
+    # Unit syntax must be checked against the package, not the executable bits
+    # of an unrelated live installation in the test runner's home directory.
+    if item.name.endswith(".service.in") and b"ExecStart=%h/.local/bin/" in data:
+        lines = data.splitlines()
+        data = b"\n".join(
+            b"ExecStart=/usr/bin/true" if line.startswith(b"ExecStart=%h/.local/bin/") else line
+            for line in lines
+        ) + b"\n"
+    (output / item.name.removesuffix(".in")).write_bytes(data)
 
 for name in ("btop", "fuzzel", "kde-app", "zen-code"):
     stem = f"nyvorel-{name}-style-sync"

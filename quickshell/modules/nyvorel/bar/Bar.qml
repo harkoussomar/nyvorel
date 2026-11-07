@@ -203,9 +203,12 @@ Scope {
                             rightMargin: (Config.options.interactions.deadPixelWorkaround.enable && barRoot.anchors.right) * -1
                         }
                         Behavior on anchors.topMargin {
+                            // nyvorel-phase3d: reduced-motion uses direct state changes.
+                            enabled: Appearance.barMotion.allowSpatial
                             animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                         }
                         Behavior on anchors.bottomMargin {
+                            enabled: Appearance.barMotion.allowSpatial
                             animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                         }
 
@@ -266,7 +269,9 @@ Scope {
                                 }
 
                                 implicitSize: Appearance.rounding.screenRounding
-                                color: showBarBackground ? Appearance.colors.colLayer0 : "transparent"
+                                color: showBarBackground ? Appearance.barVisual.attachedSurfaceFill : "transparent"
+                                outlineColor: Appearance.colors.colLayer0Border
+                                outlineWidth: 1
 
                                 corner: RoundCorner.CornerEnum.TopLeft
                                 states: State {
@@ -285,7 +290,9 @@ Scope {
                                     bottom: Config.options.bar.bottom ? parent.bottom : undefined
                                 }
                                 implicitSize: Appearance.rounding.screenRounding
-                                color: showBarBackground ? Appearance.colors.colLayer0 : "transparent"
+                                color: showBarBackground ? Appearance.barVisual.attachedSurfaceFill : "transparent"
+                                outlineColor: Appearance.colors.colLayer0Border
+                                outlineWidth: 1
 
                                 corner: RoundCorner.CornerEnum.TopRight
                                 states: State {

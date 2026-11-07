@@ -100,7 +100,7 @@ ShellRoot {
 
     // Panel families
     // DYNAMIC-SELECTED-FAMILY-V1
-    property list<string> families: ["ii", "waffle"]
+    property list<string> families: ["nyvorel", "waffle"]
 
     property url selectedPanelFamilySource: {
         if (!Config.ready)

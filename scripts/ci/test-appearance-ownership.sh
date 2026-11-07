@@ -32,7 +32,7 @@ python3 "$ROOT/quickshell/scripts/appearance-studio/semantic_radius_hypr.py" \
   window 19
 grep -qF -- '-- >>> appearance-studio-glass-runtime-v2 >>>' "$runtime"
 grep -qF -- '-- >>> nyvorel-fluid-interface-v1 >>>' "$runtime"
-grep -qF 'rounding"] = 19' "$runtime"
+grep -qF 'rounding = 19' "$runtime"
 [[ "$(sha256sum "$rules" | cut -d' ' -f1)" == "$rules_sha" ]]
 
 runtime_sha="$(sha256sum "$runtime" | cut -d' ' -f1)"
@@ -50,7 +50,7 @@ if grep -qF -- '-- >>> nyvorel-fluid-interface-v1 >>>' "$runtime"; then
   echo 'ERROR: Fluid runtime block remained after Default' >&2
   exit 1
 fi
-grep -qF 'rounding"] = 19' "$runtime"
+grep -qF 'rounding = 19' "$runtime"
 [[ "$(sha256sum "$rules" | cut -d' ' -f1)" == "$rules_sha" ]]
 
 mkdir -p "$XDG_CONFIG_HOME/nyvorel"

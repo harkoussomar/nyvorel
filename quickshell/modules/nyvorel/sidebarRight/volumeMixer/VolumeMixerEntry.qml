@@ -6,19 +6,24 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
 
-Item {
+Rectangle {
     id: root
     required property PwNode node
     PwObjectTracker {
         objects: [root.node]
     }
 
-    implicitHeight: rowLayout.implicitHeight
+    implicitHeight: Math.max(65, rowLayout.implicitHeight + 18)
+    radius: 10
+    color: Appearance.material.nestedFill
+    border.width: 1
+    border.color: Appearance.material.nestedBorder
 
     RowLayout {
         id: rowLayout
         anchors.fill: parent
-        spacing: 6
+        anchors.margins: 10
+        spacing: 12
 
         Image {
             property real size: 36
@@ -43,7 +48,7 @@ Item {
             StyledText {
                 Layout.fillWidth: true
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
+                color: Appearance.material.textPrimary
                 elide: Text.ElideRight
                 text: {
                     // application.name -> description -> name

@@ -2,61 +2,79 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell
-import Quickshell.Wayland
-import Quickshell.Hyprland
 
 WindowDialog {
     id: root
-    backgroundHeight: 600
+    atlasStyle: true
+    backgroundWidth: 520
+    backgroundHeight: Math.min(height - 20, Math.max(245, 142 + Math.min(deviceList.contentHeight, 430)))
 
-    WindowDialogTitle {
-        text: Translation.tr("Bluetooth devices")
-    }
-    WindowDialogSeparator {
-        visible: !(Bluetooth.defaultAdapter?.discovering ?? false)
-    }
-    StyledIndeterminateProgressBar {
-        visible: Bluetooth.defaultAdapter?.discovering ?? false
+    RowLayout {
         Layout.fillWidth: true
-        Layout.topMargin: -8
-        Layout.bottomMargin: -8
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-    }
-    StyledListView {
-        Layout.fillHeight: true
-        Layout.fillWidth: true
-        Layout.topMargin: -15
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-
-        clip: true
-        spacing: 0
-        animateAppearance: false
-
-        model: ScriptModel {
-            values: BluetoothStatus.friendlyDeviceList
+        spacing: 12
+        MaterialSymbol {
+            text: "bluetooth"
+            iconSize: 24
+            color: Appearance.colors.colPrimary
         }
-        delegate: BluetoothDeviceItem {
-            required property BluetoothDevice modelData
-            device: modelData
-            anchors {
-                left: parent?.left
-                right: parent?.right
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+            StyledText {
+                text: Translation.tr("Bluetooth devices")
+                font.pixelSize: Appearance.font.pixelSize.large
+                color: Appearance.material.textPrimary
+            }
+            StyledText {
+                text: (Bluetooth.defaultAdapter?.discovering ?? false)
+                    ? Translation.tr("Searching for devices")
+                    : (deviceList.count + " " + Translation.tr("devices available"))
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.material.textMuted
             }
         }
     }
-    WindowDialogSeparator {}
-    WindowDialogButtonRow {
+
+    StyledIndeterminateProgressBar {
+        visible: Bluetooth.defaultAdapter?.discovering ?? false
+        Layout.fillWidth: true
+    }
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
+    }
+
+    StyledListView {
+        id: deviceList
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 70
+        clip: true
+        spacing: 7
+        animateAppearance: false
+        boundsBehavior: Flickable.StopAtBounds
+
+        model: ScriptModel { values: BluetoothStatus.friendlyDeviceList }
+        delegate: BluetoothDeviceItem {
+            required property BluetoothDevice modelData
+            device: modelData
+            width: ListView.view.width
+        }
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
+    }
+    RowLayout {
+        Layout.fillWidth: true
         DialogButton {
             buttonText: Translation.tr("Details")
             onClicked: {
@@ -64,14 +82,6 @@ WindowDialog {
                 GlobalStates.sidebarRightOpen = false;
             }
         }
-
-        Item {
-            Layout.fillWidth: true
-        }
-
-        DialogButton {
-            buttonText: Translation.tr("Done")
-            onClicked: root.dismiss()
-        }
+        Item { Layout.fillWidth: true }
     }
 }

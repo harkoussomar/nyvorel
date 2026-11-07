@@ -65,7 +65,7 @@ modules, services, UX, lifecycle model, and tooling.
 | **Compositor** | Hyprland |
 | **Desktop shell** | Quickshell |
 | **Service lifecycle** | systemd user services |
-| **Automation / tooling** | Bash + Python |
+| **Automation / tooling** | Rust + Bash + Python |
 | **Current release** | `v0.1.0` |
 | **License** | GPL-3.0 |
 | **Install model** | Manifest-backed, backup-first, recoverable |
@@ -83,7 +83,7 @@ modules, services, UX, lifecycle model, and tooling.
 - notifications and on-screen display
 - media controls
 - appearance workflows
-- project launcher
+- network operations and live speed testing
 - utility and system surfaces
 
 </td>
@@ -181,6 +181,11 @@ complete minimal-Arch package plan for the desktop:
 The supported core includes Hyprland, Quickshell (`qs` or `quickshell`),
 systemd user services, Python 3, Bash/GNU userland, D-Bus session integration
 and Git for the safe update lifecycle.
+
+Source installs and source updates also require Rust Cargo to compile the
+eight native helpers from their pinned lockfiles. Arch packages use Rust only
+at build time. The speed test calls an installed Ookla `speedtest` command;
+the third-party executable is not bundled.
 
 Feature-specific applications are classified as optional. Missing optional
 dependencies do not make unrelated Nyvorel functionality unsupported.
@@ -385,7 +390,7 @@ flowchart LR
     N --> OPS["Operations Center"]
     N --> BR["Backup & Recovery"]
     N --> AR["Arch Remote"]
-    N --> PL["Project Launcher"]
+    N --> NET["Network operations"]
 
     S --> SYNC["Style / theme sync"]
     SYNC --> APPS["Kitty · Fish · btop · Dolphin · Fuzzel · Zed"]

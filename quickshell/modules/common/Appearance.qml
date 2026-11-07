@@ -24,62 +24,17 @@ Singleton {
     readonly property bool expressiveMotion:
         Config.options.appearance.motion.expressive
 
-    // phase4e-surface-deformation-policy-v1
-    //
-    // Single source of truth for Phase 4 expressive surface deformation.
-    // Opt-in scope is intentionally narrow: focused modal/transient surfaces.
-    // Edge sidebars, notifications, OSD, media controls, dense settings,
-    // session/lock surfaces and overview stay outside this effect by design.
-    property QtObject surfaceDeformation: QtObject {
-        readonly property bool enabled:
-            root.prismMode
-            && root.expressiveMotion
-            && !root.reducedMotion
-
-        // Compact modal profile — Project Launcher.
-        readonly property real compactStartX: 0.978
-        readonly property real compactStartY: 0.992
-        readonly property real compactMiddleX: 0.992
-        readonly property real compactMiddleY: 0.978
-        readonly property real compactRadiusStart: 1.08
-        readonly property real compactRadiusMiddle: 0.96
-
-        readonly property int compactXCompressMs: 120
-        readonly property int compactXSettleMs: 220
-        readonly property int compactYCompressMs: 105
-        readonly property int compactYSettleMs: 235
-        readonly property int compactRadiusCompressMs: 110
-        readonly property int compactRadiusSettleMs: 230
-
-        // Large modal profile — Appearance Studio / Backup / Arch Remote.
-        readonly property real largeStartX: 0.984
-        readonly property real largeStartY: 0.994
-        readonly property real largeMiddleX: 0.995
-        readonly property real largeMiddleY: 0.983
-        readonly property real largeRadiusStart: 1.055
-        readonly property real largeRadiusMiddle: 0.975
-
-        readonly property int largeXCompressMs: 110
-        readonly property int largeXSettleMs: 210
-        readonly property int largeYCompressMs: 100
-        readonly property int largeYSettleMs: 220
-        readonly property int largeRadiusCompressMs: 105
-        readonly property int largeRadiusSettleMs: 215
-    }
-
     property QtObject colors
     // phase6b-semantic-material-system-v1
     property QtObject material
-    // inlay-v2-foundation: Inlay owns a semantic matte-material token layer.
-    property QtObject inlay
-    // prism-v2-foundation: Prism owns a semantic spatial token layer.
-    // Nothing consumes this object yet; Phase 1 is intentionally render-neutral.
-    property QtObject prism
     property QtObject spacing
     property QtObject rounding
     property QtObject radius
     property QtObject font
     property QtObject sizes
+    property QtObject barLayout
+    property QtObject barVisual
+    property QtObject barMotion
     property string syntaxHighlightingTheme
 
     // Runtime invalidation bridge for semantic geometry.
@@ -163,49 +118,22 @@ Singleton {
         ? Config?.options.appearance.transparency.automatic ? autoContentTransparency : Config?.options.appearance.transparency.contentTransparency
         : 0
 
-    // inlay-v2-foundation
-    // Inlay is an explicitly selected matte interface: fully opaque, sharp and
-    // border-defined. The legacy Mica signature/identity remains accepted only
-    // as a migration bridge so older saved configurations keep working.
-    readonly property bool legacyInlaySignature:
-        configuredInterfaceStyle.length === 0
-        && !Config.options.appearance.transparency.enable
-        && !Config.options.appearance.transparency.automatic
-        && Config.options.appearance.extraBackgroundTint
-    readonly property bool inlayMode:
-        configuredInterfaceStyle === "inlay"
-        || configuredInterfaceStyle === "mica"
-        || legacyInlaySignature
-
-    // Internal compatibility alias. Existing material plumbing is migrated in
-    // later Inlay phases without changing Fluid, Prism or Default rendering.
-    readonly property bool micaMode: inlayMode
-
-    // prism-v2-foundation
-    // Interface identity is now explicit. Fine-tuning opacity/radius/etc. must not
-    // silently turn Prism off, and unrelated opaque profiles must not become Prism.
-    // The legacy signature is retained only for pre-migration configs whose marker
-    // is still empty; the installer migrates the current live config immediately.
     readonly property string configuredInterfaceStyle:
         String(Config.options.appearance.interfaceStyle ?? "").toLowerCase()
-    readonly property bool legacyPrismSignature:
+    // Preserve the historical Fluid profile for configurations created before
+    // interfaceStyle was saved explicitly.
+    readonly property bool legacyFluidSignature:
         configuredInterfaceStyle.length === 0
-        && !Config.options.appearance.transparency.enable
-        && !Config.options.appearance.transparency.automatic
-        && !Config.options.appearance.extraBackgroundTint
-    readonly property bool prismMode:
-        configuredInterfaceStyle === "prism" || legacyPrismSignature
-
-    // fluid-interface-v1
-    // Caelestia base=0.6 / layers=0.2 translated into II transparency.
-    readonly property bool fluidMode:
-        Config.options.appearance.transparency.enable
+        && Config.options.appearance.transparency.enable
         && !Config.options.appearance.transparency.automatic
         && !Config.options.appearance.extraBackgroundTint
         && Math.abs(Config.options.appearance.transparency.backgroundTransparency - 0.40) < 0.001
         && Math.abs(Config.options.appearance.transparency.contentTransparency - 0.80) < 0.001
         && Config.options.appearance.geometry.radius.global === 8
         && Config.options.appearance.geometry.radius.control.value === 4
+    readonly property bool fluidMode:
+        configuredInterfaceStyle === "fluid"
+        || legacyFluidSignature
 
     m3colors: QtObject {
         property bool darkmode: true
@@ -283,56 +211,6 @@ Singleton {
 
     colors: QtObject {
         property color colSubtext: root.fluidMode ? m3colors.m3onSurfaceVariant : m3colors.m3outline
-        // mica-material-v2
-        // Stronger Mica/Mica-Alt-inspired hierarchy:
-        // - foundation carries the wallpaper hue clearly
-        // - higher content layers become progressively calmer/neutral
-        // - tint changes hue/saturation while preserving each layer's luminance
-        //
-        // ColorUtils.mix(c1, c2, p): p=1 means all c1. These ratios therefore
-        // intentionally expose 28/18/12/8/5% wallpaper hue in dark mode.
-        property color micaAccent0: ColorUtils.adaptToAccent(m3colors.m3background, m3colors.m3primary)
-        property color micaAccent1: ColorUtils.adaptToAccent(m3colors.m3surfaceContainerLow, m3colors.m3primary)
-        property color micaAccent2: ColorUtils.adaptToAccent(m3colors.m3surfaceContainer, m3colors.m3primary)
-        property color micaAccent3: ColorUtils.adaptToAccent(m3colors.m3surfaceContainerHigh, m3colors.m3primary)
-        property color micaAccent4: ColorUtils.adaptToAccent(m3colors.m3surfaceContainerHighest, m3colors.m3primary)
-
-        property color micaLayer0Base: ColorUtils.mix(
-            m3colors.m3background,
-            micaAccent0,
-            m3colors.darkmode ? 0.72 : 0.84
-        )
-        property color micaLayer1Base: ColorUtils.mix(
-            m3colors.m3surfaceContainerLow,
-            micaAccent1,
-            m3colors.darkmode ? 0.82 : 0.90
-        )
-        property color micaLayer2Base: ColorUtils.mix(
-            m3colors.m3surfaceContainer,
-            micaAccent2,
-            m3colors.darkmode ? 0.88 : 0.94
-        )
-        property color micaLayer3Base: ColorUtils.mix(
-            m3colors.m3surfaceContainerHigh,
-            micaAccent3,
-            m3colors.darkmode ? 0.92 : 0.96
-        )
-        property color micaLayer4Base: ColorUtils.mix(
-            m3colors.m3surfaceContainerHighest,
-            micaAccent4,
-            m3colors.darkmode ? 0.95 : 0.98
-        )
-
-        property color micaBorder: ColorUtils.mix(
-            m3colors.m3outlineVariant,
-            ColorUtils.adaptToAccent(m3colors.m3outlineVariant, m3colors.m3primary),
-            m3colors.darkmode ? 0.60 : 0.74
-        )
-        property color micaShadow: ColorUtils.transparentize(
-            m3colors.m3shadow,
-            m3colors.darkmode ? 0.56 : 0.68
-        )
-
         // fluid-interface-v1
         // fluid-refinement-v1.2
         //
@@ -422,7 +300,7 @@ Singleton {
         // Base roles are used directly by several legacy II surfaces. Keep
         // their alpha aligned with the active profile, not just derived roles.
         // realistic-glass-v3: adaptive smoked-glass tint
-        property color colLayer0BaseNonMica:
+        property color colLayer0BaseDefault:
             Config.options.appearance.transparency.enable
                 ? ColorUtils.transparentize(
                     ColorUtils.mix(
@@ -433,13 +311,13 @@ Singleton {
                     root.backgroundTransparency
                   )
                 : ColorUtils.transparentize(ColorUtils.mix(m3colors.m3background, m3colors.m3primary, Config.options.appearance.extraBackgroundTint ? 0.99 : 1), root.backgroundTransparency)
-        property color colLayer0Base: root.micaMode ? micaLayer0Base : (root.fluidMode ? fluidLayer0Base : colLayer0BaseNonMica)
+        property color colLayer0Base: root.fluidMode ? fluidLayer0Base : colLayer0BaseDefault
         property color colLayer0: colLayer0Base
         property color colOnLayer0: m3colors.m3onBackground
         property color colLayer0Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer0, colOnLayer0, 0.9, root.contentTransparency))
         property color colLayer0Active: ColorUtils.transparentize(ColorUtils.mix(colLayer0, colOnLayer0, 0.8, root.contentTransparency))
         // realistic-glass-v3: optical edge highlight
-        property color colLayer0BorderNonMica:
+        property color colLayer0BorderDefault:
             Config.options.appearance.transparency.enable
                 ? ColorUtils.transparentize(
                     ColorUtils.mix(
@@ -450,18 +328,18 @@ Singleton {
                     0.68
                   )
                 : ColorUtils.mix(root.m3colors.m3outlineVariant, colLayer0, 0.4)
-        property color colLayer0Border: root.micaMode ? micaBorder : (root.fluidMode ? fluidBorder : colLayer0BorderNonMica)
+        property color colLayer0Border: root.fluidMode ? fluidBorder : colLayer0BorderDefault
         // Layer 1
-        property color colLayer1BaseNonMica: ColorUtils.transparentize(m3colors.m3surfaceContainerLow, root.contentTransparency)
-        property color colLayer1Base: root.micaMode ? micaLayer1Base : (root.fluidMode ? fluidLayer1Base : colLayer1BaseNonMica)
+        property color colLayer1BaseDefault: ColorUtils.transparentize(m3colors.m3surfaceContainerLow, root.contentTransparency)
+        property color colLayer1Base: root.fluidMode ? fluidLayer1Base : colLayer1BaseDefault
         property color colLayer1: ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
         property color colOnLayer1: m3colors.m3onSurfaceVariant;
         property color colOnLayer1Inactive: ColorUtils.mix(colOnLayer1, colLayer1, 0.45);
         property color colLayer1Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.92), root.contentTransparency)
         property color colLayer1Active: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.85), root.contentTransparency);
         // Layer 2
-        property color colLayer2BaseNonMica: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.contentTransparency)
-        property color colLayer2Base: root.micaMode ? micaLayer2Base : (root.fluidMode ? fluidLayer2Base : colLayer2BaseNonMica)
+        property color colLayer2BaseDefault: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.contentTransparency)
+        property color colLayer2Base: root.fluidMode ? fluidLayer2Base : colLayer2BaseDefault
         property color colLayer2: ColorUtils.solveOverlayColor(colLayer1Base, colLayer2Base, 1 - root.contentTransparency)
         property color colLayer2Hover: ColorUtils.solveOverlayColor(colLayer1Base, ColorUtils.mix(colLayer2Base, colOnLayer2, 0.90), 1 - root.contentTransparency)
         property color colLayer2Active: ColorUtils.solveOverlayColor(colLayer1Base, ColorUtils.mix(colLayer2Base, colOnLayer2, 0.80), 1 - root.contentTransparency);
@@ -469,15 +347,15 @@ Singleton {
         property color colOnLayer2: m3colors.m3onSurface;
         property color colOnLayer2Disabled: ColorUtils.mix(colOnLayer2, m3colors.m3background, 0.4);
         // Layer 3
-        property color colLayer3BaseNonMica: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.contentTransparency)
-        property color colLayer3Base: root.micaMode ? micaLayer3Base : (root.fluidMode ? fluidLayer3Base : colLayer3BaseNonMica)
+        property color colLayer3BaseDefault: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.contentTransparency)
+        property color colLayer3Base: root.fluidMode ? fluidLayer3Base : colLayer3BaseDefault
         property color colLayer3: ColorUtils.solveOverlayColor(colLayer2Base, colLayer3Base, 1 - root.contentTransparency)
         property color colLayer3Hover: ColorUtils.solveOverlayColor(colLayer2Base, ColorUtils.mix(colLayer3Base, colOnLayer3, 0.90), 1 - root.contentTransparency)
         property color colLayer3Active: ColorUtils.solveOverlayColor(colLayer2Base, ColorUtils.mix(colLayer3Base, colOnLayer3, 0.80), 1 - root.contentTransparency);
         property color colOnLayer3: m3colors.m3onSurface;
         // Layer 4
-        property color colLayer4BaseNonMica: ColorUtils.transparentize(m3colors.m3surfaceContainerHighest, root.contentTransparency)
-        property color colLayer4Base: root.micaMode ? micaLayer4Base : (root.fluidMode ? fluidLayer4Base : colLayer4BaseNonMica)
+        property color colLayer4BaseDefault: ColorUtils.transparentize(m3colors.m3surfaceContainerHighest, root.contentTransparency)
+        property color colLayer4Base: root.fluidMode ? fluidLayer4Base : colLayer4BaseDefault
         property color colLayer4: ColorUtils.solveOverlayColor(colLayer3Base, colLayer4Base, 1 - root.contentTransparency)
         property color colLayer4Hover: ColorUtils.solveOverlayColor(colLayer3Base, ColorUtils.mix(colLayer4Base, colOnLayer4, 0.90), 1 - root.contentTransparency)
         property color colLayer4Active: ColorUtils.solveOverlayColor(colLayer3Base, ColorUtils.mix(colLayer4Base, colOnLayer4, 0.80), 1 - root.contentTransparency);
@@ -510,16 +388,16 @@ Singleton {
         property color colOnTertiary: m3colors.m3onTertiary
         property color colOnTertiaryContainer: root.fluidMode ? m3colors.m3onSurface : m3colors.m3onTertiaryContainer
         // Surface
-        property color colBackgroundSurfaceContainerNonMica: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.backgroundTransparency)
-        property color colBackgroundSurfaceContainer: root.micaMode ? micaLayer1Base : (root.fluidMode ? fluidLayer1Base : colBackgroundSurfaceContainerNonMica)
-        property color colSurfaceContainerLowNonMica: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
-        property color colSurfaceContainerLow: root.micaMode ? micaLayer1Base : (root.fluidMode ? fluidLayer1Base : colSurfaceContainerLowNonMica)
-        property color colSurfaceContainerNonMica: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
-        property color colSurfaceContainer: root.micaMode ? micaLayer2Base : (root.fluidMode ? fluidLayer2Base : colSurfaceContainerNonMica)
-        property color colSurfaceContainerHighNonMica: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)
-        property color colSurfaceContainerHigh: root.micaMode ? micaLayer3Base : (root.fluidMode ? fluidLayer3Base : colSurfaceContainerHighNonMica)
-        property color colSurfaceContainerHighestNonMica: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerHigh, m3colors.m3surfaceContainerHighest, 1 - root.contentTransparency)
-        property color colSurfaceContainerHighest: root.micaMode ? micaLayer4Base : (root.fluidMode ? fluidLayer4Base : colSurfaceContainerHighestNonMica)
+        property color colBackgroundSurfaceContainerDefault: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.backgroundTransparency)
+        property color colBackgroundSurfaceContainer: root.fluidMode ? fluidLayer1Base : colBackgroundSurfaceContainerDefault
+        property color colSurfaceContainerLowDefault: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
+        property color colSurfaceContainerLow: root.fluidMode ? fluidLayer1Base : colSurfaceContainerLowDefault
+        property color colSurfaceContainerDefault: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
+        property color colSurfaceContainer: root.fluidMode ? fluidLayer2Base : colSurfaceContainerDefault
+        property color colSurfaceContainerHighDefault: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)
+        property color colSurfaceContainerHigh: root.fluidMode ? fluidLayer3Base : colSurfaceContainerHighDefault
+        property color colSurfaceContainerHighestDefault: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerHigh, m3colors.m3surfaceContainerHighest, 1 - root.contentTransparency)
+        property color colSurfaceContainerHighest: root.fluidMode ? fluidLayer4Base : colSurfaceContainerHighestDefault
         property color colSurfaceContainerHighestHover: ColorUtils.mix(m3colors.m3surfaceContainerHighest, m3colors.m3onSurface, 0.95)
         property color colSurfaceContainerHighestActive: ColorUtils.mix(m3colors.m3surfaceContainerHighest, m3colors.m3onSurface, 0.85)
         property color colOnSurface: m3colors.m3onSurface
@@ -528,8 +406,8 @@ Singleton {
         property color colTooltip: root.fluidMode ? fluidTooltip : m3colors.m3inverseSurface
         property color colOnTooltip: root.fluidMode ? m3colors.m3onSurface : m3colors.m3inverseOnSurface
         property color colScrim: ColorUtils.transparentize(m3colors.m3scrim, 0.5)
-        property color colShadowNonMica: ColorUtils.transparentize(m3colors.m3shadow, 0.7)
-        property color colShadow: root.micaMode ? micaShadow : (root.fluidMode ? fluidShadow : colShadowNonMica)
+        property color colShadowDefault: ColorUtils.transparentize(m3colors.m3shadow, 0.7)
+        property color colShadow: root.fluidMode ? fluidShadow : colShadowDefault
         property color colOutline: root.fluidMode ? fluidBorderMedium : m3colors.m3outline
         property color colOutlineVariant: root.fluidMode ? fluidBorderSubtle : m3colors.m3outlineVariant
         property color colError: m3colors.m3error
@@ -607,132 +485,6 @@ Singleton {
         readonly property int nestedBorderWidth: 1
     }
 
-    // inlay-v2-foundation
-    // Inlay is material nesting rather than spatial elevation. These tokens are
-    // intentionally opaque and radius-free; later phases migrate shell surfaces
-    // onto this contract without touching the completed Prism/Fluid branches.
-    inlay: QtObject {
-        // I0..I4: base shell -> main surface -> inset -> control -> emphasis.
-        readonly property color baseFill: root.colors.micaLayer0Base
-        readonly property color surfaceFill: root.colors.micaLayer1Base
-        readonly property color insetFill: root.colors.micaLayer2Base
-        readonly property color controlFill: root.colors.micaLayer3Base
-        readonly property color emphasisFill: root.colors.micaLayer4Base
-
-        // Crisp structural borders. No glow, blur or translucent outline.
-        readonly property color borderSubtle: ColorUtils.mix(
-            root.colors.micaBorder, surfaceFill, 0.46)
-        readonly property color borderSection: ColorUtils.mix(
-            root.colors.micaBorder, insetFill, 0.62)
-        readonly property color borderControl: ColorUtils.mix(
-            root.m3colors.m3outline, controlFill, 0.66)
-        readonly property color borderFocus: ColorUtils.mix(
-            root.m3colors.m3primary, root.m3colors.m3outline, 0.74)
-
-        // State is expressed through tone + border rather than glow/elevation.
-        readonly property color hoverFill: ColorUtils.mix(
-            controlFill, root.m3colors.m3onSurface, 0.96)
-        readonly property color pressedFill: ColorUtils.mix(
-            insetFill, root.m3colors.m3background, 0.90)
-        readonly property color selectedFill: ColorUtils.mix(
-            controlFill, root.m3colors.m3primary, 0.91)
-
-        // Shape contract: Inlay is square by definition.
-        readonly property int radius: 0
-        readonly property int borderWidth: 1
-        readonly property int focusBorderWidth: 1
-
-        // Matte contract: no interface shadow is part of the visual language.
-        readonly property color shadow: "transparent"
-        readonly property int shadowBlur: 0
-        readonly property int shadowOffset: 0
-
-        // Motion is direct and mechanical: no bounce, overshoot or deformation.
-        readonly property int hoverDuration: 120
-        readonly property int enterDuration: 180
-        readonly property int exitDuration: 150
-        readonly property int enterDistance: 4
-        readonly property real enterScale: 1.0
-    }
-
-    // prism-v2-foundation
-    // Spatial tokens are isolated from the global material system so Prism can
-    // evolve without changing Fluid, Mica, or Default rendering. Phase 1 only
-    // defines the contract; consumers migrate to these roles in later phases.
-    prism: QtObject {
-        // Four visible planes above the wallpaper/canvas.
-        readonly property int depthPersistent: 1
-        readonly property int depthInteractive: 2
-        readonly property int depthTransient: 3
-        readonly property int depthModal: 4
-
-        // Composition: detached objects use wallpaper as deliberate negative space.
-        // prism-v2-phase2a4: persistent shell edges follow the same outer
-        // rhythm as Hyprland windows. The bar host already derives its vertical
-        // detachment from hyprlandGapsOut, so use that same token horizontally.
-        readonly property int screenInset: Math.round(root.sizes.hyprlandGapsOut)
-        readonly property int islandGap: 10
-        readonly property int panelPadding: 16
-        readonly property int sectionGap: 20
-
-        // Solid, neutral surfaces. Accent is reserved for state/focus, not decoration.
-        readonly property color persistentFill: ColorUtils.mix(
-            root.m3colors.m3surfaceContainerLow, root.m3colors.m3background, 0.88)
-        readonly property color interactiveFill: ColorUtils.mix(
-            root.m3colors.m3surfaceContainer, root.m3colors.m3background, 0.90)
-        readonly property color transientFill: ColorUtils.mix(
-            root.m3colors.m3surfaceContainerHigh, root.m3colors.m3surfaceContainer, 0.90)
-        readonly property color modalFill: ColorUtils.mix(
-            root.m3colors.m3surfaceContainerHighest, root.m3colors.m3surfaceContainerHigh, 0.90)
-
-        readonly property color borderSubtle: ColorUtils.mix(
-            root.m3colors.m3outlineVariant, persistentFill, 0.46)
-        readonly property color borderStrong: ColorUtils.mix(
-            root.m3colors.m3outline, interactiveFill, 0.42)
-        readonly property color focusBorder: ColorUtils.mix(
-            root.m3colors.m3primary, root.m3colors.m3outline, 0.68)
-
-        // prism-v2-phase2b: persistent state belongs to the owning surface.
-        // Hover/open state becomes part of the island itself instead of
-        // spawning nested pills or decorative accent marks.
-        readonly property color persistentHoverFill: ColorUtils.mix(
-            persistentFill, root.m3colors.m3onSurface, 0.95)
-        readonly property color persistentActiveFill: ColorUtils.mix(
-            persistentFill, root.m3colors.m3primary, 0.90)
-
-        // Elevation recipes. These are intentionally separate from the existing
-        // StyledRectangularShadow so Fluid's proven shadow path stays untouched.
-        readonly property color shadowPersistent: ColorUtils.transparentize(root.m3colors.m3shadow, 0.78)
-        readonly property color shadowInteractive: ColorUtils.transparentize(root.m3colors.m3shadow, 0.70)
-        readonly property color shadowTransient: ColorUtils.transparentize(root.m3colors.m3shadow, 0.62)
-        readonly property color shadowModal: ColorUtils.transparentize(root.m3colors.m3shadow, 0.54)
-        readonly property int shadowBlurPersistent: 12
-        readonly property int shadowBlurInteractive: 18
-        readonly property int shadowBlurTransient: 22
-        readonly property int shadowBlurModal: 28
-        readonly property int shadowOffsetPersistent: 3
-        readonly property int shadowOffsetInteractive: 5
-        readonly property int shadowOffsetTransient: 7
-        readonly property int shadowOffsetModal: 10
-
-        // Geometry follows the existing semantic-radius system instead of creating
-        // a second radius authority.
-        readonly property int radiusPersistent: root.radius.bar
-        readonly property int radiusInteractive: root.radius.sidebar
-        readonly property int radiusTransient: root.radius.popup
-        readonly property int radiusModal: root.radius.modal
-        readonly property int radiusCard: root.radius.card
-        readonly property int radiusControl: root.radius.control
-
-        // Motion should communicate origin/placement, not rubbery deformation.
-        readonly property real enterScale: 0.97
-        readonly property real hoverScale: 1.01
-        readonly property real pressedScale: 0.98
-        readonly property int enterDistance: 10
-        readonly property int enterDuration: 220
-        readonly property int exitDuration: 170
-    }
-
     // Small canonical spacing scale for shell composition. Existing geometry
     // that is intrinsically sized can keep its explicit value; repeated layout
     // spacing should migrate here gradually.
@@ -746,6 +498,76 @@ Singleton {
         readonly property int xxl: 16
         readonly property int xxxl: 20
         readonly property int huge: 24
+    }
+
+    // nyvorel-phase2b-bar-semantic-layout
+    // Geometry is shared by Default and Fluid; styling stays independent.
+    // These tokens preserve current dimensions; do not change appearance in Phase 2.
+    barLayout: QtObject {
+        readonly property real persistentHeight: root.sizes.baseBarHeight
+        readonly property bool axiomComponents: true
+        readonly property real zoneGap: root.spacing.md
+        readonly property real safetyGap: root.spacing.xl
+        readonly property real statusIconGap: root.spacing.lg
+        readonly property real rightSectionGap: root.spacing.md
+        readonly property real groupColumnGap: root.spacing.sm
+        readonly property int workspaceCellWidth: 24
+        // nyvorel-phase3e-responsive-edges: account for edge geometry in fit budgets.
+        readonly property real edgeInset: 0
+        readonly property real rightStatusInset: root.spacing.lg
+        readonly property real minimumMediaWidth: 72
+    }
+
+    // nyvorel-phase3c-navbar-materials: visual roles are owned in one place.
+    // Unlike layout tokens, these values may intentionally differ by style.
+    // They affect navbar components only; no sidebar or modal palette changes.
+    barVisual: QtObject {
+        // Attached popups need a stable backing color in edge-to-edge styles.
+        // Floating keeps the user-selected translucent material.
+        readonly property color attachedSurfaceFill:
+            Config.options.bar.cornerStyle === 1
+                ? root.colors.colLayer0
+                : Qt.rgba(root.colors.colLayer0.r, root.colors.colLayer0.g,
+                    root.colors.colLayer0.b, 1)
+        readonly property int standardFloatingBorderWidth:
+            Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 ? 1 : 0
+        readonly property color defaultGroupFill: root.colors.colLayer1
+        // Preserve Fluid transparency while easing competing group contrast.
+        // mix() keeps 90% of the first color, 10% of the second color.
+        readonly property color fluidGroupFill: ColorUtils.mix(
+            root.colors.colLayer1Base, root.colors.colLayer0, 0.90)
+
+        // nyvorel-axiom-fluid-theme-v2: Axiom inherits Nyvorel's actual Fluid
+        // palette, wallpaper tint, brightness, font and opacity settings.
+        // Axiom is a component treatment, never another navbar surface.
+        // Axiom visual rhythm inherits Nyvorel's own navbar border color.
+        readonly property color axiomDivider: root.colors.colLayer0Border
+        readonly property int axiomTextSize: 13
+        readonly property int axiomIconSize: 16
+        readonly property int axiomRingSize: 24
+        readonly property int axiomTrayIconSize: 16
+        readonly property color axiomTrayRest: ColorUtils.transparentize(root.colors.colLayer1, 0.60)
+        readonly property color axiomTrayHover: root.colors.colLayer1Hover
+        readonly property color axiomTrayBorder: root.colors.colOutlineVariant
+        readonly property color axiomLabel: root.colors.colOnLayer1Inactive
+        readonly property color axiomValue: root.colors.colOnLayer0
+        readonly property color axiomBatteryAccent: root.colors.colPrimary
+        readonly property color axiomRamAccent: root.colors.colTertiary
+        readonly property color axiomCpuAccent: root.colors.colSecondary
+        readonly property color axiomBatteryTrack: ColorUtils.transparentize(root.colors.colOnLayer1, 0.84)
+    }
+
+    // nyvorel-phase3d-navbar-motion: navbar-local motion contract.
+    // Preserve existing timing at speed 1.0, while honoring the user's
+    // reduced-motion setting and the shared duration scale.
+    barMotion: QtObject {
+        readonly property bool allowSpatial: !root.reducedMotion
+        readonly property int statusDuration: root.reducedMotion ? 1
+            : Math.max(1, Math.round(220 * root.motionScale))
+        readonly property int mediaWidthDuration: root.reducedMotion ? 1
+            : Math.max(1, Math.round(240 * root.motionScale))
+        readonly property int workspaceIconDuration: root.reducedMotion ? 1
+            : Math.max(1, Math.round(260 * root.motionScale))
     }
 
     rounding: QtObject {

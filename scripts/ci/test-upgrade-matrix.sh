@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "$ROOT"
@@ -45,7 +46,10 @@ API_MODE="$TMP/api-mode"
 mkdir -p "$BUILDER" "$HOME_SANDBOX"
 
 echo "== Build synthetic immutable v0.1.0 =="
-cp -a "$ROOT/." "$BUILDER/"
+mkdir -p "$BUILDER"
+git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
+  | tar -C "$ROOT" --null -T - -cf - \
+  | tar -C "$BUILDER" -xf -
 rm -rf "$BUILDER/.git"
 find "$BUILDER" -type d -name __pycache__ -prune -exec rm -rf {} +
 

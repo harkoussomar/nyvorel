@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
 import Quickshell.Services.UPower
@@ -9,8 +10,9 @@ import QtQuick.Controls as Controls
 StyledPopup {
     id: root
 
-    popupColor:
-        Appearance.colors.colLayer0
+    irisAnimation: Appearance.barLayout.axiomComponents
+    popupColor: root.surface
+    contentMargin: 13
 
     popupRadius:
         Appearance.radius.popup
@@ -23,6 +25,17 @@ StyledPopup {
 
 
     signal closeRequested()
+
+    readonly property color surface: ColorUtils.mix(
+        Appearance.barVisual.attachedSurfaceFill,
+        Appearance.colors.colLayer1, 0.62)
+    readonly property color inset: ColorUtils.mix(
+        Appearance.barVisual.attachedSurfaceFill,
+        Appearance.colors.colLayer1, 0.82)
+    readonly property color stroke: Appearance.colors.colLayer0Border
+    readonly property color ink: Appearance.colors.colOnLayer0
+    readonly property color muted: Appearance.colors.colSubtext
+    readonly property color accent: Appearance.colors.colPrimary
 
     // Responsive bounds for small monitors, fractional scaling and
     // larger accessibility fonts. Content scrolls only when necessary.
@@ -41,14 +54,15 @@ StyledPopup {
             : 900
 
     readonly property real preferredContentWidth:
-        Math.max(300, Math.min(420, root.screenWidth - 56))
+        Math.max(300, Math.min(450, root.screenWidth - 56))
 
     readonly property real maximumContentHeight:
-        Math.max(340, root.screenHeight - Appearance.sizes.barHeight - 64)
+        Math.max(340, root.screenHeight
+            - (Config.options.bar.vertical ? 52 : Appearance.sizes.barHeight) - 64)
 
-    readonly property real sectionGap: 10
-    readonly property real compactGap: 6
-    readonly property real cardPadding: 12
+    readonly property real sectionGap: 11
+    readonly property real compactGap: 8
+    readonly property real cardPadding: 14
 
     // ============================================================
     // Helpers
@@ -128,24 +142,23 @@ StyledPopup {
 
     component SectionLabel: StyledText {
         font {
-            pixelSize: Appearance.font.pixelSize.smaller
+            pixelSize: Appearance.font.pixelSize.smallest
             weight: Font.DemiBold
+            letterSpacing: 1.0
         }
 
-        color: Appearance.colors.colOnSurfaceVariant
-        opacity: 0.58
+        color: root.muted
     }
 
 
     component Card: Rectangle {
         Layout.fillWidth: true
 
-        radius: Appearance.radius.card
-
-        color: Appearance.colors.colLayer1
+        radius: 12
+        color: root.inset
 
         border.width: 1
-        border.color: Appearance.colors.colLayer0Border
+        border.color: root.stroke
     }
 
 
@@ -281,31 +294,28 @@ StyledPopup {
 
         implicitHeight: 50
 
-        radius: Appearance.radius.control
+        radius: 10
 
         color:
             selected
-                ? Appearance.colors.colPrimary
-                : "transparent"
+                ? ColorUtils.mix(root.inset, root.accent, 0.18)
+                : root.inset
 
         border.width: 1
 
         border.color:
             selected || button.activeFocus
-                ? Appearance.colors.colPrimary
-                : Appearance.colors.colLayer0Border
+                ? root.accent
+                : root.stroke
 
         opacity:
             buttonEnabled ? 1 : 0.4
 
-        ColumnLayout {
+        RowLayout {
             anchors.centerIn: parent
-
-            spacing: 0
+            spacing: 6
 
             MaterialSymbol {
-                Layout.alignment: Qt.AlignHCenter
-
                 text: button.icon
 
                 fill:
@@ -316,16 +326,15 @@ StyledPopup {
 
                 color:
                     button.selected
-                        ? Appearance.colors.colOnPrimary
-                        : Appearance.colors.colOnSurfaceVariant
+                        ? root.accent
+                        : root.muted
             }
 
             StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.maximumWidth: Math.max(0, button.width - 10)
+                Layout.maximumWidth: Math.max(0, button.width - 34)
 
                 text: button.label
-                horizontalAlignment: Text.AlignHCenter
+                horizontalAlignment: Text.AlignLeft
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
@@ -341,8 +350,8 @@ StyledPopup {
 
                 color:
                     button.selected
-                        ? Appearance.colors.colOnPrimary
-                        : Appearance.colors.colOnSurfaceVariant
+                        ? root.ink
+                        : root.muted
             }
         }
 
@@ -403,19 +412,19 @@ StyledPopup {
 
         implicitHeight: 36
 
-        radius: Appearance.radius.control
+        radius: 8
 
         color:
             selected
-                ? Appearance.colors.colPrimary
-                : "transparent"
+                ? ColorUtils.mix(root.inset, root.accent, 0.18)
+                : root.surface
 
         border.width: 1
 
         border.color:
             selected || button.activeFocus
-                ? Appearance.colors.colPrimary
-                : Appearance.colors.colLayer0Border
+                ? root.accent
+                : root.stroke
 
         StyledText {
             anchors.centerIn: parent
@@ -433,8 +442,8 @@ StyledPopup {
 
             color:
                 button.selected
-                    ? Appearance.colors.colOnPrimary
-                    : Appearance.colors.colOnSurfaceVariant
+                    ? root.ink
+                    : root.muted
         }
 
         MouseArea {
@@ -460,12 +469,11 @@ StyledPopup {
 
         implicitHeight: 62
 
-        radius: Appearance.radius.card
-
-        color: Appearance.colors.colLayer1
+        radius: 10
+        color: root.inset
 
         border.width: 1
-        border.color: Appearance.colors.colLayer0Border
+        border.color: root.stroke
 
         ColumnLayout {
             anchors.centerIn: parent
@@ -482,8 +490,7 @@ StyledPopup {
                     iconSize:
                         Appearance.font.pixelSize.small
 
-                    color:
-                        Appearance.colors.colOnSurfaceVariant
+                    color: root.accent
 
                     opacity: 0.72
                 }
@@ -496,8 +503,7 @@ StyledPopup {
                         weight: Font.DemiBold
                     }
 
-                    color:
-                        Appearance.colors.colOnSurfaceVariant
+                    color: root.ink
                 }
             }
 
@@ -509,10 +515,7 @@ StyledPopup {
                 font.pixelSize:
                     Appearance.font.pixelSize.smaller
 
-                color:
-                    Appearance.colors.colOnSurfaceVariant
-
-                opacity: 0.56
+                color: root.muted
             }
         }
     }
@@ -561,231 +564,89 @@ StyledPopup {
             spacing: root.sectionGap
 
 
-        // ========================================================
-        // Header
-        // ========================================================
+        // The battery state is the first content, without a separate heading.
+        Card {
+            implicitHeight: 122
+            color: root.surface
 
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: 54
-
-            RowLayout {
-                anchors {
-                    left: parent.left
-                    right: closeButton.left
-                    rightMargin: 10
-                    verticalCenter: parent.verticalCenter
-                }
-
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: root.cardPadding
                 spacing: 10
 
-                Rectangle {
-                    implicitWidth: 46
-                    implicitHeight: 46
-
-                    radius: Appearance.radius.control
-
-                    color: Qt.rgba(
-                        Appearance.colors.colPrimary.r,
-                        Appearance.colors.colPrimary.g,
-                        Appearance.colors.colPrimary.b,
-                        0.12
-                    )
-
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-
-                        text:
-                            Battery.isCharging
-                                ? "battery_charging_full"
-                                : "battery_android_full"
-
-                        fill: 1
-
-                        iconSize:
-                            Appearance.font.pixelSize.larger
-
-                        color:
-                            Appearance.colors.colPrimary
-                    }
-                }
-
-                ColumnLayout {
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.minimumWidth: 0
+                    Layout.fillHeight: true
+                    spacing: 14
 
-                    spacing: 1
-
-                    StyledText {
-                        text:
-                            `${Math.round(
-                                Battery.percentage * 100
-                            )}%`
-
-                        font {
-                            pixelSize: Appearance.font.pixelSize.large
-                            weight: Font.Bold
-                        }
-
-                        color:
-                            Appearance.colors.colOnSurfaceVariant
-                    }
-
-                    StyledText {
+                    ColumnLayout {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
+                        spacing: 3
 
-                        text: {
-                            let text = root.statusText();
-
-                            const remaining =
-                                root.remainingText();
-
-                            if (remaining !== "")
-                                text += ` · ${remaining}`;
-
-                            return text;
+                        StyledText {
+                            text: `${Math.round(Battery.percentage * 100)}%`
+                            font.pixelSize: 32
+                            font.weight: Font.DemiBold
+                            color: Battery.isLowAndNotCharging
+                                ? Appearance.colors.colError : root.ink
                         }
 
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.statusText()
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.DemiBold
+                            color: root.ink
+                            elide: Text.ElideRight
+                        }
 
-                        font.pixelSize:
-                            Appearance.font.pixelSize.small
-
-                        color:
-                            Appearance.colors.colOnSurfaceVariant
-
-                        opacity: 0.66
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: root.remainingText().length > 0
+                            text: root.remainingText()
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: root.muted
+                            elide: Text.ElideRight
+                        }
                     }
-                }
-            }
 
-            Rectangle {
-                id: closeButton
-
-                anchors {
-                    right: parent.right
-                    top: parent.top
-                    topMargin: 2
-                }
-
-                implicitWidth: 34
-                implicitHeight: 34
-
-                radius: height / 2
-
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: Translation.tr("Close battery settings")
-                Accessible.focusable: true
-                Accessible.focused: closeButton.activeFocus
-                Accessible.onPressAction: root.closeRequested()
-
-                Keys.onPressed: event => {
-                    if (
-                        event.key === Qt.Key_Space
-                        || event.key === Qt.Key_Return
-                        || event.key === Qt.Key_Enter
-                    ) {
-                        root.closeRequested()
-                        event.accepted = true
+                    CircularProgress {
+                        implicitSize: 66
+                        value: Math.max(0, Math.min(1, Battery.percentage))
+                        lineWidth: 5
+                        gapAngle: 0
+                        enableAnimation: false
+                        colPrimary: Battery.isLowAndNotCharging
+                            ? Appearance.colors.colError : root.accent
+                        colSecondary: Appearance.colors.colLayer3
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: Battery.isCharging
+                                ? "battery_charging_full" : "battery_android_full"
+                            iconSize: 22
+                            color: root.accent
+                        }
                     }
                 }
 
-                color:
-                    closeArea.containsMouse || closeButton.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Qt.rgba(
-                            Appearance.colors.colOnSurfaceVariant.r,
-                            Appearance.colors.colOnSurfaceVariant.g,
-                            Appearance.colors.colOnSurfaceVariant.b,
-                            0.07
-                        )
-
-                border.width: 1
-
-                border.color:
-                    closeArea.containsMouse
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colLayer0Border
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-
-                    text: "close"
-
-                    iconSize:
-                        Appearance.font.pixelSize.normal
-
-                    color:
-                        closeArea.containsMouse
-                            ? Appearance.colors.colOnPrimary
-                            : Appearance.colors.colOnSurfaceVariant
-                }
-
-                MouseArea {
-                    id: closeArea
-
-                    anchors.fill: parent
-
-                    hoverEnabled: true
-
-                    cursorShape: Qt.PointingHandCursor
-
-                    onClicked:
-                        root.closeRequested()
-                }
-            }
-        }
-
-
-        // ========================================================
-        // Battery progress
-        // ========================================================
-
-        Rectangle {
-            Layout.fillWidth: true
-
-            implicitHeight: 8
-
-            radius: height / 2
-
-            color: Qt.rgba(
-                Appearance.colors.colOnSurfaceVariant.r,
-                Appearance.colors.colOnSurfaceVariant.g,
-                Appearance.colors.colOnSurfaceVariant.b,
-                0.08
-            )
-
-            Rectangle {
-                width:
-                    parent.width
-                    * Math.max(
-                        0,
-                        Math.min(
-                            1,
-                            Battery.percentage
-                        )
-                    )
-
-                height: parent.height
-
-                radius: parent.radius
-
-                color:
-                    Battery.isLowAndNotCharging
-                        ? Appearance.m3colors.m3error
-                        : Appearance.colors.colPrimary
-
-                Behavior on width {
-                    MotionAnim {
-                        type: MotionAnim.DefaultEffects
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 4
+                    radius: 2
+                    color: Appearance.colors.colLayer3
+                    clip: true
+                    Rectangle {
+                        height: parent.height
+                        width: parent.width * Math.max(0, Math.min(1, Battery.percentage))
+                        radius: parent.radius
+                        color: Battery.isLowAndNotCharging
+                            ? Appearance.colors.colError : root.accent
+                        Behavior on width { MotionAnim { type: MotionAnim.DefaultEffects } }
                     }
                 }
             }
         }
-
 
         // ========================================================
         // Power mode
@@ -931,8 +792,7 @@ StyledPopup {
                         font.weight:
                             Font.DemiBold
 
-                        color:
-                            Appearance.colors.colOnSurfaceVariant
+                        color: root.ink
                     }
 
                     StyledText {
@@ -967,10 +827,7 @@ StyledPopup {
                         font.pixelSize:
                             Appearance.font.pixelSize.smaller
 
-                        color:
-                            Appearance.colors.colOnSurfaceVariant
-
-                        opacity: 0.58
+                        color: root.muted
                     }
                 }
 
@@ -1076,8 +933,7 @@ StyledPopup {
                             font.weight:
                                 Font.DemiBold
 
-                            color:
-                                Appearance.colors.colOnSurfaceVariant
+                            color: root.ink
                         }
 
                         StyledText {
@@ -1120,10 +976,7 @@ StyledPopup {
                             font.pixelSize:
                                 Appearance.font.pixelSize.smaller
 
-                            color:
-                                Appearance.colors.colOnSurfaceVariant
-
-                            opacity: 0.58
+                            color: root.muted
                         }
                     }
 
@@ -1236,11 +1089,10 @@ StyledPopup {
                                 Appearance.colors.colPrimary.b,
                                 0.10
                             )
-                            : "transparent"
+                            : root.surface
 
                     border.width: 1
-                    border.color:
-                        Appearance.colors.colLayer0Border
+                    border.color: root.stroke
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -1272,8 +1124,7 @@ StyledPopup {
                             font.weight:
                                 Font.Medium
 
-                            color:
-                                Appearance.colors.colOnSurfaceVariant
+                            color: root.ink
                         }
                     }
 

@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
@@ -7,6 +8,7 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
 
     property bool borderless:
         Config.options.bar.borderless
@@ -15,22 +17,26 @@ Item {
     // BarContent.qml assigns this property.
     // We intentionally do not render the date in this widget.
     property bool showDate: false
+    property bool axiomMode: false
 
-    property bool calendarOpen: false
+    readonly property bool calendarOpen: GlobalStates.isBarPopupOpen("calendar", root.barScreenName)
 
     implicitWidth: timeText.implicitWidth
-    implicitHeight: Appearance.sizes.barHeight
+    // nyvorel-phase3b-component-plane: outer floating insets are not
+    // part of this clock's interactive control plane.
+    implicitHeight: Appearance.barLayout.persistentHeight
 
     StyledText {
         id: timeText
 
         anchors.centerIn: parent
         anchors.verticalCenterOffset:
-            Appearance.inlayMode ? 1 : 0
+            0
 
+        font.family: root.axiomMode
+            ? Appearance.font.family.monospace : Appearance.font.family.main
         font.pixelSize:
-            Appearance.inlayMode
-                ? Appearance.font.pixelSize.small
+            root.axiomMode ? Appearance.barVisual.axiomTextSize
                 : Appearance.font.pixelSize.normal
 
         font.weight:
@@ -40,7 +46,9 @@ Item {
             Appearance.colors.colOnLayer1
 
         text:
-            DateTime.time
+            root.axiomMode
+                ? Qt.locale().toString(DateTime.clock.date, "hh:mm AP")
+                : DateTime.time
     }
 
     MouseArea {
@@ -52,7 +60,7 @@ Item {
         acceptedButtons: Qt.LeftButton
 
         onClicked:
-            root.calendarOpen = !root.calendarOpen
+            GlobalStates.toggleBarPopup("calendar", root.barScreenName)
 
         ClockWidgetPopup {
             hoverTarget: mouseArea
@@ -61,7 +69,7 @@ Item {
             dismissOnOutsideClick: true
 
             onDismissRequested:
-                root.calendarOpen = false
+                GlobalStates.closeBarPopup("calendar", root.barScreenName)
         }
     }
 }

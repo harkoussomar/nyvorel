@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import colorsys
 import json
 import os
 import re
@@ -54,13 +53,15 @@ def interface_style() -> str:
         appearance = cfg.get("appearance", {})
         style = str(appearance.get("interfaceStyle") or "").strip().lower()
         aliases = {
-            "mica": "inlay",
+            "prism": "fluid",
+            "inlay": "fluid",
+            "mica": "fluid",
             "glass": "fluid",
             "solid": "default",
             "minimal": "default",
         }
         style = aliases.get(style, style)
-        if style in {"fluid", "prism", "inlay", "default"}:
+        if style in {"fluid", "default"}:
             return style
     except Exception:
         pass
@@ -73,24 +74,9 @@ def interface_style() -> str:
 
 STYLE = interface_style()
 FLUID_MODE = STYLE == "fluid"
-PRISM_MODE = STYLE == "prism"
-INLAY_MODE = STYLE == "inlay"
-DEFAULT_MODE = STYLE == "default"
-
-# Fluid values are frozen. Other styles intentionally diverge.
-OPACITY = (
-    "0.60" if FLUID_MODE else
-    "0.84" if PRISM_MODE else
-    "1.00" if INLAY_MODE else
-    "0.94"
-)
+OPACITY = "0.60" if FLUID_MODE else "0.94"
 TAB_MIN_TABS = "1"
-WINDOW_PADDING = (
-    "14" if FLUID_MODE else
-    "14" if PRISM_MODE else
-    "10" if INLAY_MODE else
-    "12"
-)
+WINDOW_PADDING = "14" if FLUID_MODE else "12"
 
 HEX = re.compile(r"^#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$")
 
@@ -200,54 +186,6 @@ def nohash(v: str) -> str:
     return v.lstrip("#")
 
 
-def mix_hex(a: str, b: str, amount: float) -> str:
-    amount = max(0.0, min(1.0, amount))
-    av = a.lstrip("#")[:6]
-    bv = b.lstrip("#")[:6]
-    ar, ag, ab = int(av[0:2], 16), int(av[2:4], 16), int(av[4:6], 16)
-    br, bg, bb = int(bv[0:2], 16), int(bv[2:4], 16), int(bv[4:6], 16)
-    vals = [
-        round(ar + (br - ar) * amount),
-        round(ag + (bg - ag) * amount),
-        round(ab + (bb - ab) * amount),
-    ]
-    return "#" + "".join(f"{v:02x}" for v in vals)
-
-
-def adapt_to_accent(base: str, accent: str) -> str:
-    """Match ColorUtils.adaptToAccent(): accent H/S + base lightness."""
-    def rgb(h):
-        h = h.lstrip("#")[:6]
-        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-
-    br, bg, bb = rgb(base)
-    ar, ag, ab = rgb(accent)
-    _bh, bl, _bs = colorsys.rgb_to_hls(br, bg, bb)
-    ah, _al, a_s = colorsys.rgb_to_hls(ar, ag, ab)
-    rr, rg, rb = colorsys.hls_to_rgb(ah, bl, a_s)
-    return "#" + "".join(f"{round(v * 255):02x}" for v in (rr, rg, rb))
-
-
-def is_dark_color(value: str) -> bool:
-    h = value.lstrip("#")[:6]
-    r, g, b = (int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-    _h, lightness, _s = colorsys.rgb_to_hls(r, g, b)
-    return lightness < 0.5
-
-
-def inlay_navbar_surface(c) -> str:
-    """Reproduce the actual Inlay bar substrate: Appearance.colors.colLayer0."""
-    # Active Bar.qml paints its shell with Appearance.colors.colLayer0.
-    # In Inlay/micaMode, colLayer0Base aliases micaLayer0Base:
-    #   mix(background, adaptToAccent(background, primary), .72/.84)
-    # ColorUtils.mix(c1, c2, p) keeps p of c1, so this exposes
-    # 28% accent in dark mode and 16% in light mode.
-    base = c["background"]
-    accented = adapt_to_accent(base, c["primary"])
-    accent_amount = 0.28 if is_dark_color(c["background"]) else 0.16
-    return mix_hex(base, accented, accent_amount)
-
-
 # fluid-refinement-v1.2
 # The Fluid terminal keeps dynamic text/accent colors, but its large substrate
 # is neutral charcoal so wallpaper/application chroma shows through as light
@@ -270,39 +208,7 @@ def fluid_terminal_colors(c):
 
 
 def terminal_colors(c):
-    if FLUID_MODE:
-        # Frozen Fluid rendering path.
-        return fluid_terminal_colors(c)
-
-    if PRISM_MODE:
-        # Prism keeps the system hue, but creates a clearer depth ladder so the
-        # tab/status cells read as detached spatial objects.
-        out = dict(c)
-        out["surface_low"] = mix_hex(c["surface_low"], c["primary"], 0.035)
-        out["surface_container"] = mix_hex(c["surface_container"], c["primary"], 0.065)
-        out["surface_high"] = mix_hex(c["surface_high"], c["primary"], 0.085)
-        out["selection_bg"] = mix_hex(out["surface_high"], c["primary"], 0.14)
-        return out
-
-    if INLAY_MODE:
-        # Inlay is fully matte/opaque and deliberately shares its large substrate
-        # with the actual navbar shell. Bar.qml paints that shell with
-        # Appearance.colors.colLayer0, which aliases micaLayer0Base in Inlay.
-        # Reproduce that I0 material exactly so Kitty and the bar are one plane.
-        out = dict(c)
-        bg = inlay_navbar_surface(c)
-        out["background"] = bg
-        out["surface"] = bg
-        out["surface_low"] = mix_hex(bg, c["on_surface"], 0.025)
-        out["surface_container"] = mix_hex(bg, c["on_surface"], 0.055)
-        out["surface_high"] = mix_hex(bg, c["on_surface"], 0.085)
-        out["selection_bg"] = mix_hex(out["surface_container"], c["primary"], 0.16)
-        out["selection_fg"] = c["on_surface"]
-        return out
-
-    # Default is intentionally the clean baseline: the system palette, no
-    # semantic substrate transformation.
-    return c
+    return fluid_terminal_colors(c) if FLUID_MODE else c
 
 
 def atomic_write(path: Path, text: str, mode=None):
@@ -341,8 +247,8 @@ def render_template(template: Path, target: Path, c):
 def write_kitty(c):
     # Fluid stays exactly on the old visual contract: no tab-bar substrate,
     # 0.60 opacity and 14px internal padding.
-    tab_bar_bg = c["surface_low"] if INLAY_MODE else "none"
-    tab_margin = c["surface_low"] if INLAY_MODE else "none"
+    tab_bar_bg = "none"
+    tab_margin = "none"
 
     text = f"""# AUTO-GENERATED by nyvorel-terminal-theme-sync. DO NOT EDIT.
 # Source: {COLOR_JSON}

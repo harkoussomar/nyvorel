@@ -112,15 +112,14 @@ Singleton {
             }
 
             property JsonObject appearance: JsonObject {
-                // prism-v2-foundation: explicit interface identity is separate
-                // from visual fine-tuning. Empty means a pre-migration config.
-                property string interfaceStyle: "" // default, inlay, prism, fluid, floating, solid, minimal
+                // Interface identity is separate from visual fine-tuning.
+                property string interfaceStyle: "" // default, fluid, floating, solid, minimal
                 property bool extraBackgroundTint: true
                 property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
 
                 // phase3d-motion-preferences-v1
                 // Global semantic-motion preferences. These are independent
-                // from interface profiles so Fluid/Prism/Inlay can share the
+                // from interface profiles so the available styles can share the
                 // same accessibility and timing choices.
                 property JsonObject motion: JsonObject {
                     property real scale: 1.0
@@ -143,13 +142,13 @@ Singleton {
                     }
                 }
                 property JsonObject fonts: JsonObject {
-                    property string main: "Noto Sans"
-                    property string numbers: "Noto Sans"
-                    property string title: "Noto Sans"
-                    property string iconNerd: "JetBrainsMono Nerd Font"
-                    property string monospace: "JetBrainsMono Nerd Font"
-                    property string reading: "Noto Sans"
-                    property string expressive: "Noto Sans"
+                    property string main: "Google Sans Flex"
+                    property string numbers: "Google Sans Flex"
+                    property string title: "Google Sans Flex"
+                    property string iconNerd: "JetBrains Mono NF"
+                    property string monospace: "JetBrains Mono NF"
+                    property string reading: "Readex Pro"
+                    property string expressive: "Space Grotesk"
                 }
                 property JsonObject transparency: JsonObject {
                     property bool enable: false
@@ -226,7 +225,7 @@ Singleton {
                             property bool animateChange: true
                             property bool vertical: false
                             property JsonObject font: JsonObject {
-                                property string family: "Noto Sans"
+                                property string family: "Google Sans Flex"
                                 property real weight: 350
                                 property real width: 100
                                 property real size: 90
@@ -290,22 +289,22 @@ Singleton {
                 
                 property list<string> screenList: [] // List of names, like "eDP-1", find out with 'hyprctl monitors' command
                 property JsonObject utilButtons: JsonObject {
-                    property bool showScreenSnip: false
+                    property bool showScreenSnip: true
                     property bool showColorPicker: false
                     property bool showMicToggle: false
-                    property bool showKeyboardToggle: false
-                    property bool showDarkModeToggle: false
+                    property bool showKeyboardToggle: true
+                    property bool showDarkModeToggle: true
                     property bool showKeepAwakeToggle: false
                     property bool showNightLightToggle: false
                     property bool showScreenRecord: false
                 }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true
-                    property int shown: 5
+                    property int shown: 10
                     property bool showAppIcons: true
-                    property bool alwaysShowNumbers: true
-                    property int showNumberDelay: 350 // milliseconds
-                    property list<string> numberMap: [] // Characters to show instead of numbers on workspace indicator
+                    property bool alwaysShowNumbers: false
+                    property int showNumberDelay: 300 // milliseconds
+                    property list<string> numberMap: ["1", "2"] // Characters to show instead of numbers on workspace indicator
                     property bool useNerdFont: false
                 }
                 property JsonObject weather: JsonObject {
@@ -568,16 +567,16 @@ Singleton {
                         property list<var> toggles: [
                             { "size": 1, "type": "network" },
                             { "size": 1, "type": "bluetooth"  },
-                            { "size": 1, "type": "audio" },
-                            { "size": 1, "type": "notifications" },
+                            { "size": 1, "type": "idleInhibitor" },
                             { "size": 1, "type": "mic" },
-                            { "size": 1, "type": "idleInhibitor" }
+                            { "size": 1, "type": "audio" },
+                            { "size": 1, "type": "nightLight" }
                         ]
                     }
                 }
 
                 property JsonObject quickSliders: JsonObject {
-                    property bool enable: true
+                    property bool enable: false
                     property bool showMic: false
                     property bool showVolume: true
                     property bool showBrightness: true

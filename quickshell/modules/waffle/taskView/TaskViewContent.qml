@@ -186,7 +186,7 @@ Rectangle {
                                 } else {
                                     root.draggingWindow = false;
                                     if (root.hoveredWorkspace !== null && root.hoveredWorkspace.workspace !== windowItem.hyprlandClient.workspace.id) {
-                                        Hyprland.dispatch(`movetoworkspacesilent ${root.hoveredWorkspace.workspace}, address:${windowItem.hyprlandClient.address}`);
+                                        HyprNative.moveToWorkspace(root.hoveredWorkspace.workspace, windowItem.hyprlandClient.address);
                                     } else {
                                         windowItem.openedX = 0;
                                         windowItem.openedY = 0;
@@ -292,7 +292,7 @@ Rectangle {
                     onClicked: {
                         GlobalStates.overviewOpen = false;
                         root.closed(); // Close immediately to avoid weird animations
-                        Hyprland.dispatch(`workspace ${workspaceItem.workspace}`);
+                        HyprNative.workspace(workspaceItem.workspace);
                     }
                 }
             }

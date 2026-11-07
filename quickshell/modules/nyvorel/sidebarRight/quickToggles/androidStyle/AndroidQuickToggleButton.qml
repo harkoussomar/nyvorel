@@ -114,108 +114,44 @@ GroupButton {
     verticalPadding: 0
 
     colBackground:
-        Appearance.inlayMode
-            ? Appearance.inlay.insetFill
-            : Appearance.colors.colLayer2
+         ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
 
     colBackgroundHover:
-        Appearance.inlayMode
-            ? Appearance.inlay.hoverFill
-            : Appearance.colors.colLayer2Hover
+         Appearance.colors.colLayer2Hover
 
     colBackgroundActive:
-        Appearance.inlayMode
-            ? Appearance.inlay.pressedFill
-            : Appearance.colors.colLayer2Active
+         Appearance.colors.colLayer2Active
 
-    // prism-v2-phase3b1: state is visible without turning the full tile into
-    // a saturated accent slab. Accent belongs to the state/icon, not the surface.
     colBackgroundToggled:
-        Appearance.inlayMode
-            ? Appearance.inlay.selectedFill
-            : Appearance.prismMode
-                ? ColorUtils.mix(
-                    Appearance.prism.interactiveFill,
-                    Appearance.colors.colPrimary,
-                    0.86
-                )
-                : Appearance.colors.colPrimary
+          ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1, 0.72)
 
     colBackgroundToggledHover:
-        Appearance.inlayMode
-            ? Appearance.inlay.hoverFill
-            : Appearance.prismMode
-                ? ColorUtils.mix(
-                    Appearance.prism.interactiveFill,
-                    Appearance.colors.colPrimary,
-                    0.80
-                )
-                : Appearance.colors.colPrimaryHover
+          ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1Hover, 0.64)
 
     colBackgroundToggledActive:
-        Appearance.inlayMode
-            ? Appearance.inlay.pressedFill
-            : Appearance.prismMode
-                ? ColorUtils.mix(
-                    Appearance.prism.interactiveFill,
-                    Appearance.colors.colPrimary,
-                    0.74
-                )
-                : Appearance.colors.colPrimaryActive
+          ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1Active, 0.64)
 
-    buttonRadius:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusControl + 2
-                : 18
-    buttonRadiusPressed:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusControl
-                : 14
+    buttonRadius: 10
+    buttonRadiusPressed: 10
 
 
-    property color colText:
-        root.toggled && root.enabled
-            ? (
-                Appearance.inlayMode
-                    ? Appearance.colors.colOnLayer1
-                    : Appearance.prismMode
-                        ? Appearance.colors.colOnLayer1
-                        : Appearance.colors.colOnPrimary
-            )
-            : ColorUtils.transparentize(
-                Appearance.colors.colOnLayer2,
-                root.enabled ? 0 : 0.65
-            )
+    property color colText: ColorUtils.transparentize(
+        Appearance.colors.colOnLayer1, root.enabled ? 0 : 0.65)
 
 
     background: Rectangle {
         radius: root.radius
         color: root.color
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : (root.tabbedTo ? 2 : 0)
-        border.color:
-            Appearance.inlayMode
-                ? (root.toggled ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                : Appearance.colors.colSecondary
+        border.width: root.tabbedTo ? 2 : 1
+        border.color: root.tabbedTo ? Appearance.colors.colSecondary
+            : root.toggled ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.53)
+            : Appearance.colors.colLayer0Border
 
         Behavior on color { MotionColorAnim { type: MotionColorAnim.FastEffects } }
     }
 
 
-    property color colSecondaryText:
-        root.toggled
-            ? (
-                (Appearance.prismMode || Appearance.inlayMode)
-                    ? Appearance.colors.colSubtext
-                    : ColorUtils.transparentize(
-                        Appearance.colors.colOnPrimary,
-                        0.22
-                    )
-            )
-            : Appearance.colors.colSubtext
+    property color colSecondaryText: Appearance.colors.colSubtext
 
 
     // Card click toggles the feature.
@@ -239,48 +175,25 @@ GroupButton {
             Rectangle {
                 Layout.alignment: Qt.AlignVCenter
 
-                implicitWidth: 36
-                implicitHeight: 36
-                radius: Appearance.inlayMode ? 0 : 13
+                implicitWidth: 34
+                implicitHeight: 34
+                radius: 8
 
-                color:
-                    Appearance.inlayMode
-                        ? Appearance.inlay.controlFill
-                        : root.toggled
-                            ? (
-                                Appearance.prismMode
-                                    ? ColorUtils.mix(
-                                        Appearance.prism.interactiveFill,
-                                        Appearance.colors.colPrimary,
-                                        0.70
-                                    )
-                                    : ColorUtils.transparentize(
-                                        Appearance.colors.colOnPrimary,
-                                        0.82
-                                    )
-                            )
-                            : Appearance.colors.colLayer3
+                color: root.toggled
+                    ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
+                    : Appearance.colors.colLayer2
 
-                border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
+                border.width: 0
                 border.color:
-                    Appearance.inlayMode
-                        ? (root.toggled
-                            ? Appearance.inlay.borderFocus
-                            : Appearance.inlay.borderControl)
-                        : "transparent"
+                     "transparent"
 
 
                 MaterialSymbol {
                     anchors.centerIn: parent
 
                     fill: root.toggled ? 1 : 0
-                    iconSize: 22
-                    color:
-                        Appearance.inlayMode && root.toggled
-                            ? Appearance.inlay.borderFocus
-                            : Appearance.prismMode && root.toggled
-                                ? Appearance.colors.colPrimary
-                                : root.colText
+                    iconSize: 20
+                    color: root.toggled ? Appearance.colors.colPrimary : root.colText
                     text: root.buttonIcon
                 }
             }
@@ -374,95 +287,37 @@ GroupButton {
 
 
         function toggleEnabled() {
-            const index = root.buttonIndex
-
-            const toggleList =
-                Config.options.sidebar
-                    .quickToggles.android.toggles
-
-            const buttonType =
-                root.buttonData.type
-
-            if (
-                !toggleList.find(
-                    toggle =>
-                        toggle.type === buttonType
-                )
-            ) {
-                toggleList.push(
-                    {
-                        type: buttonType,
-                        size: 1
-                    }
-                )
-            } else {
-                toggleList.splice(index, 1)
-            }
+            const config = Config.options.sidebar.quickToggles.android
+            const toggles = Array.from(config.toggles)
+            const buttonType = root.buttonData.type
+            const existingIndex = toggles.findIndex(toggle => toggle.type === buttonType)
+            if (existingIndex < 0)
+                toggles.push({ type: buttonType, size: 1 })
+            else
+                toggles.splice(existingIndex, 1)
+            config.toggles = toggles
         }
-
 
         function toggleSize() {
-            const index = root.buttonIndex
-
-            const toggleList =
-                Config.options.sidebar
-                    .quickToggles.android.toggles
-
-            const buttonType =
-                root.buttonData.type
-
-            if (
-                !toggleList.find(
-                    toggle =>
-                        toggle.type === buttonType
-                )
-            ) {
-                return
-            }
-
-            toggleList[index].size =
-                3 - toggleList[index].size
+            const config = Config.options.sidebar.quickToggles.android
+            const toggles = Array.from(config.toggles)
+            const index = toggles.findIndex(toggle => toggle.type === root.buttonData.type)
+            if (index < 0) return
+            toggles[index] = { type: toggles[index].type, size: 3 - toggles[index].size }
+            config.toggles = toggles
         }
-
 
         function movePositionBy(offset) {
-            const index = root.buttonIndex
-
-            const toggleList =
-                Config.options.sidebar
-                    .quickToggles.android.toggles
-
-            const buttonType =
-                root.buttonData.type
-
-            const targetIndex =
-                index + offset
-
-            if (
-                !toggleList.find(
-                    toggle =>
-                        toggle.type === buttonType
-                )
-            ) {
+            const config = Config.options.sidebar.quickToggles.android
+            const toggles = Array.from(config.toggles)
+            const index = toggles.findIndex(toggle => toggle.type === root.buttonData.type)
+            const targetIndex = index + offset
+            if (index < 0 || targetIndex < 0 || targetIndex >= toggles.length)
                 return
-            }
-
-            if (
-                targetIndex < 0
-                || targetIndex >= toggleList.length
-            ) {
-                return
-            }
-
-            const temp = toggleList[index]
-
-            toggleList[index] =
-                toggleList[targetIndex]
-
-            toggleList[targetIndex] =
-                temp
+            const moved = toggles.splice(index, 1)[0]
+            toggles.splice(targetIndex, 0, moved)
+            config.toggles = toggles
         }
-
 
         onReleased: event => {
             if (event.button === Qt.LeftButton)

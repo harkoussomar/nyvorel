@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "$ROOT"
@@ -42,7 +43,10 @@ PORT_FILE="$TMP/api-port"
 
 echo "== Build synthetic stable/development repository =="
 mkdir -p "$BUILDER" "$HOME_SANDBOX"
-cp -a "$ROOT/." "$BUILDER/"
+mkdir -p "$BUILDER"
+git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
+  | tar -C "$ROOT" --null -T - -cf - \
+  | tar -C "$BUILDER" -xf -
 rm -rf "$BUILDER/.git"
 find "$BUILDER" -type d -name __pycache__ -prune -exec rm -rf {} +
 

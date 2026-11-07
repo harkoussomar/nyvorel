@@ -13,6 +13,8 @@ Item {
     property date now: new Date()
     property date selectedDate: new Date()
     property bool copied: false
+    property var markedDates: ({})
+    property bool showSelectedDetails: true
 
     // Filled by the installer only when those capabilities exist.
     property string clipboardExecutable: "wl-copy"
@@ -369,6 +371,7 @@ Item {
 
                         day: cell.day.toString()
                         dayState: cell.today
+                        marked: (root.markedDates[root.formatIsoDate(cell.date)] ?? 0) > 0
                         selected: root.sameDay(
                             cell.date,
                             root.selectedDate
@@ -377,7 +380,7 @@ Item {
                             cell.date.toLocaleDateString(
                                 Qt.locale(),
                                 "dddd, MMMM d, yyyy"
-                            )
+                            ) + (marked ? ", " + Translation.tr("has plans") : "")
 
                         onDateClicked:
                             root.selectDate(cell.date)
@@ -396,6 +399,7 @@ Item {
         // Selected date: useful context instead of a passive grid.
         // ------------------------------------------------------
         Rectangle {
+            visible: root.showSelectedDetails
             Layout.fillWidth: true
             implicitHeight: selectedDateRow.implicitHeight + 16
 

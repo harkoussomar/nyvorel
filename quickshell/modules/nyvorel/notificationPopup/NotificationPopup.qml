@@ -113,18 +113,10 @@ Scope {
                     parent.right
 
                 rightMargin:
-                    Appearance.inlayMode
-                        ? Appearance.sizes.hyprlandGapsOut
-                        : Appearance.prismMode
-                            ? Appearance.prism.screenInset
-                            : 8
+                      8
 
                 topMargin:
-                    Appearance.inlayMode
-                        ? Appearance.sizes.barHeight + Appearance.sizes.hyprlandGapsOut
-                        : Appearance.prismMode
-                            ? Appearance.sizes.barHeight + Appearance.prism.islandGap
-                            : 8
+                      8
             }
 
 
@@ -137,7 +129,7 @@ Scope {
 
 
             clip:
-                !Appearance.prismMode && !Appearance.inlayMode
+                true
         }
     }
 }

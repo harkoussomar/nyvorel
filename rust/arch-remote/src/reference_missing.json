@@ -1,0 +1,42 @@
+[
+  {
+    "id": "wowlan-missing",
+    "kind": "status",
+    "title": "WoWLAN command",
+    "value": "Wi-Fi PHY not currently detected",
+    "description": "Arch Remote generates the command dynamically when a PHY is available.",
+    "category": "power",
+    "platform": "arch",
+    "importance": "normal",
+    "mutates_state": false,
+    "requires_root": false,
+    "advanced": true,
+    "dependencies": [],
+    "related_service": "",
+    "copyable": false,
+    "tags": [],
+    "current_state": "",
+    "action_args": [],
+    "action_label": ""
+  },
+  {
+    "id": "wol-missing",
+    "kind": "status",
+    "title": "Ethernet WoL command",
+    "value": "Ethernet interface not currently detected",
+    "description": "Arch Remote generates the command dynamically when an Ethernet interface is available.",
+    "category": "power",
+    "platform": "arch",
+    "importance": "normal",
+    "mutates_state": false,
+    "requires_root": false,
+    "advanced": true,
+    "dependencies": [],
+    "related_service": "",
+    "copyable": false,
+    "tags": [],
+    "current_state": "",
+    "action_args": [],
+    "action_label": ""
+  }
+]

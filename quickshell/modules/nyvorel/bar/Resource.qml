@@ -12,6 +12,7 @@ Item {
     required property double percentage
 
     property int warningThreshold: 100
+    property bool axiomMode: false
     property bool shown: true
 
     readonly property real normalizedValue:
@@ -38,23 +39,70 @@ Item {
 
     implicitWidth:
         root.shown
-            ? chip.implicitWidth
+            ? (root.axiomMode ? axiomMetric.implicitWidth : chip.implicitWidth)
             : 0
 
+    // nyvorel-phase3b-component-plane: use the shared 40px semantic height.
     implicitHeight:
-        Appearance.sizes.baseBarHeight
+        Appearance.barLayout.persistentHeight
 
 
     Behavior on implicitWidth {
         MotionAnim {
             type: MotionAnim.FastSpatial
-            duration: 220
+            duration: Appearance.barMotion.statusDuration
         }
     }
 
 
+    // Nyvorel / Axiom: themed utilization ring, readable icon and value.
+    // Live ResourceUsage bindings and ResourcesPopup remain unchanged.
+    Row {
+        id: axiomMetric
+        visible: root.axiomMode && root.shown
+        spacing: 6
+        anchors.verticalCenter: parent.verticalCenter
+        height: 32
+
+        CircularProgress {
+            id: utilizationRing
+            anchors.verticalCenter: parent.verticalCenter
+            implicitSize: Appearance.barVisual.axiomRingSize
+            lineWidth: 2
+            gapAngle: 0
+            value: root.normalizedValue
+            enableAnimation: false
+            colPrimary: root.warning ? Appearance.colors.colError
+                : root.label === "RAM" ? Appearance.barVisual.axiomRamAccent
+                : Appearance.barVisual.axiomCpuAccent
+            colSecondary: Appearance.barVisual.axiomBatteryTrack
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                // Material Symbols' visible glyph sits slightly above its text box center.
+                // Correct its optical baseline without moving the 24px ring itself.
+                anchors.verticalCenterOffset: 1
+                text: root.iconName
+                iconSize: Appearance.barVisual.axiomIconSize - 2
+                fill: 0
+                color: utilizationRing.colPrimary
+            }
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: Math.round(root.normalizedValue * 100) + "%"
+            font.family: Appearance.font.family.monospace
+            font.pixelSize: Appearance.barVisual.axiomTextSize
+            font.weight: Font.DemiBold
+            color: root.warning ? Appearance.colors.colError
+                : Appearance.barVisual.axiomValue
+        }
+    }
+
     Rectangle {
         id: chip
+        visible: !root.axiomMode
 
         anchors.verticalCenter:
             parent.verticalCenter
@@ -63,19 +111,17 @@ Item {
             content.implicitWidth
             + (Appearance.fluidMode
                 ? 8
-                : Appearance.inlayMode
-                    ? 8
-                    : 16)
+                : 16)
 
         implicitHeight:
             28
 
         radius:
-            Appearance.inlayMode ? 0 : Appearance.rounding.full
+            Appearance.rounding.full
 
         color:
             mouseArea.containsMouse
-                ? (Appearance.inlayMode ? "transparent" : Appearance.colors.colLayer2Hover)
+                ? (Appearance.colors.colLayer2Hover)
                 : "transparent"
 
 
@@ -93,20 +139,18 @@ Item {
                 fill: parent
 
                 leftMargin:
-                    (Appearance.fluidMode || Appearance.inlayMode) ? 4 : 8
+                    (Appearance.fluidMode) ? 4 : 8
                 rightMargin:
-                    (Appearance.fluidMode || Appearance.inlayMode) ? 4 : 8
+                    (Appearance.fluidMode) ? 4 : 8
 
                 topMargin: 4
                 bottomMargin: 5
             }
 
             spacing:
-                Appearance.inlayMode
-                    ? Appearance.spacing.xs
-                    : Appearance.fluidMode
-                        ? 4
-                        : 5
+                 Appearance.fluidMode
+                    ? 4
+                    : 5
 
 
             MaterialSymbol {
@@ -182,9 +226,9 @@ Item {
                 bottom: parent.bottom
 
                 leftMargin:
-                    Appearance.inlayMode ? 4 : (Appearance.fluidMode ? 5 : 9)
+                    (Appearance.fluidMode? 5 : 9)
                 rightMargin:
-                    Appearance.inlayMode ? 4 : (Appearance.fluidMode ? 5 : 9)
+                    (Appearance.fluidMode? 5 : 9)
                 bottomMargin: 3
             }
 
@@ -192,7 +236,7 @@ Item {
                 2
 
             radius:
-                Appearance.inlayMode ? 0 : 1
+                1
 
             color:
                 Appearance.colors.colLayer3
@@ -210,7 +254,7 @@ Item {
                     * root.normalizedValue
 
                 radius:
-                    Appearance.inlayMode ? 0 : parent.radius
+                    parent.radius
 
                 color:
                     root.accent
@@ -218,7 +262,7 @@ Item {
 
                 Behavior on width {
                     NumberAnimation {
-                        duration: 220
+                        duration: Appearance.barMotion.statusDuration
 
                         easing.type:
                             Easing.OutCubic

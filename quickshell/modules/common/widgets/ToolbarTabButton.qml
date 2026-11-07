@@ -14,29 +14,21 @@ RippleButton {
 
     implicitHeight: 40
     implicitWidth: implicitContentWidth + horizontalPadding * 2
-    buttonRadius: Appearance.inlayMode ? 0 : height / 2
+    buttonRadius: height / 2
 
     colBackground:
-        Appearance.inlayMode
-            ? (current ? Appearance.inlay.insetFill : "transparent")
-            : ColorUtils.transparentize(Appearance.colors.colSurfaceContainer)
+         ColorUtils.transparentize(Appearance.colors.colSurfaceContainer)
     colBackgroundHover:
-        Appearance.inlayMode
-            ? (current ? Appearance.inlay.insetFill : Appearance.colors.colLayer2Hover)
-            : ColorUtils.transparentize(Appearance.colors.colOnSurface, current ? 1 : 0.95)
+         ColorUtils.transparentize(Appearance.colors.colOnSurface, current ? 1 : 0.95)
     colRipple: ColorUtils.transparentize(Appearance.colors.colOnSurface, 0.95)
 
     background: Rectangle {
         radius: root.buttonEffectiveRadius
         color: root.buttonColor
         border.width:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderWidth
-                : 0
+             0
         border.color:
-            Appearance.inlayMode
-                ? (root.current ? Appearance.colors.colPrimary : Appearance.inlay.borderControl)
-                : "transparent"
+             "transparent"
         Behavior on color {
             MotionColorAnim {
                 type: MotionColorAnim.FastEffects

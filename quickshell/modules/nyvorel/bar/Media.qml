@@ -30,7 +30,8 @@ Item {
         ? Math.min(content.implicitWidth, 190)
         : 0
 
-    implicitHeight: Appearance.sizes.barHeight
+    // nyvorel-phase3a-content-height: match the persistent navbar plane.
+    implicitHeight: Appearance.barLayout.persistentHeight
 
     Timer {
         running:
@@ -84,14 +85,14 @@ Item {
             verticalCenter: parent.verticalCenter
         }
 
-        spacing: 6
+        spacing: Appearance.barLayout.axiomComponents ? Appearance.spacing.xs : 6
 
         ClippedFilledCircularProgress {
             id: mediaProgress
 
             Layout.alignment: Qt.AlignVCenter
 
-            implicitSize: 20
+            implicitSize: Appearance.barLayout.axiomComponents ? 20 : 20
 
             lineWidth: Appearance.rounding.unsharpen
 
@@ -105,7 +106,8 @@ Item {
             }
 
             colPrimary:
-                Appearance.colors.colOnSecondaryContainer
+                Appearance.barLayout.axiomComponents ? Appearance.colors.colPrimary
+                    : Appearance.colors.colOnSecondaryContainer
 
             enableAnimation: false
 
@@ -139,13 +141,18 @@ Item {
             Layout.fillWidth: true
 
             font {
-                pixelSize: Appearance.font.pixelSize.small
-                weight: Font.Medium
+                family: Appearance.barLayout.axiomComponents ? Appearance.font.family.monospace
+                    : Appearance.font.family.main
+                pixelSize: Appearance.barLayout.axiomComponents
+                    ? Appearance.barVisual.axiomTextSize
+                    : Appearance.font.pixelSize.small
+                weight: Appearance.barLayout.axiomComponents ? Font.DemiBold : Font.Medium
             }
 
             horizontalAlignment: Text.AlignLeft
 
-            color: Appearance.colors.colOnLayer1
+            color: Appearance.barLayout.axiomComponents ? Appearance.barVisual.axiomValue
+                : Appearance.colors.colOnLayer1
 
             text: root.cleanedTitle
 
@@ -157,7 +164,7 @@ Item {
     Behavior on implicitWidth {
         MotionAnim {
             type: MotionAnim.FastSpatial
-            duration: 240
+            duration: Appearance.barMotion.mediaWidthDuration
         }
     }
 }

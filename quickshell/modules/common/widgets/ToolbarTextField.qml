@@ -28,20 +28,12 @@ TextField {
     background: Rectangle {
         id: background
         color:
-            Appearance.inlayMode
-                ? "transparent"
-                : Appearance.colors.colLayer1
+             Appearance.colors.colLayer1
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.rounding.full
+             Appearance.rounding.full
         border.width:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderWidth
-                : 0
+             0
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderControl
-                : "transparent"
+             "transparent"
     }
 }

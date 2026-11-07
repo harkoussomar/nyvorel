@@ -234,7 +234,7 @@ Item {
             return
 
         actionProc.actionKind = kind
-        const command = ["python3", root.helperPath, kind]
+        const command = [root.helperPath, kind]
 
         if (args) {
             for (let i = 0; i < args.length; ++i)
@@ -388,7 +388,7 @@ Item {
     }
 
     Timer {
-        interval: 1200
+        interval: 5000
         repeat: true
         running: true
 
@@ -397,11 +397,7 @@ Item {
                 !snapshotProc.running
                 && root.helperPath.length > 0
             ) {
-                snapshotProc.exec([
-                    "python3",
-                    root.helperPath,
-                    "snapshot"
-                ])
+                snapshotProc.exec([root.helperPath, "snapshot"])
             }
         }
     }
@@ -437,11 +433,7 @@ Item {
 
     Component.onCompleted: {
         if (root.helperPath.length > 0) {
-            snapshotProc.exec([
-                "python3",
-                root.helperPath,
-                "snapshot"
-            ])
+            snapshotProc.exec([root.helperPath, "snapshot"])
             Qt.callLater(() => root.refreshSummary())
         }
     }
@@ -467,18 +459,7 @@ Item {
         }
     }
 
-    // prism-v2-phase7: settings search/favorites/history is a depth-2
     // interactive surface, not a generic card floating beside the rail.
-    PrismSurface {
-        visible: Appearance.prismMode
-        x: panel.x
-        y: panel.y
-        width: panel.width
-        height: panel.height
-        depth: Appearance.prism.depthInteractive
-        surfaceRadius: Appearance.prism.radiusInteractive
-        elevated: true
-    }
 
     Rectangle {
         id: panel
@@ -488,34 +469,20 @@ Item {
             top: parent.top
             bottom: parent.bottom
             leftMargin: root.opened ? 72 : 60
-            topMargin: 70
-            bottomMargin: 18
+            topMargin: Math.min(70, Math.max(18, parent.height * 0.08))
+            bottomMargin: 12
         }
 
-        width: Math.min(520, parent.width - 96)
+        width: Math.min(520, parent.width - anchors.leftMargin - 18)
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusInteractive
-                    : Appearance.radius.card
+              Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colLayer0Base
+              Appearance.colors.colLayer0Base
         border.width:
-            Appearance.prismMode
-                ? 0
-                : Appearance.inlayMode
-                    ? Appearance.inlay.borderWidth
-                    : 1
+              1
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderControl
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
 
         Behavior on anchors.leftMargin {
@@ -568,11 +535,11 @@ Item {
                     activeFocusOnTab: true
                     Accessible.name: "Close panel"
 
-                    buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                    buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.radius.control
-                    colBackground: Appearance.inlayMode ? Appearance.inlay.controlFill : "transparent"
-                    colBackgroundHover: Appearance.inlayMode ? Appearance.inlay.hoverFill : Appearance.colors.colLayer2Hover
-                    colRipple: Appearance.inlayMode ? Appearance.inlay.pressedFill : Appearance.colors.colLayer2Active
+                    buttonRadius: Appearance.radius.control
+                    buttonRadiusPressed: Appearance.radius.control
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer2Hover
+                    colRipple: Appearance.colors.colLayer2Active
 
                     onClicked: root.close()
 
@@ -594,15 +561,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 42
 
-                radius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                color: Appearance.inlayMode ? Appearance.inlay.controlFill : Appearance.colors.colLayer1Base
+                radius: Appearance.radius.control
+                color: Appearance.colors.colLayer1Base
                 border.width: searchInput.activeFocus ? 2 : 1
                 border.color:
-                    Appearance.inlayMode
-                        ? (searchInput.activeFocus ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                        : searchInput.activeFocus
-                            ? Appearance.colors.colPrimary
-                            : Appearance.colors.colLayer0Border
+                     searchInput.activeFocus
+                        ? Appearance.colors.colPrimary
+                        : Appearance.colors.colLayer0Border
 
                 TextField {
                     id: searchInput
@@ -702,8 +667,8 @@ Item {
                         Accessible.name:
                             `${modelData.page}: ${modelData.label}`
 
-                        buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                        buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.radius.control
+                        buttonRadius: Appearance.radius.control
+                        buttonRadiusPressed: Appearance.radius.control
                         colBackground:
                             resultButton.activeFocus
                                 ? Appearance.colors.colLayer2Base
@@ -806,9 +771,9 @@ Item {
                                         ? "Remove favorite"
                                         : "Add favorite"
 
-                                buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
+                                buttonRadius: Appearance.radius.control
                                 buttonRadiusPressed:
-                                    Appearance.inlayMode ? 0 : Appearance.radius.control
+                                    Appearance.radius.control
                                 colBackground: "transparent"
                                 colBackgroundHover:
                                     Appearance.colors.colLayer2Hover
@@ -900,8 +865,8 @@ Item {
 
                         width: ListView.view.width
                         implicitHeight: 58
-                        radius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                        color: Appearance.inlayMode ? Appearance.inlay.insetFill : Appearance.colors.colLayer1Base
+                        radius: Appearance.radius.control
+                        color: Appearance.colors.colLayer1Base
 
                         RowLayout {
                             anchors {
@@ -986,218 +951,225 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                ColumnLayout {
+                Flickable {
+                    id: diagnosticsFlickable
                     anchors.fill: parent
-                    spacing: 8
+                    clip: true
+                    contentWidth: width
+                    contentHeight: diagnosticsColumn.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    interactive: contentHeight > height
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 174
-
-                        radius: Appearance.inlayMode ? 0 : Appearance.radius.card
-                        color: Appearance.inlayMode ? Appearance.inlay.insetFill : Appearance.colors.colLayer1Base
-                        border.width: 1
-                        border.color: Appearance.inlayMode ? Appearance.inlay.borderSection : Appearance.colors.colLayer0Border
-
-                        ColumnLayout {
-                            anchors {
-                                fill: parent
-                                margins: 12
-                            }
-
-                            spacing: 6
-
-                            StyledText {
-                                text: "Health"
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.DemiBold
-                            }
-
-                            StyledText {
-                                visible: !root.diagnosticsLoaded
-                                text: "Checking Settings, Hyprland and Quickshell…"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.small
-                            }
-
-                            StyledText {
-                                visible: root.diagnosticsLoaded
-                                text:
-                                    root.diagnostics.config_valid
-                                        ? "✓ config.json is valid"
-                                        : "✕ config.json is invalid"
-                                color:
-                                    root.diagnostics.config_valid
-                                        ? Appearance.colors.colOnLayer1
-                                        : Appearance.m3colors.m3error
-                            }
-
-                            StyledText {
-                                visible: root.diagnosticsLoaded
-                                text:
-                                    root.diagnostics.hyprland_ok
-                                        ? "✓ Hyprland integration available"
-                                        : "✕ Hyprland integration unavailable"
-                                color:
-                                    root.diagnostics.hyprland_ok
-                                        ? Appearance.colors.colOnLayer1
-                                        : Appearance.m3colors.m3error
-                            }
-
-                            StyledText {
-                                visible: root.diagnosticsLoaded
-                                text:
-                                    root.diagnostics.shell_running
-                                        ? "✓ Main Quickshell instance running"
-                                        : "! Main Quickshell instance not detected"
-                                color:
-                                    root.diagnostics.shell_running
-                                        ? Appearance.colors.colOnLayer1
-                                        : Appearance.m3colors.m3error
-                            }
-
-                            StyledText {
-                                visible: root.diagnosticsLoaded
-                                text:
-                                    root.diagnostics.hyprland_config_errors_available
-                                        ? Number(root.diagnostics.hyprland_config_error_count ?? 0) === 0
-                                            ? "✓ No Hyprland config errors"
-                                            : `✕ ${root.diagnostics.hyprland_config_error_count} Hyprland config error(s)`
-                                        : "• Hyprland config-error check unavailable"
-                                color:
-                                    Number(root.diagnostics.hyprland_config_error_count ?? 0) === 0
-                                        ? Appearance.colors.colOnLayer1
-                                        : Appearance.m3colors.m3error
-                            }
-
-                            StyledText {
-                                visible:
-                                    root.diagnosticsLoaded
-                                    && root.diagnosticsWarning
-                                text:
-                                    "⚠ Legacy Hyprland .conf config — migrate before 0.57"
-                                color: Appearance.colors.colPrimary
-                                font.weight: Font.DemiBold
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 104
-
-                        radius: Appearance.inlayMode ? 0 : Appearance.radius.card
-                        color: Appearance.inlayMode ? Appearance.inlay.insetFill : Appearance.colors.colLayer1Base
-                        border.width: 1
-                        border.color: Appearance.inlayMode ? Appearance.inlay.borderSection : Appearance.colors.colLayer0Border
-
-                        ColumnLayout {
-                            anchors {
-                                fill: parent
-                                margins: 12
-                            }
-
-                            spacing: 5
-
-                            StyledText {
-                                text: "Settings tools"
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.DemiBold
-                            }
-
-                            StyledText {
-                                text:
-                                    `${SearchIndex.entries.length} indexed search targets · ${root.favoriteCount} favorites · ${root.historyCount} recent changes`
-
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize:
-                                    Appearance.font.pixelSize.smallest
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text:
-                                    root.diagnostics.config_path ?? ""
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize:
-                                    Appearance.font.pixelSize.smallest
-                                elide: Text.ElideMiddle
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
+                    ColumnLayout {
+                        id: diagnosticsColumn
+                        width: diagnosticsFlickable.width
                         spacing: 8
 
-                        RippleButton {
+                        Rectangle {
                             Layout.fillWidth: true
-                            implicitHeight: 38
-                            activeFocusOnTab: true
-                            Accessible.name: "Backup configuration"
+                            Layout.preferredHeight: 174
 
-                            buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                            buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.radius.control
-                            colBackground:
-                                Appearance.colors.colLayer2Base
-                            colBackgroundHover:
-                                Appearance.colors.colLayer2Hover
-                            colRipple:
-                                Appearance.colors.colLayer2Active
+                            radius: Appearance.radius.card
+                            color: Appearance.colors.colLayer1Base
+                            border.width: 1
+                            border.color: Appearance.colors.colLayer0Border
 
-                            onClicked: root.backupConfig()
+                            ColumnLayout {
+                                anchors {
+                                    fill: parent
+                                    margins: 12
+                                }
 
-                            contentItem: StyledText {
-                                anchors.centerIn: parent
-                                text: "Backup config"
-                                color: Appearance.colors.colOnLayer2
-                                font.weight: Font.DemiBold
+                                spacing: 6
+
+                                StyledText {
+                                    text: "Health"
+                                    color: Appearance.colors.colOnLayer1
+                                    font.weight: Font.DemiBold
+                                }
+
+                                StyledText {
+                                    visible: !root.diagnosticsLoaded
+                                    text: "Checking Settings, Hyprland and Quickshell…"
+                                    color: Appearance.colors.colSubtext
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                }
+
+                                StyledText {
+                                    visible: root.diagnosticsLoaded
+                                    text:
+                                        root.diagnostics.config_valid
+                                            ? "✓ config.json is valid"
+                                            : "✕ config.json is invalid"
+                                    color:
+                                        root.diagnostics.config_valid
+                                            ? Appearance.colors.colOnLayer1
+                                            : Appearance.m3colors.m3error
+                                }
+
+                                StyledText {
+                                    visible: root.diagnosticsLoaded
+                                    text:
+                                        root.diagnostics.hyprland_ok
+                                            ? "✓ Hyprland integration available"
+                                            : "✕ Hyprland integration unavailable"
+                                    color:
+                                        root.diagnostics.hyprland_ok
+                                            ? Appearance.colors.colOnLayer1
+                                            : Appearance.m3colors.m3error
+                                }
+
+                                StyledText {
+                                    visible: root.diagnosticsLoaded
+                                    text:
+                                        root.diagnostics.shell_running
+                                            ? "✓ Main Quickshell instance running"
+                                            : "! Main Quickshell instance not detected"
+                                    color:
+                                        root.diagnostics.shell_running
+                                            ? Appearance.colors.colOnLayer1
+                                            : Appearance.m3colors.m3error
+                                }
+
+                                StyledText {
+                                    visible: root.diagnosticsLoaded
+                                    text:
+                                        root.diagnostics.hyprland_config_errors_available
+                                            ? Number(root.diagnostics.hyprland_config_error_count ?? 0) === 0
+                                                ? "✓ No Hyprland config errors"
+                                                : `✕ ${root.diagnostics.hyprland_config_error_count} Hyprland config error(s)`
+                                            : "• Hyprland config-error check unavailable"
+                                    color:
+                                        Number(root.diagnostics.hyprland_config_error_count ?? 0) === 0
+                                            ? Appearance.colors.colOnLayer1
+                                            : Appearance.m3colors.m3error
+                                }
+
+                                StyledText {
+                                    visible:
+                                        root.diagnosticsLoaded
+                                        && root.diagnosticsWarning
+                                    text:
+                                        "⚠ Legacy Hyprland .conf config — migrate before 0.57"
+                                    color: Appearance.colors.colPrimary
+                                    font.weight: Font.DemiBold
+                                }
                             }
                         }
 
-                        RippleButton {
+                        Rectangle {
                             Layout.fillWidth: true
-                            implicitHeight: 38
-                            activeFocusOnTab: true
-                            Accessible.name: "Restore latest backup"
+                            Layout.preferredHeight: 104
 
-                            buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                            buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.radius.control
+                            radius: Appearance.radius.card
+                            color: Appearance.colors.colLayer1Base
+                            border.width: 1
+                            border.color: Appearance.colors.colLayer0Border
 
-                            colBackground:
-                                root.restoreArmed
-                                    ? Appearance.colors.colErrorContainer
-                                    : Appearance.colors.colLayer2Base
+                            ColumnLayout {
+                                anchors {
+                                    fill: parent
+                                    margins: 12
+                                }
 
-                            colBackgroundHover:
-                                root.restoreArmed
-                                    ? Appearance.colors.colErrorContainerHover
-                                    : Appearance.colors.colLayer2Hover
+                                spacing: 5
 
-                            colRipple:
-                                root.restoreArmed
-                                    ? Appearance.colors.colErrorContainerActive
-                                    : Appearance.colors.colLayer2Active
+                                StyledText {
+                                    text: "Settings tools"
+                                    color: Appearance.colors.colOnLayer1
+                                    font.weight: Font.DemiBold
+                                }
 
-                            onClicked: root.requestRestore()
+                                StyledText {
+                                    text:
+                                        `${SearchIndex.entries.length} indexed search targets · ${root.favoriteCount} favorites · ${root.historyCount} recent changes`
 
-                            contentItem: StyledText {
-                                anchors.centerIn: parent
-                                text:
-                                    root.restoreArmed
-                                        ? "Confirm restore"
-                                        : "Restore latest"
-                                color:
-                                    root.restoreArmed
-                                        ? Appearance.colors.colOnErrorContainer
-                                        : Appearance.colors.colOnLayer2
-                                font.weight: Font.DemiBold
+                                    color: Appearance.colors.colSubtext
+                                    font.pixelSize:
+                                        Appearance.font.pixelSize.smallest
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text:
+                                        root.diagnostics.config_path ?? ""
+                                    color: Appearance.colors.colSubtext
+                                    font.pixelSize:
+                                        Appearance.font.pixelSize.smallest
+                                    elide: Text.ElideMiddle
+                                }
                             }
                         }
-                    }
 
-                    Item {
-                        Layout.fillHeight: true
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            RippleButton {
+                                Layout.fillWidth: true
+                                implicitHeight: 38
+                                activeFocusOnTab: true
+                                Accessible.name: "Backup configuration"
+
+                                buttonRadius: Appearance.radius.control
+                                buttonRadiusPressed: Appearance.radius.control
+                                colBackground:
+                                    Appearance.colors.colLayer2Base
+                                colBackgroundHover:
+                                    Appearance.colors.colLayer2Hover
+                                colRipple:
+                                    Appearance.colors.colLayer2Active
+
+                                onClicked: root.backupConfig()
+
+                                contentItem: StyledText {
+                                    anchors.centerIn: parent
+                                    text: "Backup config"
+                                    color: Appearance.colors.colOnLayer2
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+
+                            RippleButton {
+                                Layout.fillWidth: true
+                                implicitHeight: 38
+                                activeFocusOnTab: true
+                                Accessible.name: "Restore latest backup"
+
+                                buttonRadius: Appearance.radius.control
+                                buttonRadiusPressed: Appearance.radius.control
+
+                                colBackground:
+                                    root.restoreArmed
+                                        ? Appearance.colors.colErrorContainer
+                                        : Appearance.colors.colLayer2Base
+
+                                colBackgroundHover:
+                                    root.restoreArmed
+                                        ? Appearance.colors.colErrorContainerHover
+                                        : Appearance.colors.colLayer2Hover
+
+                                colRipple:
+                                    root.restoreArmed
+                                        ? Appearance.colors.colErrorContainerActive
+                                        : Appearance.colors.colLayer2Active
+
+                                onClicked: root.requestRestore()
+
+                                contentItem: StyledText {
+                                    anchors.centerIn: parent
+                                    text:
+                                        root.restoreArmed
+                                            ? "Confirm restore"
+                                            : "Restore latest"
+                                    color:
+                                        root.restoreArmed
+                                            ? Appearance.colors.colOnErrorContainer
+                                            : Appearance.colors.colOnLayer2
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1206,8 +1178,8 @@ Item {
                 visible: root.message.length > 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
-                radius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                color: Appearance.inlayMode ? Appearance.inlay.controlFill : Appearance.colors.colLayer2Base
+                radius: Appearance.radius.control
+                color: Appearance.colors.colLayer2Base
 
                 StyledText {
                     anchors {

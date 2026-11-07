@@ -7,7 +7,7 @@ MaterialSymbol {
     id: root
     readonly property bool showUnreadCount: Config.options.bar.indicators.notifications.showUnreadCount
     text: Notifications.silent ? "notifications_paused" : "notifications"
-    iconSize: Appearance.font.pixelSize.larger
+    iconSize: Appearance.barVisual.axiomIconSize
     color: rightSidebarButton.colText
 
     Rectangle {
@@ -20,7 +20,9 @@ MaterialSymbol {
             topMargin: root.showUnreadCount ? 0 : 3
         }
         radius: Appearance.rounding.full
-        color: Appearance.colors.colOnLayer0
+        color: Appearance.barLayout.axiomComponents
+            ? Appearance.barVisual.axiomBatteryAccent
+            : Appearance.colors.colOnLayer0
         z: 1
 
         implicitHeight: root.showUnreadCount ? Math.max(notificationCounterText.implicitWidth, notificationCounterText.implicitHeight) : 8
@@ -32,7 +34,9 @@ MaterialSymbol {
             anchors.centerIn: parent
             font.pixelSize: Appearance.font.pixelSize.smallest
             color: Appearance.colors.colLayer0
-            text: Notifications.unread
+            // nyvorel-phase3b-unread-badge: bound badge width on large queues.
+            // The actual unread count remains available in Notifications.unread.
+            text: Notifications.unread > 99 ? "99+" : String(Notifications.unread)
         }
     }
 }

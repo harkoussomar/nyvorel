@@ -77,7 +77,7 @@ command -v pacman >/dev/null || { echo 'pacman is required.' >&2; exit 1; }
 # Keep the default group to official packages needed for a usable desktop.
 # The rootless plan stays available before Python, Hyprland, or Qt is present.
 core=(
-  bash coreutils findutils grep sed gawk git python python-pip python-pillow
+  bash coreutils findutils grep sed gawk git python python-pip python-pillow rust
   pacman-contrib hyprland quickshell mesa polkit
   xdg-desktop-portal xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
   qt6-positioning qt6-5compat kirigami

@@ -170,14 +170,12 @@ Scope {
             // Fluid session substrate matches Kitty exactly: #101315 at 60%
             // opacity. Other interface styles keep the existing session tint.
             color:
-                Appearance.inlayMode
-                    ? Appearance.inlay.baseFill
-                    : Appearance.fluidMode
-                        ? ColorUtils.transparentize("#101315", 0.40)
-                        : ColorUtils.transparentize(
-                            Appearance.m3colors.m3background,
-                            Appearance.m3colors.darkmode ? 0.72 : 0.62
-                        )
+                 Appearance.fluidMode
+                    ? ColorUtils.transparentize("#101315", 0.40)
+                    : ColorUtils.transparentize(
+                        Appearance.m3colors.m3background,
+                        Appearance.m3colors.darkmode ? 0.72 : 0.62
+                    )
 
             anchors {
                 top: true
@@ -188,21 +186,7 @@ Scope {
             implicitWidth: root.focusedScreen?.width ?? 0
             implicitHeight: root.focusedScreen?.height ?? 0
 
-            // prism-v2-phase7: Session is a focused depth-4 object above the
             // dimmed canvas. The legacy full-screen substrate remains untouched.
-            PrismSurface {
-                visible: Appearance.prismMode && root.sessionMapped
-                anchors.centerIn: parent
-                width: contentColumn.width + 56
-                height: contentColumn.height + 48
-                depth: Appearance.prism.depthModal
-                surfaceRadius: Appearance.prism.radiusModal
-                elevated: true
-                opacity: contentColumn.opacity
-                scale: contentColumn.scale
-                transformOrigin: Item.Center
-                transform: Translate { y: sessionContentShift.y }
-            }
 
             MouseArea {
                 id: sessionMouseArea
@@ -236,15 +220,13 @@ Scope {
                 }
 
                 scale:
-                    Appearance.inlayMode
+                     root.sessionShown
                         ? 1
-                        : root.sessionShown
-                            ? 1
-                            : (
-                                root.sessionClosing
-                                    ? 0.985
-                                    : (Appearance.prismMode ? Appearance.prism.enterScale : 0.970)
-                            )
+                        : (
+                            root.sessionClosing
+                                ? 0.985
+                                : (0.970)
+                        )
 
                 transform: Translate {
                     id: sessionContentShift
@@ -254,10 +236,8 @@ Scope {
                             ? 0
                             : (
                                 root.sessionClosing
-                                    ? (Appearance.inlayMode ? Appearance.inlay.enterDistance : 18)
-                                    : (Appearance.inlayMode
-                                        ? Appearance.inlay.enterDistance
-                                        : Appearance.prismMode ? Appearance.prism.enterDistance * 2 : 34)
+                                    ? (18)
+                                    : (34)
                             )
 
                     Behavior on y {
@@ -494,11 +474,11 @@ Scope {
         id: descriptionLabel
         property string text
         property color textColor: Appearance.colors.colOnTooltip
-        color: Appearance.inlayMode ? Appearance.inlay.controlFill : Appearance.colors.colTooltip
+        color: Appearance.colors.colTooltip
         clip: true
-        radius: Appearance.inlayMode ? 0 : Appearance.rounding.normal
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-        border.color: Appearance.inlayMode ? Appearance.inlay.borderControl : "transparent"
+        radius: Appearance.rounding.normal
+        border.width: 0
+        border.color: "transparent"
         implicitHeight: descriptionLabelText.implicitHeight + 10 * 2
         implicitWidth: descriptionLabelText.implicitWidth + 15 * 2
 

@@ -17,14 +17,10 @@ AbstractQuickPanel {
     ButtonGroup {
         id: buttonGroup
         spacing:
-            Appearance.inlayMode
-                ? Appearance.spacing.sm
-                : Appearance.prismMode
-                    ? Appearance.spacing.md
-                    : 5
-        padding: (Appearance.prismMode || Appearance.inlayMode) ? 0 : 5
+              5
+        padding: (false) ? 0 : 5
         color:
-            (Appearance.prismMode || Appearance.inlayMode)
+            (false)
                 ? "transparent"
                 : Appearance.colors.colLayer1
 

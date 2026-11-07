@@ -1,0 +1,18 @@
+[package]
+name = "nyvorel-appearance-studio"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libc = "0.2"
+serde_json = "1"
+regex = "1"
+material-colors = "=0.4.2"
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = true

@@ -11,7 +11,7 @@ Item {
     id: root
     signal closeRequested()
 
-    property string helperPath: Quickshell.shellPath("scripts/arch-remote/control_center.py")
+    property string fastHelperPath: Quickshell.shellPath("scripts/system/nyvorel-arch-remote")
     property string screenName: ""
     property int selectedPage: 0
     property int activePage: 0
@@ -21,44 +21,6 @@ Item {
     property int pageDirection: 1
     property bool pageTransitioning: false
     property bool modalShown: false
-
-    // phase4e-consolidated-surface-deformation-v1
-    // phase4d-large-surface-deformation-v1
-    // prism-v2-phase7: final Prism modals use spatial lift + uniform scale.
-    // Preserve the older non-uniform deformation path for other styles only.
-    readonly property bool largeSurfaceDeformationEnabled:
-        Appearance.surfaceDeformation.enabled
-        && !Appearance.prismMode
-
-    property real largeSurfaceScaleX: 1
-    property real largeSurfaceScaleY: 1
-    property real largeSurfaceRadiusScale: 1
-
-    function resetLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-        root.largeSurfaceScaleX = 1
-        root.largeSurfaceScaleY = 1
-        root.largeSurfaceRadiusScale = 1
-    }
-
-    function kickLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-
-        if (!root.largeSurfaceDeformationEnabled) {
-            root.resetLargeSurfaceDeformation()
-            return
-        }
-
-        root.largeSurfaceScaleX = Appearance.surfaceDeformation.largeStartX
-        root.largeSurfaceScaleY = Appearance.surfaceDeformation.largeStartY
-        root.largeSurfaceRadiusScale = Appearance.surfaceDeformation.largeRadiusStart
-        largeSurfaceDeformAnimation.restart()
-    }
-
-    onLargeSurfaceDeformationEnabledChanged: {
-        if (!root.largeSurfaceDeformationEnabled)
-            root.resetLargeSurfaceDeformation()
-    }
 
     property bool loading: false
     readonly property int expectedSchemaVersion: 2
@@ -188,11 +150,9 @@ Item {
 
         function onArchRemoteOpenChanged() {
             if (GlobalStates.archRemoteOpen) {
-                root.resetLargeSurfaceDeformation()
                 root.modalShown = false
                 modalOpenKickTimer.restart()
             } else {
-                root.resetLargeSurfaceDeformation()
                 root.modalShown = false
             }
         }
@@ -295,14 +255,14 @@ Item {
 
     function loadCachedState() {
         if (cachedSnapshotProc.running) return
-        cachedSnapshotProc.command = ["python3", root.helperPath, "snapshot-cache"]
+        cachedSnapshotProc.command = [root.fastHelperPath, "snapshot-cache"]
         cachedSnapshotProc.running = true
     }
 
     function refresh(full) {
         if (snapshotProc.running) return
         root.loading = !root.cachedStateLoaded
-        const command = ["python3", root.helperPath, "snapshot"]
+        const command = [root.fastHelperPath, "snapshot"]
         if (full === true) command.push("--full")
         snapshotProc.command = command
         snapshotProc.running = true
@@ -348,7 +308,7 @@ Item {
 
     function pollOperation() {
         if (operationStatusProc.running) return
-        operationStatusProc.command = ["python3", root.helperPath, "operation-status"]
+        operationStatusProc.command = [root.fastHelperPath, "operation-status"]
         operationStatusProc.running = true
     }
 
@@ -361,7 +321,7 @@ Item {
 
         if (!persistent) {
             if (actionProc.running) return
-            actionProc.command = ["python3", root.helperPath].concat(args)
+            actionProc.command = [root.fastHelperPath].concat(args)
             actionProc.running = true
             return
         }
@@ -377,7 +337,7 @@ Item {
             root.clearPairing("none", "")
         }
 
-        operationStartProc.command = ["python3", root.helperPath, "operation-start"].concat(args)
+        operationStartProc.command = [root.fastHelperPath, "operation-start"].concat(args)
         operationStartProc.running = true
     }
 
@@ -390,7 +350,7 @@ Item {
     function requestLogs() {
         if (logsProc.running) return
         root.logsLoading = true
-        logsProc.command = ["python3", root.helperPath, "logs", root.selectedLogService,
+        logsProc.command = [root.fastHelperPath, "logs", root.selectedLogService,
                             root.logSeverity, root.logWindow, root.logSearch]
         logsProc.running = true
     }
@@ -398,7 +358,7 @@ Item {
     function requestReference() {
         if (referenceProc.running) return
         root.referenceLoading = true
-        referenceProc.command = ["python3", root.helperPath, "reference"]
+        referenceProc.command = [root.fastHelperPath, "reference"]
         referenceProc.running = true
     }
 
@@ -534,7 +494,7 @@ Item {
         root.clearPairing("generating", "")
         root.pairingBusy = true
         root.pairingOperation = "create"
-        pairingProc.command = ["python3", root.helperPath, "pairing-create"]
+        pairingProc.command = [root.fastHelperPath, "pairing-create"]
         pairingProc.running = true
     }
 
@@ -542,14 +502,14 @@ Item {
         if (pairingProc.running || root.pairingBusy || root.actionRunning || root.pairingState !== "ready") return
         root.pairingBusy = true
         root.pairingOperation = "cancel"
-        pairingProc.command = ["python3", root.helperPath, "pairing-cancel"]
+        pairingProc.command = [root.fastHelperPath, "pairing-cancel"]
         pairingProc.running = true
     }
 
     function recordPairingEvent(title, detail, severity) {
         if (pairEventProc.running) return
         pairEventProc.command = [
-            "python3", root.helperPath, "record-event",
+            root.fastHelperPath, "record-event",
             "pairing", String(title), String(detail), String(severity || "info")
         ]
         pairEventProc.running = true
@@ -961,83 +921,13 @@ Item {
         repeat: false
         onTriggered: {
             if (GlobalStates.archRemoteOpen) {
-                root.kickLargeSurfaceDeformation()
                 root.modalShown = true
             }
         }
     }
 
     // phase4d-large-surface-deformation-v1
-    // Restrained production profile for large Prism modal surfaces.
-    ParallelAnimation {
-        id: largeSurfaceDeformAnimation
 
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: Appearance.surfaceDeformation.largeMiddleX
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: Appearance.surfaceDeformation.largeMiddleY
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultSpatial
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: Appearance.surfaceDeformation.largeRadiusMiddle
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastEffects
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
-            }
-        }
-    }
 
     Timer { id: toastTimer; interval: 3200; repeat: false; onTriggered: root.toastMessage = "" }
 
@@ -1071,34 +961,24 @@ Item {
         }
 
         color:
-            Appearance.prismMode
-                ? (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.prism.persistentActiveFill
-                        : "transparent"
-                  )
-                : (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Qt.rgba(
-                            Appearance.colors.colOnSurfaceVariant.r,
-                            Appearance.colors.colOnSurfaceVariant.g,
-                            Appearance.colors.colOnSurfaceVariant.b,
-                            0.07
-                          )
-                  )
+             (
+                active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colPrimary
+                    : Qt.rgba(
+                        Appearance.colors.colOnSurfaceVariant.r,
+                        Appearance.colors.colOnSurfaceVariant.g,
+                        Appearance.colors.colOnSurfaceVariant.b,
+                        0.07
+                      )
+              )
 
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? (active || button.activeFocus
-                    ? Appearance.prism.focusBorder
-                    : Appearance.prism.borderSubtle)
-                : (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colLayer0Border
-                  )
+             (
+                active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colPrimary
+                    : Appearance.colors.colLayer0Border
+              )
 
         MaterialSymbol {
             anchors.centerIn: parent
@@ -1106,13 +986,9 @@ Item {
             iconSize: 19
             fill: button.active ? 1 : 0
             color:
-                Appearance.prismMode
-                    ? (active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colOnSurfaceVariant)
-                    : (active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colOnPrimary
-                        : Appearance.colors.colOnSurfaceVariant)
+                 (active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colOnPrimary
+                    : Appearance.colors.colOnSurfaceVariant)
         }
 
         MouseArea {
@@ -1213,18 +1089,12 @@ Item {
         buttonRadiusPressed: Appearance.radius.control
         colBackground:
             selected
-                ? (Appearance.prismMode
-                    ? Appearance.prism.persistentActiveFill
-                    : Appearance.colors.colLayer2Base)
+                ? (Appearance.colors.colLayer2Base)
                 : "transparent"
         colBackgroundHover:
-            Appearance.prismMode
-                ? Appearance.prism.persistentHoverFill
-                : Appearance.colors.colLayer2Hover
+             Appearance.colors.colLayer2Hover
         colRipple:
-            Appearance.prismMode
-                ? Appearance.prism.persistentActiveFill
-                : Appearance.colors.colLayer2Active
+             Appearance.colors.colLayer2Active
         onClicked: root.switchPage(pageIndex)
         contentItem: RowLayout {
             anchors.fill: parent
@@ -1330,14 +1200,10 @@ Item {
         implicitHeight: 76
         radius: Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer1Base
+             Appearance.colors.colLayer1Base
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         RowLayout {
             anchors.fill: parent
             anchors.margins: 10
@@ -1428,14 +1294,10 @@ Item {
         implicitHeight: (controllable || logService.length > 0) ? 122 : 90
         radius: Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer1Base
+             Appearance.colors.colLayer1Base
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 11
@@ -1610,16 +1472,12 @@ Item {
         color:
             listener.finding === "critical"
                 ? Appearance.colors.colErrorContainer
-                : (Appearance.prismMode
-                    ? Appearance.prism.persistentFill
-                    : Appearance.colors.colLayer1Base)
+                : (Appearance.colors.colLayer1Base)
         border.width: 1
         border.color:
             listener.finding === "critical"
                 ? Appearance.colors.colError
-                : (Appearance.prismMode
-                    ? Appearance.prism.borderSubtle
-                    : Appearance.colors.colLayer0Border)
+                : (Appearance.colors.colLayer0Border)
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: row.detailsRequested() }
         RowLayout {
             anchors.fill: parent
@@ -1726,14 +1584,10 @@ Item {
         implicitHeight: 136
         radius: Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer1Base
+             Appearance.colors.colLayer1Base
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         ColumnLayout {
             anchors.centerIn: parent
             width: Math.min(parent.width - 40, 520)
@@ -1771,24 +1625,6 @@ Item {
         }
     }
 
-    // prism-v2-phase7: depth-4 spatial material lives beside the legacy modal
-    // so Fluid/Mica/Default keep their exact Rectangle/shadow path.
-    PrismSurface {
-        visible: Appearance.prismMode
-        x: modal.x
-        y: modal.y
-        width: modal.width
-        height: modal.height
-        depth: Appearance.prism.depthModal
-        surfaceRadius: Appearance.prism.radiusModal
-        elevated: true
-        opacity: modal.opacity
-        scale: modal.scale
-        transformOrigin: Item.Center
-        transform: Translate {
-            y: modalTranslate.y
-        }
-    }
 
     Rectangle {
         id: modal
@@ -1796,38 +1632,20 @@ Item {
         anchors.centerIn: parent
         width: Math.min(1160, parent.width - 48)
         height: Math.min(740, parent.height - 48)
-        radius:
-            Appearance.inlayMode
-                ? 0
-                : (Appearance.prismMode
-                    ? Appearance.prism.radiusModal
-                    : Appearance.radius.modal)
-                * root.largeSurfaceRadiusScale
+        radius: Appearance.radius.modal
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colLayer0Base
+              Appearance.colors.colLayer0Base
         border.width:
-            Appearance.prismMode
-                ? 0
-                : Appearance.inlayMode
-                    ? Appearance.inlay.borderWidth
-                    : 1
+              1
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderControl
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
         transformOrigin: Item.Center
         opacity: root.modalShown ? 1 : 0
         scale:
             root.modalShown
                 ? 1
-                : Appearance.inlayMode
-                    ? 1
-                    : (Appearance.prismMode ? Appearance.prism.enterScale : 0.970)
+                : (0.970)
 
         transform: [
             Translate {
@@ -1835,9 +1653,7 @@ Item {
                 y:
                     root.modalShown
                         ? 0
-                        : Appearance.inlayMode
-                            ? Appearance.inlay.enterDistance
-                            : (Appearance.prismMode ? Appearance.prism.enterDistance * 2 : 34)
+                        : (34)
 
                 Behavior on y {
                     MotionExpressiveAnim {
@@ -1847,16 +1663,9 @@ Item {
                                 : MotionExpressiveAnim.Exit
                     }
                 }
-            },
-
-            // phase4d-large-surface-deformation-v1
-            Scale {
-                id: modalDeformationScale
-                origin.x: modal.width / 2
-                origin.y: modal.height / 2
-                xScale: root.largeSurfaceScaleX
-                yScale: root.largeSurfaceScaleY
             }
+
+
         ]
 
         onXChanged: root.syncCaptureRegion()

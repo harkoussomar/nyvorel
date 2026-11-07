@@ -92,6 +92,35 @@ OPERATION_META_LOCK = OP_RUNTIME_DIR / "operation-meta.lock"
 OPERATION_FILE = OP_RUNTIME_DIR / "operation.json"
 STATE_DATA_LOCK = STATE_DIR / ".state.lock"
 OPERATION_RESULT_MAX = 800
+RUST_SERVICES_BIN = Path(__file__).resolve().parents[1] / "system/nyvorel-arch-remote"
+RUST_LISTENERS_BIN = RUST_SERVICES_BIN
+RUST_TAILSCALE_BIN = RUST_SERVICES_BIN
+RUST_INTERFACES_BIN = RUST_SERVICES_BIN
+RUST_EXPOSURE_BIN = RUST_SERVICES_BIN
+RUST_SERVE_FUNNEL_BIN = RUST_SERVICES_BIN
+RUST_DOMAIN_BIN = RUST_SERVICES_BIN
+RUST_HOST_GRAPHICAL_BIN = RUST_SERVICES_BIN
+RUST_POWER_BIN = RUST_SERVICES_BIN
+RUST_SSH_EVIDENCE_BIN = RUST_SERVICES_BIN
+RUST_SSHD_EFFECTIVE_BIN = RUST_SERVICES_BIN
+RUST_HARDENING_BIN = RUST_SERVICES_BIN
+RUST_INTEGRITY_BIN = RUST_SERVICES_BIN
+RUST_WAYVNC_SECURITY_BIN = RUST_SERVICES_BIN
+RUST_LAN_SHARE_SECURITY_BIN = RUST_SERVICES_BIN
+RUST_PAIR_SUPPORT_BIN = RUST_SERVICES_BIN
+RUST_AUDIT_BIN = RUST_SERVICES_BIN
+RUST_PAIRING_READINESS_BIN = RUST_SERVICES_BIN
+RUST_PHONE_GUIDE_BIN = RUST_SERVICES_BIN
+RUST_LIVE_DERIVE_BIN = RUST_SERVICES_BIN
+RUST_REFERENCE_BIN = RUST_SERVICES_BIN
+RUST_PAIRING_CREATE_BIN = RUST_SERVICES_BIN
+RUST_PAIRING_CANCEL_BIN = RUST_SERVICES_BIN
+RUST_USER_SERVICE_ACTION_BIN = RUST_SERVICES_BIN
+RUST_SYSTEM_SERVICE_ACTION_BIN = RUST_SERVICES_BIN
+RUST_EXPORT_LOGS_BIN = RUST_SERVICES_BIN
+RUST_OPERATION_BIN = RUST_SERVICES_BIN
+RUST_SNAPSHOT_BIN = RUST_SERVICES_BIN
+RUST_LOCKDOWN_STOP_BIN = RUST_SERVICES_BIN
 
 
 def emit(payload) -> int:
@@ -323,6 +352,32 @@ def run_sshd_effective(privileged=False) -> dict:
     return {"ok": False, "values": {}, "error": error, "source": source}
 
 
+def snapshot_sshd_effective(privileged=False) -> dict:
+    """Ask Rust for contextual sshd -T evidence; retain Python on failure."""
+    if RUST_SSHD_EFFECTIVE_BIN.is_file() and os.access(RUST_SSHD_EFFECTIVE_BIN, os.X_OK):
+        binary = "/usr/bin/sshd" if Path("/usr/bin/sshd").is_file() else exe("sshd")
+        pkexec = exe("pkexec") if privileged else ""
+        expected_source = ("none" if not binary else "/usr/bin/sshd -T" if privileged and not pkexec
+                           else f"{'pkexec ' if privileged else ''}{binary} -T -C user={USER},host=localhost,addr=127.0.0.1")
+        result = run([str(RUST_SSHD_EFFECTIVE_BIN), "sshd-effective", binary or "", pkexec or "",
+                      USER, "1" if privileged else "0"], timeout=22.0 if privileged else 9.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {"ok", "values", "error", "source"} \
+                        and type(payload["ok"]) is bool and type(payload["values"]) is dict \
+                        and all(type(key) is str and type(value) is str for key, value in payload["values"].items()) \
+                        and type(payload["error"]) is str and payload["source"] == expected_source \
+                        and (payload["ok"] or not payload["values"]) \
+                        and (not payload["ok"] or
+                             ({"permitrootlogin", "pubkeyauthentication", "passwordauthentication",
+                               "kbdinteractiveauthentication"} <= set(payload["values"]) and not payload["error"])):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return run_sshd_effective(privileged)
+
+
 def save_ssh_effective_cache(values: dict, source: str) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     atomic_json(SSH_EFFECTIVE_CACHE, {
@@ -350,9 +405,9 @@ def cached_ssh_effective() -> dict:
 
 
 def verify_ssh_effective() -> dict:
-    attempt = run_sshd_effective(False)
+    attempt = snapshot_sshd_effective(False)
     if not attempt["ok"]:
-        attempt = run_sshd_effective(True)
+        attempt = snapshot_sshd_effective(True)
     if not attempt["ok"]:
         record_activity("verification", "Effective SSH verification failed", attempt["error"], "warning")
         return {"error": True, "ok": False, "message": f"Could not verify effective SSH configuration: {attempt['error']}"}
@@ -494,7 +549,7 @@ def pair_command_support() -> dict:
         result.returncode == 0
         or "--json" in help_text
         or "pair" in lower
-    )
+    ) if result.returncode != 127 else False
 
     # Some argparse/click implementations put subcommands only in top-level
     # help, so use that as a safe fallback.  This does not mint a token.
@@ -521,6 +576,30 @@ def pair_command_support() -> dict:
         ),
         "source": f"{binary} pair --help",
     }
+
+
+def snapshot_pair_command_support() -> dict:
+    """Probe only LAN Share help commands in Rust, with Python fallback."""
+    binary = resolve_lan_share_binary()
+    if RUST_PAIR_SUPPORT_BIN.is_file() and os.access(RUST_PAIR_SUPPORT_BIN, os.X_OK):
+        result = run([str(RUST_PAIR_SUPPORT_BIN), "pair-support", binary or ""], timeout=9.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {
+                    "installed", "available", "cancel_supported", "binary", "status", "reason", "source"} \
+                        and all(type(payload[key]) is bool for key in (
+                            "installed", "available", "cancel_supported")) \
+                        and all(type(payload[key]) is str for key in (
+                            "binary", "status", "reason", "source")) \
+                        and payload["binary"] == (binary or "") \
+                        and payload["status"] in {"missing", "supported", "unsupported"} \
+                        and payload["installed"] == bool(binary) \
+                        and payload["available"] == (payload["status"] == "supported"):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return pair_command_support()
 
 
 def lan_share_security_posture() -> dict:
@@ -550,6 +629,24 @@ def lan_share_security_posture() -> dict:
         if required else "LAN Share security contract is incomplete."
     )
     return payload
+
+
+def snapshot_lan_share_security_posture() -> dict:
+    """Read the LAN Share security contract through Rust with Python fallback."""
+    binary = resolve_lan_share_binary()
+    if RUST_LAN_SHARE_SECURITY_BIN.is_file() and os.access(RUST_LAN_SHARE_SECURITY_BIN, os.X_OK):
+        result = run([str(RUST_LAN_SHARE_SECURITY_BIN), "lan-share-security", binary or ""], timeout=6.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and type(payload.get("ok")) is bool \
+                        and type(payload.get("security_revision")) is str \
+                        and type(payload.get("reason")) is str \
+                        and (not payload["ok"] or payload["security_revision"] == "2.1-phase1b1"):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return lan_share_security_posture()
 
 
 def _simple_key_value_file(path: Path) -> dict[str, str]:
@@ -631,7 +728,7 @@ def wayvnc_security_posture() -> dict:
         and "tailscale ip -4" in launcher_text
         and "arch-remote.conf" in launcher_text
         and "--config" in launcher_text
-        and not re.search(r"\b100\.(?:\d{{1,3}}\.){{2}}\d{{1,3}}:5900\b", launcher_text)
+        and not re.search(r"\b100\.(?:\d{1,3}\.){2}\d{1,3}:5900\b", launcher_text)
     )
     secure_dropin = bool(
         WAYVNC_SECURITY_DROPIN.is_file()
@@ -692,11 +789,45 @@ def wayvnc_security_posture() -> dict:
     }
 
 
+def snapshot_wayvnc_security_posture() -> dict:
+    """Collect WayVNC security evidence in Rust, falling back on invalid output."""
+    if RUST_WAYVNC_SECURITY_BIN.is_file() and os.access(RUST_WAYVNC_SECURITY_BIN, os.X_OK):
+        result = run([str(RUST_WAYVNC_SECURITY_BIN), "wayvnc-security", str(WAYVNC_CONFIG),
+                      str(WAYVNC_TLS_KEY), str(WAYVNC_TLS_CERT), str(WAYVNC_LAUNCHER),
+                      str(WAYVNC_SECURITY_DROPIN)], timeout=7.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                expected = {"ok", "security_revision", "auth_required", "auth_mode", "username",
+                            "password_present", "password_length_ok", "config_path", "config_mode",
+                            "private_key_path", "private_key_mode", "certificate_path", "certificate_mode",
+                            "certificate_sha256", "dynamic_tailnet_bind", "secure_dropin", "effective_launcher",
+                            "effective_exec", "legacy_crypto_allowed", "encryption_relaxed",
+                            "tailnet_acl_verification", "tailnet_acl_note", "reason"}
+                if type(payload) is dict and set(payload) == expected \
+                        and payload["security_revision"] == WAYVNC_SECURITY_REVISION \
+                        and payload["config_path"] == str(WAYVNC_CONFIG) \
+                        and payload["private_key_path"] == str(WAYVNC_TLS_KEY) \
+                        and payload["certificate_path"] == str(WAYVNC_TLS_CERT) \
+                        and all(type(payload[key]) is bool for key in (
+                            "ok", "auth_required", "password_present", "password_length_ok",
+                            "dynamic_tailnet_bind", "secure_dropin", "effective_launcher",
+                            "legacy_crypto_allowed", "encryption_relaxed")) \
+                        and all(type(payload[key]) is str for key in expected - {
+                            "ok", "auth_required", "password_present", "password_length_ok",
+                            "dynamic_tailnet_bind", "secure_dropin", "effective_launcher",
+                            "legacy_crypto_allowed", "encryption_relaxed"}):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return wayvnc_security_posture()
+
+
 def private_share_pairing_readiness(state: dict) -> dict:
     share = state["services"]["lan_share"]
     serve = state["tailscale"]["serve"]
     funnel = state["tailscale"]["funnel"]
-    support = pair_command_support()
+    support = snapshot_pair_command_support()
 
     private_verified = private_exposure_verified(serve, funnel)
     safe_url = safe_private_share_url(serve.get("url", ""), private_verified)
@@ -765,10 +896,46 @@ def private_share_pairing_readiness(state: dict) -> dict:
     }
 
 
+def snapshot_private_share_pairing_readiness(state: dict) -> dict:
+    """Evaluate the private-pairing gate in Rust, retaining a strict Python fallback."""
+    if RUST_PAIRING_READINESS_BIN.is_file() and os.access(RUST_PAIRING_READINESS_BIN, os.X_OK):
+        support = snapshot_pair_command_support()
+        payload_in = {"state": state, "support": support, "qrencode_available": bool(exe("qrencode"))}
+        result = run([str(RUST_PAIRING_READINESS_BIN), "pairing-readiness"], timeout=4.0,
+                     input_text=json.dumps(payload_in, ensure_ascii=False))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                names = {"service_ready", "listener_ready", "serve_configured", "serve_tailnet_only",
+                         "funnel_private_verified", "private_exposure_verified", "serve_url_safe",
+                         "upstream_is_lan_share", "qrencode_available", "pair_executable_found",
+                         "pair_command_supported"}
+                valid = (type(payload) is dict and set(payload) == {
+                    "available", "reason", "checks", "serve_url", "pair_binary", "pair_support_status"}
+                         and type(payload["available"]) is bool and type(payload["reason"]) is str
+                         and type(payload["serve_url"]) is str and type(payload["pair_binary"]) is str
+                         and type(payload["pair_support_status"]) is str
+                         and type(payload["checks"]) is dict and set(payload["checks"]) == names
+                         and all(type(value) is bool for value in payload["checks"].values())
+                         and payload["available"] == all(payload["checks"].values())
+                         and payload["pair_binary"] == str(support.get("binary") or "")
+                         and payload["pair_support_status"] == str(support.get("status") or "missing"))
+                serve = state["tailscale"]["serve"]
+                funnel = state["tailscale"]["funnel"]
+                verified = private_exposure_verified(serve, funnel)
+                valid = valid and payload["checks"]["private_exposure_verified"] == verified
+                valid = valid and payload["serve_url"] == safe_private_share_url(serve.get("url", ""), verified)
+                if valid:
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return private_share_pairing_readiness(state)
+
+
 def pairing_create() -> dict:
     """Create a short-lived one-time pairing QR without persisting the secret."""
     state = snapshot(False)
-    readiness = private_share_pairing_readiness(state)
+    readiness = snapshot_private_share_pairing_readiness(state)
     if not readiness["available"]:
         return {
             "error": True,
@@ -778,11 +945,45 @@ def pairing_create() -> dict:
             "reason": readiness["reason"],
         }
 
-    support = pair_command_support()
+    support = snapshot_pair_command_support()
     binary = str(support.get("binary") or "")
     qrencode = exe("qrencode")
     if not binary or not support.get("available") or not qrencode:
         return {"error": True, "ok": False, "state": "error", "message": "Pairing dependencies are unavailable."}
+
+    if RUST_PAIRING_CREATE_BIN.is_file() and os.access(RUST_PAIRING_CREATE_BIN, os.X_OK):
+        payload_in = {"readiness": readiness, "pair_binary": binary, "qrencode": qrencode,
+                      "serve_url": readiness["serve_url"], "now": int(time.time()),
+                      "cancel_supported": bool(support["cancel_supported"])}
+        result = run([str(RUST_PAIRING_CREATE_BIN), "pairing-create"], timeout=15.0,
+                     input_text=json.dumps(payload_in, ensure_ascii=False))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if (type(payload) is dict and payload.get("ok") is True
+                        and set(payload) == {"ok", "state", "message", "expires_at", "expires_in",
+                                             "single_use", "qr_data_url", "server_cancel_supported"}
+                        and payload["state"] == "ready" and payload["single_use"] is True
+                        and type(payload["expires_at"]) is int and type(payload["expires_in"]) is int
+                        and int(time.time()) < payload["expires_at"] <= int(time.time()) + 900
+                        and 0 < payload["expires_in"] <= 900
+                        and type(payload["qr_data_url"]) is str
+                        and payload["qr_data_url"].startswith("data:image/png;base64,")
+                        and len(payload["qr_data_url"]) <= 1_500_000
+                        and payload["server_cancel_supported"] == bool(support["cancel_supported"])):
+                    record_activity("pairing", "Private Share pairing generated",
+                                    f"Single-use credential created; expires in {payload['expires_in']}s.", "info")
+                    return payload
+                if (type(payload) is dict and payload.get("error") is True and payload.get("ok") is False
+                        and payload.get("state") == "error" and type(payload.get("message")) is str
+                        and set(payload) == {"error", "ok", "state", "message"}):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+        # A failed Rust invocation may have already minted a credential. Never
+        # invoke the legacy path a second time in the same request.
+        return {"error": True, "ok": False, "state": "error",
+                "message": "Pairing backend failed. Retry to generate a fresh QR."}
 
     # Never log stdout from this command: it contains the temporary bearer credential.
     result = run([binary, "pair", "--json"], timeout=8.0)
@@ -866,14 +1067,42 @@ def pairing_create() -> dict:
         "expires_in": expires_in,
         "single_use": True,
         "qr_data_url": qr_data_url,
-        "server_cancel_supported": pair_command_support()["cancel_supported"],
+        "server_cancel_supported": snapshot_pair_command_support()["cancel_supported"],
     }
 
 
 def pairing_cancel() -> dict:
     """Revoke server-side when supported; otherwise report local dismissal honestly."""
-    support = pair_command_support()
+    support = snapshot_pair_command_support()
     binary = str(support.get("binary") or "")
+    if RUST_PAIRING_CANCEL_BIN.is_file() and os.access(RUST_PAIRING_CANCEL_BIN, os.X_OK):
+        result = run([str(RUST_PAIRING_CANCEL_BIN), "pairing-cancel"], timeout=8.0,
+                     input_text=json.dumps({"binary": binary,
+                                            "cancel_supported": bool(support.get("cancel_supported"))}))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if (type(payload) is dict and payload.get("ok") is True
+                        and payload.get("state") == "cancelled"
+                        and type(payload.get("backend_revoked")) is bool
+                        and type(payload.get("message")) is str
+                        and set(payload) == {"ok", "state", "backend_revoked", "message"}
+                        and (not payload["backend_revoked"] or bool(support.get("cancel_supported") and binary))):
+                    if payload["backend_revoked"]:
+                        record_activity("pairing", "Private Share pairing cancelled",
+                                        "Pending pairing credential revoked server-side.", "info")
+                    else:
+                        record_activity("pairing", "Private Share pairing dismissed",
+                                        "QR hidden locally; backend token was not claimed revoked and will expire or be replaced.", "info")
+                    return payload
+                if (type(payload) is dict and payload.get("error") is True and payload.get("ok") is False
+                        and payload.get("state") == "error" and type(payload.get("message")) is str
+                        and set(payload) == {"error", "ok", "state", "message"}):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+        return {"error": True, "ok": False, "state": "error",
+                "message": "Pairing cancellation backend failed. Retry or wait for the credential to expire."}
     if not support.get("cancel_supported") or not binary:
         record_activity(
             "pairing",
@@ -1046,6 +1275,49 @@ def services_state() -> dict:
     }
 
 
+def snapshot_services_state() -> dict:
+    """Use the one-shot Rust collector only when its full service contract holds."""
+    if RUST_SERVICES_BIN.is_file() and os.access(RUST_SERVICES_BIN, os.X_OK):
+        result = run([str(RUST_SERVICES_BIN), "services"], timeout=5.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                expected = {"sshd": ("sshd", "system", True),
+                            "tailscaled": ("tailscaled", "system", True),
+                            "lan_share": ("lan-share", "user", False),
+                            "wayvnc": ("wayvnc-remote", "user", False)}
+                bool_fields = {"loaded", "configured", "active", "running", "enabled", "boot_enabled", "expected_running"}
+                int_fields = {"pid", "restarts", "memory_bytes"}
+                text_fields = {"name", "scope", "active_state", "sub_state", "enabled_state", "expected_state",
+                               "status", "health", "started_at", "fragment_path", "memory", "cpu_time",
+                               "result", "exec_main_status"}
+                required = bool_fields | int_fields | text_fields
+                if isinstance(payload, dict) and set(payload) == set(expected):
+                    valid = True
+                    for key, (name, scope, expected_running) in expected.items():
+                        item = payload[key]
+                        if not isinstance(item, dict) or set(item) != required:
+                            valid = False
+                            break
+                        if item["name"] != name or item["scope"] != scope or item["expected_running"] is not expected_running:
+                            valid = False
+                            break
+                        if not all(type(item[field]) is bool for field in bool_fields):
+                            valid = False
+                            break
+                        if not all(type(item[field]) is int for field in int_fields):
+                            valid = False
+                            break
+                        if not all(type(item[field]) is str for field in text_fields):
+                            valid = False
+                            break
+                    if valid:
+                        return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return services_state()
+
+
 def normalize_peer(peer: dict, self_peer=False) -> dict:
     ips = peer.get("TailscaleIPs") or peer.get("Addresses") or []
     if not isinstance(ips, list):
@@ -1174,6 +1446,47 @@ def tailscale_status() -> dict:
         }
     )
     return base
+
+
+def snapshot_tailscale_status() -> dict:
+    """Read daemon status from Rust while preserving the Python fallback."""
+    if RUST_TAILSCALE_BIN.is_file() and os.access(RUST_TAILSCALE_BIN, os.X_OK):
+        result = run([str(RUST_TAILSCALE_BIN), "tailscale-status"], timeout=7.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                bool_fields = {"available", "active", "running", "connected", "magic_dns"}
+                text_fields = {"backend_state", "hostname", "dns_name", "ipv4", "ipv6", "health"}
+                required = bool_fields | text_fields | {"devices", "phone", "health_messages"}
+                peer_bools = {"online", "active", "is_self"}
+                peer_text = {"hostname", "dns_name", "os", "last_seen", "last_handshake"}
+                peer_required = peer_bools | peer_text | {"addresses"}
+                if isinstance(payload, dict) and set(payload) == required and all(
+                    type(payload[field]) is bool for field in bool_fields
+                ) and all(type(payload[field]) is str for field in text_fields):
+                    devices = payload["devices"]
+                    valid = (type(devices) is list and type(payload["health_messages"]) is list
+                             and all(type(message) is str for message in payload["health_messages"])
+                             and payload["active"] == payload["running"] == payload["connected"])
+                    if valid:
+                        for peer in devices:
+                            if not isinstance(peer, dict) or set(peer) != peer_required:
+                                valid = False
+                                break
+                            if not all(type(peer[field]) is bool for field in peer_bools):
+                                valid = False
+                                break
+                            if not all(type(peer[field]) is str for field in peer_text):
+                                valid = False
+                                break
+                            if type(peer["addresses"]) is not list or not all(type(ip) is str for ip in peer["addresses"]):
+                                valid = False
+                                break
+                    if valid and (payload["phone"] is None or payload["phone"] in devices):
+                        return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return tailscale_status()
 
 
 def serve_state(binary: str | None) -> dict:
@@ -1307,11 +1620,65 @@ def funnel_state(binary: str | None) -> dict:
     return state
 
 
+def snapshot_serve_funnel(binary: str | None) -> tuple[dict, dict]:
+    """Read Serve/Funnel status in Rust; fail closed on ambiguous classifications."""
+    if binary and RUST_SERVE_FUNNEL_BIN.is_file() and os.access(RUST_SERVE_FUNNEL_BIN, os.X_OK):
+        result = run([str(RUST_SERVE_FUNNEL_BIN), "serve-funnel", binary], timeout=17.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {"serve", "funnel"}:
+                    serve, funnel = payload["serve"], payload["funnel"]
+                    serve_fields = {"available", "active", "configured", "url", "host", "route_path", "upstream",
+                                    "upstream_tested", "upstream_reachable", "upstream_status", "tailnet_only",
+                                    "is_public", "verification", "health", "source", "raw"}
+                    funnel_fields = {"available", "active", "configured", "is_public", "url", "verification",
+                                     "health", "source", "raw"}
+                    if type(serve) is dict and type(funnel) is dict and set(serve) == serve_fields \
+                            and set(funnel) == funnel_fields \
+                            and all(type(serve[key]) is bool for key in ("available", "active", "configured", "upstream_tested",
+                                                                           "upstream_reachable", "tailnet_only", "is_public")) \
+                            and all(type(serve[key]) is str for key in ("url", "host", "route_path", "upstream",
+                                                                          "verification", "health", "source", "raw")) \
+                            and type(serve["upstream_status"]) is int \
+                            and all(type(funnel[key]) is bool for key in ("available", "active", "configured", "is_public")) \
+                            and all(type(funnel[key]) is str for key in ("url", "verification", "health", "source", "raw")) \
+                            and serve["available"] and funnel["available"] \
+                            and serve["active"] == serve["configured"] \
+                            and funnel["active"] == funnel["configured"] == funnel["is_public"] \
+                            and serve["is_public"] == (serve["verification"] == "public") \
+                            and funnel["is_public"] == (funnel["verification"] == "public") \
+                            and serve["tailnet_only"] == (serve["verification"] == "tailnet-only") \
+                            and serve["verification"] in {"off", "tailnet-only", "public", "unknown"} \
+                            and funnel["verification"] in {"off", "tailnet-only", "public", "unknown"}:
+                        serve_raw = serve["raw"].lower()
+                        funnel_raw = funnel["raw"].lower()
+                        serve_public_marker = "available on the internet" in serve_raw or "funnel on" in serve_raw
+                        funnel_public_marker = any(marker in funnel_raw for marker in ("available on the internet", "funnel on", "public"))
+                        if serve["configured"] and serve_public_marker and serve["verification"] != "public" \
+                                and "tailnet only" not in serve_raw:
+                            raise ValueError("Serve public marker was not classified")
+                        if funnel_public_marker and funnel["verification"] != "public" \
+                                and "tailnet only" not in funnel_raw:
+                            raise ValueError("Funnel public marker was not classified")
+                        if serve["upstream"]:
+                            probe = http_probe(serve["upstream"])
+                            serve["upstream_tested"] = probe["tested"]
+                            serve["upstream_reachable"] = probe["reachable"]
+                            serve["upstream_status"] = probe["status_code"]
+                            if serve["configured"] and serve["verification"] == "tailnet-only" \
+                                    and probe["tested"] and not probe["reachable"]:
+                                serve["health"] = "degraded"
+                        return serve, funnel
+            except (ValueError, TypeError, KeyError):
+                pass
+    return serve_state(binary), funnel_state(binary)
+
+
 def tailscale_state() -> dict:
     binary = exe("tailscale")
-    base = tailscale_status()
-    base["serve"] = serve_state(binary)
-    base["funnel"] = funnel_state(binary)
+    base = snapshot_tailscale_status()
+    base["serve"], base["funnel"] = snapshot_serve_funnel(binary)
     return base
 
 
@@ -1369,6 +1736,32 @@ def listeners_state(tailscale: dict) -> list[dict]:
             }
         )
     return entries
+
+
+def snapshot_listeners_state(tailscale: dict) -> list[dict]:
+    """Use Rust listener enumeration only when its complete schema is valid."""
+    if RUST_LISTENERS_BIN.is_file() and os.access(RUST_LISTENERS_BIN, os.X_OK):
+        result = run([str(RUST_LISTENERS_BIN), "listeners",
+                      str(tailscale.get("ipv4") or ""), str(tailscale.get("ipv6") or "")], timeout=6.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                required = {"protocol", "address", "port", "endpoint", "scope", "bind_scope", "process", "pid"}
+                scope = {"loopback": "localhost", "tailnet": "tailscale",
+                         "all-interfaces": "all-interfaces", "bound": "bound"}
+                if isinstance(payload, list) and all(
+                    isinstance(item, dict) and set(item) == required
+                    and item["protocol"] == "tcp"
+                    and type(item["address"]) is str and type(item["endpoint"]) is str
+                    and type(item["process"]) is str and type(item["port"]) is int
+                    and type(item["pid"]) is int and item["port"] > 0
+                    and item["bind_scope"] in scope and item["scope"] == scope[item["bind_scope"]]
+                    for item in payload
+                ):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return listeners_state(tailscale)
 
 
 def classify_listener(entry: dict, tailscale: dict) -> dict:
@@ -1508,9 +1901,53 @@ def exposure_state(listeners: list[dict], tailscale: dict) -> dict:
     }
 
 
+def snapshot_exposure_state(listeners: list[dict], tailscale: dict) -> dict:
+    """Classify exposure in Rust, rejecting malformed or unsafe output."""
+    if RUST_EXPOSURE_BIN.is_file() and os.access(RUST_EXPOSURE_BIN, os.X_OK):
+        result = run([str(RUST_EXPOSURE_BIN), "exposure"], timeout=3.0,
+                     input_text=json.dumps({"listeners": listeners, "tailscale": tailscale}))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                fields = {"listeners", "groups", "unexpected_count", "application_public_exposure_detected",
+                          "application_public_exposure_verified", "router_nat_verified", "summary", "router_note"}
+                group_names = {"private_network": "private-network", "local_network": "local-network",
+                               "loopback_only": "loopback", "unexpected": "unexpected", "other": "other"}
+                funnel = tailscale["funnel"]
+                verification = str(funnel.get("verification") or "unknown")
+                expected_public = bool(funnel["is_public"])
+                expected_verified = verification in {"off", "tailnet-only", "public"}
+                if type(payload) is dict and set(payload) == fields and type(payload["listeners"]) is list \
+                        and len(payload["listeners"]) == len(listeners) and type(payload["groups"]) is dict \
+                        and set(payload["groups"]) == set(group_names) \
+                        and type(payload["unexpected_count"]) is int \
+                        and type(payload["application_public_exposure_detected"]) is bool \
+                        and type(payload["application_public_exposure_verified"]) is bool \
+                        and type(payload["router_nat_verified"]) is bool \
+                        and type(payload["summary"]) is str and type(payload["router_note"]) is str \
+                        and payload["application_public_exposure_detected"] == expected_public \
+                        and payload["application_public_exposure_verified"] == expected_verified \
+                        and not payload["router_nat_verified"] \
+                        and payload["router_note"] == "Router/NAT exposure not verified.":
+                    classified = payload["listeners"]
+                    required = {"service", "reachable_scope", "expected_policy", "policy_status", "finding", "group"}
+                    valid = all(type(item) is dict and all(item.get(key) == original.get(key) for key in original)
+                                and required <= set(item) and item["group"] in group_names.values()
+                                for item, original in zip(classified, listeners))
+                    valid = valid and all(type(payload["groups"][name]) is list
+                                          and payload["groups"][name] == [item for item in classified if item["group"] == kind]
+                                          for name, kind in group_names.items())
+                    valid = valid and payload["unexpected_count"] == len(payload["groups"]["unexpected"])
+                    if valid:
+                        return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return exposure_state(listeners, tailscale)
+
+
 def ssh_state() -> dict:
     configured = parse_config_words(SSH_DROPIN)
-    attempt = run_sshd_effective(False)
+    attempt = snapshot_sshd_effective(False)
     effective = {}
     effective_verified = False
     effective_error = attempt.get("error", "")
@@ -1591,6 +2028,34 @@ def ssh_host_fingerprint() -> dict:
     return {"available": bool(fingerprint), "algorithm": "ED25519", "fingerprint": fingerprint, "source": str(SSH_HOST_ED25519_PUB)}
 
 
+def snapshot_ssh_evidence() -> tuple[dict, dict]:
+    """Collect recent SSH authentication and host fingerprint in one Rust process."""
+    if RUST_SSH_EVIDENCE_BIN.is_file() and os.access(RUST_SSH_EVIDENCE_BIN, os.X_OK):
+        result = run([str(RUST_SSH_EVIDENCE_BIN), "ssh-evidence", str(SSH_HOST_ED25519_PUB)], timeout=13.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {"auth", "fingerprint"}:
+                    auth, fingerprint = payload["auth"], payload["fingerprint"]
+                    if type(auth) is dict and set(auth) == {"checked_at", "last_success_at", "last_success_ip",
+                                                             "last_success_message", "failure_count", "source"} \
+                            and all(type(auth[key]) in (int, float) for key in ("checked_at", "last_success_at")) \
+                            and type(auth["failure_count"]) is int and auth["failure_count"] >= 0 \
+                            and all(type(auth[key]) is str for key in ("last_success_ip", "last_success_message", "source")) \
+                            and auth["source"] == "journalctl -u sshd" \
+                            and type(fingerprint) is dict and set(fingerprint) == {"available", "algorithm", "fingerprint", "source"} \
+                            and type(fingerprint["available"]) is bool \
+                            and all(type(fingerprint[key]) is str for key in ("algorithm", "fingerprint", "source")) \
+                            and (not fingerprint["available"] or
+                                 (fingerprint["algorithm"] == "ED25519"
+                                  and fingerprint["fingerprint"].startswith("SHA256:")
+                                  and fingerprint["source"] == str(SSH_HOST_ED25519_PUB))):
+                        return auth, fingerprint
+            except (ValueError, TypeError, KeyError):
+                pass
+    return ssh_recent_auth_state(), ssh_host_fingerprint()
+
+
 def interfaces_state() -> list[dict]:
     binary = exe("ip")
     if not binary:
@@ -1619,6 +2084,29 @@ def interfaces_state() -> list[dict]:
             }
         )
     return interfaces
+
+
+def snapshot_interfaces_state() -> list[dict]:
+    """Read interface data from Rust, falling back to the existing collector."""
+    if RUST_INTERFACES_BIN.is_file() and os.access(RUST_INTERFACES_BIN, os.X_OK):
+        result = run([str(RUST_INTERFACES_BIN), "interfaces"], timeout=5.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                fields = {"name", "state", "mac", "addresses", "wireless", "physical", "tailscale", "loopback"}
+                if type(payload) is list and all(
+                    type(item) is dict and set(item) == fields
+                    and all(type(item[key]) is str for key in ("name", "state", "mac"))
+                    and bool(item["name"])
+                    and type(item["addresses"]) is list
+                    and all(type(address) is str for address in item["addresses"])
+                    and all(type(item[key]) is bool for key in ("wireless", "physical", "tailscale", "loopback"))
+                    for item in payload
+                ):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return interfaces_state()
 
 
 def wake_state(interfaces: list[dict]) -> dict:
@@ -1759,6 +2247,38 @@ def lid_state() -> dict:
     }
 
 
+def snapshot_power_state(interfaces: list[dict]) -> tuple[dict, dict, dict]:
+    """Collect wake, linger, and lid evidence with one Rust process."""
+    if RUST_POWER_BIN.is_file() and os.access(RUST_POWER_BIN, os.X_OK):
+        result = run([str(RUST_POWER_BIN), "power"], timeout=20.0, input_text=json.dumps(interfaces))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {"wake", "linger", "lid"}:
+                    wake, linger, lid = payload["wake"], payload["linger"], payload["lid"]
+                    wake_fields = {"interface_name", "mac", "supported", "enabled", "capability",
+                                   "configured", "raw_supported", "raw_current", "tested", "test_status", "error"}
+                    wifi_fields = {"interface_name", "phy", "mac", "supported", "enabled", "capability",
+                                   "configured", "persistent", "tested", "test_status", "error"}
+                    if type(wake) is dict and set(wake) == {"ethernet", "wifi", "dispatcher_path"} \
+                            and type(wake["ethernet"]) is dict and set(wake["ethernet"]) == wake_fields \
+                            and type(wake["wifi"]) is dict and set(wake["wifi"]) == wifi_fields \
+                            and wake["dispatcher_path"] == str(WOWLAN_FILE) \
+                            and type(linger) is dict and set(linger) == {"enabled", "value", "source"} \
+                            and type(linger["enabled"]) is bool and type(linger["value"]) is str \
+                            and type(linger["source"]) is str \
+                            and type(lid) is dict \
+                            and set(lid) == {"exists", "path", "battery", "external_power", "docked", "configured",
+                                             "effective", "pending_reboot", "status", "logind_started_at"} \
+                            and lid["path"] == str(LID_DROPIN) \
+                            and type(lid["exists"]) is bool and type(lid["pending_reboot"]) is bool \
+                            and type(lid["effective"]) is dict and type(lid["effective"].get("verified")) is bool:
+                        return wake, linger, lid
+            except (ValueError, TypeError, KeyError):
+                pass
+    return wake_state(interfaces), linger_state(), lid_state()
+
+
 def host_state() -> dict:
     disk = shutil.disk_usage(HOME)
     disk_percent = round(disk.used / disk.total * 100.0, 1) if disk.total else 0.0
@@ -1800,6 +2320,32 @@ def graphical_state() -> dict:
     }
 
 
+def snapshot_host_graphical() -> tuple[dict, dict]:
+    """Collect the host and Wayland summaries in one Rust invocation."""
+    if RUST_HOST_GRAPHICAL_BIN.is_file() and os.access(RUST_HOST_GRAPHICAL_BIN, os.X_OK):
+        result = run([str(RUST_HOST_GRAPHICAL_BIN), "host-graphical"], timeout=7.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and set(payload) == {"host", "graphical"}:
+                    host, graphical = payload["host"], payload["graphical"]
+                    if type(host) is dict and set(host) == {"hostname", "user", "home", "kernel", "uptime", "load", "storage"} \
+                            and all(type(host[key]) is str for key in ("hostname", "user", "home", "kernel", "uptime", "load")) \
+                            and type(host["storage"]) is dict and set(host["storage"]) == {"percent", "free", "total"} \
+                            and type(host["storage"]["percent"]) in (int, float) \
+                            and all(type(host["storage"][key]) is str for key in ("free", "total")) \
+                            and host["home"] == str(HOME) and host["user"] == USER \
+                            and type(graphical) is dict and set(graphical) == {"hyprland_available", "wayland_display", "wayland_sockets"} \
+                            and type(graphical["hyprland_available"]) is bool \
+                            and type(graphical["wayland_display"]) is str \
+                            and type(graphical["wayland_sockets"]) is list \
+                            and all(type(item) is str for item in graphical["wayland_sockets"]):
+                        return host, graphical
+            except (ValueError, TypeError, KeyError):
+                pass
+    return host_state(), graphical_state()
+
+
 def slow_state(force=False) -> dict:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     if not force and SLOW_CACHE.is_file():
@@ -1810,16 +2356,18 @@ def slow_state(force=False) -> dict:
             cached["ssh"] = ssh_state()
             return cached
 
-    interfaces = interfaces_state()
+    interfaces = snapshot_interfaces_state()
+    wake, linger, lid = snapshot_power_state(interfaces)
+    ssh_auth, ssh_fingerprint = snapshot_ssh_evidence()
     payload = {
         "checked_at": time.time(),
         "ssh": ssh_state(),
-        "ssh_host_fingerprint": ssh_host_fingerprint(),
-        "ssh_auth": ssh_recent_auth_state(),
+        "ssh_host_fingerprint": ssh_fingerprint,
+        "ssh_auth": ssh_auth,
         "interfaces": interfaces,
-        "wake": wake_state(interfaces),
-        "linger": linger_state(),
-        "lid": lid_state(),
+        "wake": wake,
+        "linger": linger,
+        "lid": lid,
     }
     atomic_json(SLOW_CACHE, payload)
     return payload
@@ -1899,6 +2447,38 @@ def user_service_hardening_posture() -> dict:
     }
 
 
+def snapshot_user_service_hardening_posture() -> dict:
+    """Check systemd sandbox directives in Rust with a Python fallback."""
+    if RUST_HARDENING_BIN.is_file() and os.access(RUST_HARDENING_BIN, os.X_OK):
+        result = run([str(RUST_HARDENING_BIN), "hardening", str(LAN_SHARE_HARDENING_DROPIN),
+                      str(WAYVNC_HARDENING_DROPIN)], timeout=3.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                names = {"lan-share": str(LAN_SHARE_HARDENING_DROPIN),
+                         "wayvnc-remote": str(WAYVNC_HARDENING_DROPIN)}
+                if type(payload) is dict and set(payload) == {"ok", "security_revision", "services"} \
+                        and type(payload["ok"]) is bool and payload["security_revision"] == HARDENING_REVISION \
+                        and type(payload["services"]) is dict and set(payload["services"]) == set(names):
+                    valid = all(type(payload["services"][name]) is dict
+                                and set(payload["services"][name]) == {"ok", "path", "missing", "directives"}
+                                and type(payload["services"][name]["ok"]) is bool
+                                and payload["services"][name]["path"] == path
+                                and type(payload["services"][name]["missing"]) is list
+                                and all(type(item) is str for item in payload["services"][name]["missing"])
+                                and type(payload["services"][name]["directives"]) is dict
+                                and set(payload["services"][name]["directives"]) == set(HARDENING_REQUIRED)
+                                for name, path in names.items())
+                    valid = valid and all(payload["services"][name]["ok"] == (not payload["services"][name]["missing"])
+                                          for name in names)
+                    valid = valid and payload["ok"] == all(payload["services"][name]["ok"] for name in names)
+                    if valid:
+                        return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return user_service_hardening_posture()
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -1971,7 +2551,35 @@ def deployment_integrity_posture() -> dict:
     }
 
 
-def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, wayvnc_security: dict) -> list[dict]:
+def snapshot_deployment_integrity_posture() -> dict:
+    """Verify the package inventory in Rust, retaining the Python verifier as fallback."""
+    if RUST_INTEGRITY_BIN.is_file() and os.access(RUST_INTEGRITY_BIN, os.X_OK):
+        result = run([str(RUST_INTEGRITY_BIN), "integrity", str(DEPLOYMENT_MANIFEST)], timeout=10.0)
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                if type(payload) is dict and type(payload.get("ok")) is bool \
+                        and payload.get("manifest") == str(DEPLOYMENT_MANIFEST) \
+                        and type(payload.get("revision")) is str \
+                        and type(payload.get("reason")) is str \
+                        and type(payload.get("files")) is list \
+                        and payload["ok"] == (bool(payload["files"]) and all(
+                            row.get("hash_ok") is True and row.get("mode_ok") is True
+                            for row in payload["files"] if type(row) is dict)) \
+                        and all(type(row) is dict and set(row) == {
+                            "path", "exists", "hash_ok", "mode_ok", "expected_sha256", "actual_sha256",
+                            "expected_mode", "actual_mode", "error"} \
+                            and type(row["path"]) is str and type(row["exists"]) is bool \
+                            and type(row["hash_ok"]) is bool and type(row["mode_ok"]) is bool
+                            for row in payload["files"]):
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return deployment_integrity_posture()
+
+
+def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, wayvnc_security: dict,
+                   hardening: dict | None = None, integrity: dict | None = None) -> list[dict]:
     ssh = slow["ssh"]
     checks = [
         check("sshd-active", "SSH", "critical", "pass" if services["sshd"]["running"] else "fail",
@@ -2094,7 +2702,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
               "Enable linger intentionally if remote user services require it.", privilege="root", evidence_sources=["loginctl"]),
     ])
 
-    hardening = user_service_hardening_posture()
+    hardening = hardening if hardening is not None else snapshot_user_service_hardening_posture()
     for service_name in ("lan-share", "wayvnc-remote"):
         service_hardening = hardening["services"][service_name]
         checks.append(check(
@@ -2109,7 +2717,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
             evidence_sources=[service_hardening["path"]],
         ))
 
-    integrity = deployment_integrity_posture()
+    integrity = integrity if integrity is not None else deployment_integrity_posture()
     checks.append(check(
         "deployment-integrity", "Integrity", "warning", "pass" if integrity["ok"] else "warn",
         "Arch Remote package-owned files match the installed manifest",
@@ -2168,6 +2776,57 @@ def health_summary(checks: list[dict], tailscale: dict) -> dict:
         "check_count": len(checks),
         "issue_count": len(critical) + len(warnings),
     }
+
+
+def snapshot_security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict,
+                            wayvnc_security: dict, hardening: dict, integrity: dict) -> tuple[list[dict], dict]:
+    """Derive audit and health together in Rust, validating its security-critical shape."""
+    if RUST_AUDIT_BIN.is_file() and os.access(RUST_AUDIT_BIN, os.X_OK):
+        evidence = {
+            "services": services, "tailscale": tailscale, "exposure": exposure, "slow": slow,
+            "wayvnc_security": wayvnc_security, "hardening": hardening, "integrity": integrity,
+            "user": USER,
+            "paths": {"ssh_dropin": str(SSH_DROPIN), "wayvnc_config": str(WAYVNC_CONFIG),
+                      "wayvnc_launcher": str(WAYVNC_LAUNCHER), "wayvnc_dropin": str(WAYVNC_SECURITY_DROPIN),
+                      "manifest": str(DEPLOYMENT_MANIFEST)},
+        }
+        result = run([str(RUST_AUDIT_BIN), "security-audit"], timeout=4.0,
+                     input_text=json.dumps(evidence, ensure_ascii=False))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                checks = payload["checks"]
+                health = payload["health"]
+                fields = {"id", "category", "severity", "status", "title", "expected", "detected",
+                          "current", "source", "evidence_sources", "checked_at", "explanation",
+                          "remediation", "repair_available", "privilege", "verification_scope", "confidence"}
+                valid = (type(payload) is dict and set(payload) == {"checks", "health"}
+                         and type(checks) is list and 15 <= len(checks) <= 25
+                         and all(type(row) is dict and set(row) == fields
+                                 and all(type(row[key]) is str for key in fields - {
+                                     "evidence_sources", "checked_at", "repair_available"})
+                                 and type(row["repair_available"]) is bool
+                                 and type(row["checked_at"]) in {int, float}
+                                 and type(row["evidence_sources"]) is list
+                                 and all(type(source) is str for source in row["evidence_sources"])
+                                 and row["current"] == row["detected"] for row in checks)
+                         and len({row["id"] for row in checks}) == len(checks)
+                         and type(health) is dict and health == health_summary(checks, tailscale))
+                anchors = {row["id"]: row for row in checks}
+                valid = valid and anchors["sshd-active"]["status"] == (
+                    "pass" if services["sshd"]["running"] else "fail")
+                valid = valid and anchors["tailscale-active"]["status"] == (
+                    "pass" if tailscale["connected"] else "fail")
+                valid = valid and anchors["vnc-auth"]["status"] == (
+                    "pass" if wayvnc_security["ok"] else "fail")
+                valid = valid and anchors["deployment-integrity"]["status"] == (
+                    "pass" if integrity["ok"] else "warn")
+                if valid:
+                    return checks, health
+            except (ValueError, TypeError, KeyError, IndexError):
+                pass
+    checks = security_audit(services, tailscale, exposure, slow, wayvnc_security, hardening, integrity)
+    return checks, health_summary(checks, tailscale)
 
 
 def listeners_owned_by_service(listeners: list[dict], main_pid: int, process_names: set[str]) -> tuple[bool, str]:
@@ -2292,6 +2951,52 @@ def service_domain(services: dict, tailscale: dict, exposure: dict, graphical: d
     return {"sshd": ssh, "tailscaled": tailscaled, "lan_share": share, "wayvnc": wayvnc}
 
 
+def snapshot_service_domain(services: dict, tailscale: dict, exposure: dict, graphical: dict,
+                            ssh_state_value: dict, wayvnc_security: dict) -> dict:
+    """Derive readiness in Rust, with defensive checks before trusting a ready claim."""
+    if RUST_DOMAIN_BIN.is_file() and os.access(RUST_DOMAIN_BIN, os.X_OK):
+        inputs = {"services": services, "tailscale": tailscale, "exposure": exposure, "graphical": graphical,
+                  "ssh": ssh_state_value, "wayvnc_security": wayvnc_security}
+        result = run([str(RUST_DOMAIN_BIN), "service-domain"], timeout=3.0, input_text=json.dumps(inputs))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                keys = {"sshd", "tailscaled", "lan_share", "wayvnc"}
+                if type(payload) is dict and set(payload) == keys and all(type(payload[key]) is dict for key in keys):
+                    valid = all(type(payload[key].get(field)) is bool for key in keys
+                                for field in ("ready", "reachable", "healthy"))
+                    valid = valid and all(all(payload[key].get(field) == value for field, value in services[key].items())
+                                          for key in keys)
+                    ssh = payload["sshd"]
+                    ts = payload["tailscaled"]
+                    share = payload["lan_share"]
+                    vnc = payload["wayvnc"]
+                    if ssh["ready"]:
+                        valid = valid and bool(ssh["running"] and ssh.get("listeners")
+                                               and ssh_state_value.get("effective_verified") and ssh_state_value.get("secure"))
+                    if ts["ready"]:
+                        valid = valid and bool(ts["running"] and tailscale["connected"])
+                    if share["ready"]:
+                        owner, _ = listeners_owned_by_service(share.get("listeners", []), int(share.get("pid") or 0),
+                                                             {"python3", "python", "lan-share"})
+                        valid = valid and bool(share["running"] and share.get("listeners") and owner
+                                               and all(item["bind_scope"] == "loopback" for item in share["listeners"]))
+                    if share["reachable"]:
+                        valid = valid and bool(share["ready"] and private_exposure_verified(tailscale["serve"], tailscale["funnel"])
+                                               and tailscale["serve"]["upstream_reachable"])
+                    if vnc["ready"]:
+                        owner, _ = listeners_owned_by_service(vnc.get("listeners", []), int(vnc.get("pid") or 0), {"wayvnc"})
+                        valid = valid and bool(vnc["running"] and vnc.get("listeners") and owner and tailscale["connected"]
+                                               and graphical["hyprland_available"] and graphical["wayland_display"]
+                                               and wayvnc_security.get("ok")
+                                               and all(item["bind_scope"] == "tailnet" for item in vnc["listeners"]))
+                    if valid:
+                        return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return service_domain(services, tailscale, exposure, graphical, ssh_state_value, wayvnc_security)
+
+
 def phone_guide(state: dict, slow: dict) -> dict:
     tailscale = state["tailscale"]
     services = state["services"]
@@ -2315,7 +3020,7 @@ def phone_guide(state: dict, slow: dict) -> dict:
     raw_share_url = tailscale["serve"]["url"]
     private_verified = private_exposure_verified(tailscale["serve"], tailscale["funnel"])
     safe_share_url = safe_private_share_url(raw_share_url, private_verified)
-    pairing = private_share_pairing_readiness(state)
+    pairing = snapshot_private_share_pairing_readiness(state)
 
     if phone:
         tail_state = "connected" if phone.get("online") else "offline"
@@ -2387,9 +3092,44 @@ def phone_guide(state: dict, slow: dict) -> dict:
             "pairing_available": pairing["available"],
             "pairing_reason": pairing["reason"],
             "pairing_checks": pairing["checks"],
-            "pairing_cancel_supported": pair_command_support()["cancel_supported"],
+            "pairing_cancel_supported": snapshot_pair_command_support()["cancel_supported"],
         },
     }
+
+
+def snapshot_phone_guide(state: dict, slow: dict) -> dict:
+    """Build the phone model in Rust with a bounded, validated Python fallback."""
+    if RUST_PHONE_GUIDE_BIN.is_file() and os.access(RUST_PHONE_GUIDE_BIN, os.X_OK):
+        support = snapshot_pair_command_support()
+        payload_in = {"state": state, "slow": slow, "support": support,
+                      "qrencode_available": bool(exe("qrencode")), "user": USER, "home": str(HOME)}
+        result = run([str(RUST_PHONE_GUIDE_BIN), "phone-guide"], timeout=4.0,
+                     input_text=json.dumps(payload_in, ensure_ascii=False))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                required = {"host", "user", "ssh_command", "ssh_config", "commands", "fingerprint",
+                            "device", "readiness", "sftp", "vnc", "share"}
+                valid = (type(payload) is dict and set(payload) == required
+                         and payload["host"] == (state["tailscale"]["dns_name"] or
+                                                  state["tailscale"]["hostname"] or state["host"]["hostname"])
+                         and payload["user"] == USER and payload["fingerprint"] == slow["ssh_host_fingerprint"]
+                         and type(payload["readiness"]) is dict
+                         and set(payload["readiness"]) == {"tailscale", "ssh", "sftp", "avnc", "share"}
+                         and type(payload["sftp"]) is dict and payload["sftp"].get("root_path") == str(HOME)
+                         and type(payload["vnc"]) is dict and type(payload["share"]) is dict
+                         and type(payload["share"].get("pairing_checks")) is dict
+                         and payload["share"].get("pairing_cancel_supported") == bool(support["cancel_supported"]))
+                serve = state["tailscale"]["serve"]
+                funnel = state["tailscale"]["funnel"]
+                expected_url = safe_private_share_url(serve.get("url", ""),
+                                                      private_exposure_verified(serve, funnel))
+                valid = valid and payload["share"].get("url") == expected_url
+                if valid:
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return phone_guide(state, slow)
 
 
 def _activity_state_unlocked(current: dict) -> list[dict]:
@@ -2481,6 +3221,52 @@ def activity_state(current: dict) -> list[dict]:
         return _activity_state_unlocked(current)
 
 
+def snapshot_phone_and_activity(state: dict, slow: dict) -> tuple[dict, list[dict]]:
+    """Derive phone guidance and activity in one Rust process, persisting under the state lock."""
+    with advisory_lock(STATE_DATA_LOCK) as acquired:
+        if not acquired:
+            return snapshot_phone_guide(state, slow), []
+        existing = load_json(ACTIVITY_FILE, {"previous": {}, "events": []})
+        if not isinstance(existing, dict) or not isinstance(existing.get("events"), list):
+            existing = {"previous": {}, "events": []}
+        if RUST_PHONE_GUIDE_BIN.is_file() and os.access(RUST_PHONE_GUIDE_BIN, os.X_OK):
+            support = snapshot_pair_command_support()
+            payload_in = {"state": state, "slow": slow, "support": support,
+                          "qrencode_available": bool(exe("qrencode")), "user": USER, "home": str(HOME),
+                          "activity_existing": existing, "now": time.time()}
+            result = run([str(RUST_PHONE_GUIDE_BIN), "phone-guide"], timeout=4.0,
+                         input_text=json.dumps(payload_in, ensure_ascii=False))
+            if result.returncode == 0:
+                try:
+                    payload = json.loads(result.stdout)
+                    guide = payload["phone_guide"]
+                    activity = payload["activity"]
+                    events = activity["events"]
+                    expected_url = safe_private_share_url(
+                        state["tailscale"]["serve"].get("url", ""),
+                        private_exposure_verified(state["tailscale"]["serve"], state["tailscale"]["funnel"]))
+                    valid = (type(payload) is dict and set(payload) == {"phone_guide", "activity"}
+                             and type(guide) is dict and guide.get("user") == USER
+                             and guide.get("host") == (state["tailscale"]["dns_name"] or
+                                                       state["tailscale"]["hostname"] or state["host"]["hostname"])
+                             and guide.get("fingerprint") == slow["ssh_host_fingerprint"]
+                             and type(guide.get("share")) is dict and guide["share"].get("url") == expected_url
+                             and type(activity) is dict and set(activity) == {"previous", "events"}
+                             and type(activity["previous"]) is dict
+                             and type(events) is list and len(events) <= ACTIVITY_LIMIT
+                             and all(type(item) is dict and type(item.get("id")) is str
+                                     and type(item.get("title")) is str and type(item.get("timestamp")) in {int, float}
+                                     for item in events)
+                             and activity["previous"].get("health") == state["health"]["status"]
+                             and activity["previous"].get("serve_url") == state["tailscale"]["serve"]["url"])
+                    if valid:
+                        atomic_json(ACTIVITY_FILE, activity)
+                        return guide, events
+                except (ValueError, TypeError, KeyError):
+                    pass
+        return phone_guide(state, slow), _activity_state_unlocked(state)
+
+
 def cached_snapshot() -> dict:
     state = load_json(RUNTIME_FILE, None)
     if not isinstance(state, dict):
@@ -2500,22 +3286,150 @@ def cached_snapshot() -> dict:
     return out
 
 
-def snapshot(force_slow=False) -> dict:
+def snapshot_live_derive(checked: float, generation: int, raw_services: dict, tailscale: dict,
+                         listeners: list, exposure: dict, host: dict, graphical: dict,
+                         slow: dict, wayvnc_security: dict, hardening: dict,
+                         deployment_integrity: dict) -> dict | None:
+    """Combine audit, readiness, phone guidance, and activity in one Rust process."""
+    if not (RUST_LIVE_DERIVE_BIN.is_file() and os.access(RUST_LIVE_DERIVE_BIN, os.X_OK)):
+        return None
+    with advisory_lock(STATE_DATA_LOCK) as acquired:
+        if not acquired:
+            return None
+        existing = load_json(ACTIVITY_FILE, {"previous": {}, "events": []})
+        if not isinstance(existing, dict) or not isinstance(existing.get("events"), list):
+            existing = {"previous": {}, "events": []}
+        support = snapshot_pair_command_support()
+        evidence = {
+            "checked_at": checked, "generation": generation, "schema_version": STATE_SCHEMA_VERSION,
+            "ui_contract": UI_CONTRACT, "backend_revision": BACKEND_REVISION,
+            "raw_services": raw_services, "tailscale": tailscale, "listeners": listeners,
+            "exposure": exposure, "host": host, "graphical": graphical, "slow": slow,
+            "wayvnc_security": wayvnc_security, "hardening": hardening,
+            "integrity": deployment_integrity, "support": support,
+            "qrencode_available": bool(exe("qrencode")), "user": USER, "home": str(HOME),
+            "paths": {"ssh_dropin": str(SSH_DROPIN), "wayvnc_config": str(WAYVNC_CONFIG),
+                      "wayvnc_launcher": str(WAYVNC_LAUNCHER), "wayvnc_dropin": str(WAYVNC_SECURITY_DROPIN),
+                      "manifest": str(DEPLOYMENT_MANIFEST)},
+            "activity_existing": existing, "activity_now": time.time(),
+        }
+        result = run([str(RUST_LIVE_DERIVE_BIN), "live-derive"], timeout=6.0,
+                     input_text=json.dumps(evidence, ensure_ascii=False))
+        if result.returncode != 0:
+            return None
+        try:
+            payload = json.loads(result.stdout)
+            state = payload["state"]
+            activity = payload["activity"]
+            services = state["services"]
+            checks = state["security_checks"]
+            anchors = {row["id"]: row for row in checks}
+            guide = state["phone_guide"]
+            valid = (type(payload) is dict and set(payload) == {"state", "activity"}
+                     and type(state) is dict and state["schema_version"] == STATE_SCHEMA_VERSION
+                     and state["ui_contract"] == UI_CONTRACT and state["backend_revision"] == BACKEND_REVISION
+                     and state["generation"] == generation and state["generated_at"] == checked
+                     and state["host"] == host and state["tailscale"] == tailscale
+                     and state["listeners"] == listeners and state["exposure"] == exposure
+                     and state["ssh"] == slow["ssh"] and state["wayvnc_security"] == wayvnc_security
+                     and state["hardening"] == hardening and state["deployment_integrity"] == deployment_integrity
+                     and set(services) == {"sshd", "tailscaled", "lan_share", "wayvnc"}
+                     and all(type(services[key]) is dict and
+                             all(services[key].get(field) == value for field, value in raw_services[key].items())
+                             for key in services)
+                     and type(checks) is list and 15 <= len(checks) <= 25
+                     and len(anchors) == len(checks) and state["health"] == health_summary(checks, tailscale)
+                     and anchors["sshd-active"]["status"] == ("pass" if raw_services["sshd"]["running"] else "fail")
+                     and anchors["tailscale-active"]["status"] == ("pass" if tailscale["connected"] else "fail")
+                     and anchors["vnc-auth"]["status"] == ("pass" if wayvnc_security["ok"] else "fail")
+                     and anchors["deployment-integrity"]["status"] ==
+                         ("pass" if deployment_integrity["ok"] else "warn")
+                     and type(guide) is dict and guide["user"] == USER
+                     and guide["fingerprint"] == slow["ssh_host_fingerprint"]
+                     and guide["share"]["url"] == safe_private_share_url(
+                         tailscale["serve"].get("url", ""),
+                         private_exposure_verified(tailscale["serve"], tailscale["funnel"]))
+                     and type(activity) is dict and set(activity) == {"previous", "events"}
+                     and state["activity"] == activity["events"]
+                     and type(activity["events"]) is list and len(activity["events"]) <= ACTIVITY_LIMIT
+                     and activity["previous"]["health"] == state["health"]["status"])
+            if services["lan_share"]["reachable"]:
+                valid = valid and bool(services["lan_share"]["ready"] and
+                                       private_exposure_verified(tailscale["serve"], tailscale["funnel"]))
+            if services["wayvnc"]["ready"]:
+                valid = valid and bool(services["wayvnc"]["running"] and tailscale["connected"] and
+                                       wayvnc_security["ok"])
+            if valid:
+                atomic_json(ACTIVITY_FILE, activity)
+                return state
+        except (ValueError, TypeError, KeyError, IndexError):
+            pass
+    return None
+
+
+def snapshot_evidence(force_slow=False) -> dict:
     checked = time.time()
     generation = next_generation()
-    raw_services = services_state()
+    raw_services = snapshot_services_state()
     tailscale = tailscale_state()
-    listeners = listeners_state(tailscale)
-    exposure = exposure_state(listeners, tailscale)
-    graphical = graphical_state()
-    host = host_state()
+    listeners = snapshot_listeners_state(tailscale)
+    exposure = snapshot_exposure_state(listeners, tailscale)
+    host, graphical = snapshot_host_graphical()
     slow = slow_state(force=force_slow)
-    wayvnc_security = wayvnc_security_posture()
-    hardening = user_service_hardening_posture()
-    deployment_integrity = deployment_integrity_posture()
-    audit = security_audit(raw_services, tailscale, exposure, slow, wayvnc_security)
-    health = health_summary(audit, tailscale)
-    services = service_domain(raw_services, tailscale, exposure, graphical, slow["ssh"], wayvnc_security)
+    wayvnc_security = snapshot_wayvnc_security_posture()
+    hardening = snapshot_user_service_hardening_posture()
+    deployment_integrity = snapshot_deployment_integrity_posture()
+    return {
+        "checked_at": checked, "generation": generation, "schema_version": STATE_SCHEMA_VERSION,
+        "ui_contract": UI_CONTRACT, "backend_revision": BACKEND_REVISION,
+        "raw_services": raw_services, "tailscale": tailscale, "listeners": listeners,
+        "exposure": exposure, "host": host, "graphical": graphical, "slow": slow,
+        "wayvnc_security": wayvnc_security, "hardening": hardening,
+        "integrity": deployment_integrity, "support": snapshot_pair_command_support(),
+        "qrencode_available": bool(exe("qrencode")), "user": USER, "home": str(HOME),
+        "paths": {"ssh_dropin": str(SSH_DROPIN), "wayvnc_config": str(WAYVNC_CONFIG),
+                  "wayvnc_launcher": str(WAYVNC_LAUNCHER), "wayvnc_dropin": str(WAYVNC_SECURITY_DROPIN),
+                  "manifest": str(DEPLOYMENT_MANIFEST)},
+    }
+
+
+def snapshot(force_slow=False) -> dict:
+    if RUST_SNAPSHOT_BIN.is_file() and os.access(RUST_SNAPSHOT_BIN, os.X_OK):
+        args = [str(RUST_SNAPSHOT_BIN), "snapshot"]
+        if force_slow:
+            args.append("--full")
+        command = run(args, timeout=50.0)
+        if command.returncode == 0:
+            try:
+                state = json.loads(command.stdout)
+                if (type(state) is dict and state.get("schema_version") == STATE_SCHEMA_VERSION
+                        and state.get("ui_contract") == UI_CONTRACT and type(state.get("services")) is dict
+                        and type(state.get("health")) is dict):
+                    return state
+            except (ValueError, TypeError):
+                pass
+        # A failed Rust snapshot has not been accepted as authoritative. The
+        # existing Python path remains the bounded compatibility fallback.
+    checked = time.time()
+    generation = next_generation()
+    raw_services = snapshot_services_state()
+    tailscale = tailscale_state()
+    listeners = snapshot_listeners_state(tailscale)
+    exposure = snapshot_exposure_state(listeners, tailscale)
+    host, graphical = snapshot_host_graphical()
+    slow = slow_state(force=force_slow)
+    wayvnc_security = snapshot_wayvnc_security_posture()
+    hardening = snapshot_user_service_hardening_posture()
+    deployment_integrity = snapshot_deployment_integrity_posture()
+    combined = snapshot_live_derive(checked, generation, raw_services, tailscale, listeners,
+                                    exposure, host, graphical, slow, wayvnc_security, hardening,
+                                    deployment_integrity)
+    if combined is not None:
+        atomic_json(RUNTIME_FILE, combined)
+        return combined
+    audit, health = snapshot_security_audit(raw_services, tailscale, exposure, slow,
+                                            wayvnc_security, hardening, deployment_integrity)
+    services = snapshot_service_domain(raw_services, tailscale, exposure, graphical, slow["ssh"], wayvnc_security)
 
     state = {
         "schema_version": STATE_SCHEMA_VERSION,
@@ -2545,8 +3459,7 @@ def snapshot(force_slow=False) -> dict:
         "hardening": hardening,
         "deployment_integrity": deployment_integrity,
     }
-    state["phone_guide"] = phone_guide(state, slow)
-    state["activity"] = activity_state(state)
+    state["phone_guide"], state["activity"] = snapshot_phone_and_activity(state, slow)
     state["cache"] = {"source": "live", "age_seconds": 0.0, "current_backend_revision": BACKEND_REVISION,
                       "cached_backend_revision": BACKEND_REVISION}
     atomic_json(RUNTIME_FILE, state)
@@ -2662,6 +3575,17 @@ def locked_direct_call(callback) -> dict:
 
 
 def operation_start(kind: str, args: list[str], source="controller") -> dict:
+    if RUST_OPERATION_BIN.is_file() and os.access(RUST_OPERATION_BIN, os.X_OK):
+        command = run([str(RUST_OPERATION_BIN), "operation-start", kind, *args], timeout=5.0)
+        if command.returncode == 0:
+            try:
+                result = json.loads(command.stdout)
+                if (type(result) is dict and ((result.get("ok") is True and result.get("accepted") is True
+                        and type(result.get("operation")) is dict) or result.get("error") is True)):
+                    return result
+            except (ValueError, TypeError):
+                pass
+        return {"error": True, "ok": False, "message": "Rust operation scheduler failed; inspect operation status before retrying."}
     spec = _operation_spec(kind, args)
     ensure_private_dir(OP_RUNTIME_DIR)
     with advisory_lock(OPERATION_META_LOCK) as acquired:
@@ -2751,6 +3675,17 @@ def operation_worker(operation_id: str, kind: str, args: list[str]) -> int:
 
 
 def operation_wait(operation_id: str, timeout=45.0) -> dict:
+    if RUST_OPERATION_BIN.is_file() and os.access(RUST_OPERATION_BIN, os.X_OK):
+        command = run([str(RUST_OPERATION_BIN), "operation-wait", operation_id, str(timeout)],
+                      timeout=max(1.0, min(121.0, float(timeout) + 1.0)))
+        if command.returncode == 0:
+            try:
+                result = json.loads(command.stdout)
+                if type(result) is dict and (result.get("ok") is True or result.get("error") is True):
+                    return result
+            except (ValueError, TypeError):
+                pass
+        return {"error": True, "ok": False, "message": "Rust operation wait failed; inspect operation status before retrying."}
     deadline = time.time() + max(0.5, min(120.0, float(timeout)))
     latest = operation_status(operation_id)
     while time.time() < deadline:
@@ -2798,13 +3733,38 @@ def service_action(name: str, action: str) -> dict:
         systemctl = exe("systemctl")
         if not systemctl:
             raise ValueError("systemctl is unavailable.")
-        result = run([systemctl, "--user", action, name], timeout=12.0)
-        if result.returncode != 0:
-            raise ValueError((result.stderr or result.stdout).strip() or f"{action} failed")
-
         expected_running = action in {"start", "restart"}
+        if RUST_USER_SERVICE_ACTION_BIN.is_file() and os.access(RUST_USER_SERVICE_ACTION_BIN, os.X_OK):
+            inputs = {"name": name, "action": action, "systemctl": systemctl,
+                      "hyprland_available": bool(current["graphical"]["hyprland_available"]),
+                      "wayland_display": current["graphical"]["wayland_display"],
+                      "tailscale_connected": bool(current["tailscale"]["connected"]),
+                      "vnc_security_ok": bool(current.get("wayvnc_security", {}).get("ok")),
+                      "vnc_security_reason": str(current.get("wayvnc_security", {}).get("reason") or "unknown")}
+            command = run([str(RUST_USER_SERVICE_ACTION_BIN), "user-service-action"], timeout=25.0,
+                          input_text=json.dumps(inputs, ensure_ascii=False))
+            if command.returncode != 0:
+                raise ValueError("User-service action backend failed; inspect service state before retrying.")
+            try:
+                result = json.loads(command.stdout)
+                if (type(result) is dict and set(result) == {"ok", "active_state", "running"}
+                        and result["ok"] is True and type(result["active_state"]) is str
+                        and result["running"] is expected_running
+                        and (result["active_state"] == "active") is expected_running):
+                    verified = {"running": result["running"], "active_state": result["active_state"]}
+                elif (type(result) is dict and result.get("error") is True and result.get("ok") is False
+                      and type(result.get("message")) is str and set(result) == {"error", "ok", "message"}):
+                    raise ValueError(result["message"])
+                else:
+                    raise ValueError("User-service action backend returned invalid state; inspect service state before retrying.")
+            except (TypeError, KeyError, json.JSONDecodeError):
+                raise ValueError("User-service action backend returned invalid state; inspect service state before retrying.") from None
+        else:
+            result = run([systemctl, "--user", action, name], timeout=12.0)
+            if result.returncode != 0:
+                raise ValueError((result.stderr or result.stdout).strip() or f"{action} failed")
+            verified = wait_for_service(name, "user", expected_running, timeout=4.5)
         stages.append({"phase": "runtime", "status": "checking", "detail": "Waiting for systemd runtime state"})
-        verified = wait_for_service(name, "user", expected_running, timeout=4.5)
         if bool(verified["running"]) != expected_running:
             raise ValueError(f"systemctl returned success, but ActiveState={verified['active_state']}.")
 
@@ -2843,9 +3803,27 @@ def system_service_action(name: str, action: str) -> dict:
     if not pkexec or not systemctl:
         return {"error": True, "ok": False, "message": "Polkit/systemctl is unavailable."}
     try:
-        result = run([pkexec, systemctl, action, "tailscaled"], timeout=30.0)
-        if result.returncode != 0:
-            raise ValueError((result.stderr or result.stdout).strip() or f"tailscaled {action} failed")
+        if RUST_SYSTEM_SERVICE_ACTION_BIN.is_file() and os.access(RUST_SYSTEM_SERVICE_ACTION_BIN, os.X_OK):
+            inputs = {"name": name, "action": action, "pkexec": pkexec, "systemctl": systemctl}
+            command = run([str(RUST_SYSTEM_SERVICE_ACTION_BIN), "system-service-action"], timeout=33.0,
+                          input_text=json.dumps(inputs))
+            if command.returncode != 0:
+                raise ValueError("System-service action backend failed; inspect Tailscale before retrying.")
+            try:
+                result = json.loads(command.stdout)
+                if result == {"ok": True, "state": "command-succeeded"}:
+                    pass
+                elif (type(result) is dict and result.get("error") is True and result.get("ok") is False
+                      and type(result.get("message")) is str and set(result) == {"error", "ok", "message"}):
+                    raise ValueError(result["message"])
+                else:
+                    raise ValueError("System-service action backend returned invalid state; inspect Tailscale before retrying.")
+            except (TypeError, json.JSONDecodeError):
+                raise ValueError("System-service action backend returned invalid state; inspect Tailscale before retrying.") from None
+        else:
+            result = run([pkexec, systemctl, action, "tailscaled"], timeout=30.0)
+            if result.returncode != 0:
+                raise ValueError((result.stderr or result.stdout).strip() or f"tailscaled {action} failed")
         deadline = time.time() + 7.0
         last = None
         while time.time() < deadline:
@@ -2874,9 +3852,35 @@ def lockdown() -> dict:
 
     results = []
     failures = []
+    rust_stops = None
+    if RUST_LOCKDOWN_STOP_BIN.is_file() and os.access(RUST_LOCKDOWN_STOP_BIN, os.X_OK):
+        inputs = {"recovery_ok": True, "systemctl": systemctl,
+                  "lan_share_running": bool(before["services"]["lan_share"]["running"]),
+                  "wayvnc_running": bool(before["services"]["wayvnc"]["running"])}
+        command = run([str(RUST_LOCKDOWN_STOP_BIN), "lockdown-stop"], timeout=28.0,
+                      input_text=json.dumps(inputs))
+        if command.returncode != 0:
+            return {"error": True, "ok": False, "state": "partial-lockdown",
+                    "message": "Rust lockdown backend failed; inspect services before retrying."}
+        try:
+            payload = json.loads(command.stdout)
+            if (type(payload) is not dict or payload.get("ok") is not True
+                    or type(payload.get("results")) is not dict
+                    or set(payload["results"]) != {"lan-share", "wayvnc-remote"}):
+                raise ValueError("Invalid Rust lockdown result")
+            rust_stops = payload["results"]
+        except (ValueError, TypeError):
+            return {"error": True, "ok": False, "state": "partial-lockdown",
+                    "message": "Invalid Rust lockdown result; inspect services before retrying."}
     for name, label, port in (("lan-share", "LAN Share", 8000), ("wayvnc-remote", "WayVNC", 5900)):
         current = service_state(name, "user", expected_running=False)
-        if current["running"]:
+        if rust_stops is not None:
+            stop_result = rust_stops[name]
+            if type(stop_result) is not dict or stop_result.get("ok") is not True:
+                failures.append(f"{label}: {str(stop_result.get('message') or 'stop failed') if type(stop_result) is dict else 'stop failed'}")
+                results.append({"service": label, "status": "failed"})
+                continue
+        elif current["running"]:
             command = run([systemctl, "--user", "stop", name], timeout=12.0)
             if command.returncode != 0:
                 failures.append(f"{label}: {(command.stderr or command.stdout).strip() or 'stop failed'}")
@@ -3026,6 +4030,19 @@ def logs(service_key: str, severity="all", window="1h", search="") -> dict:
 
 
 def export_logs(service_key: str, severity="all", window="1h", search="") -> dict:
+    if RUST_EXPORT_LOGS_BIN.is_file() and os.access(RUST_EXPORT_LOGS_BIN, os.X_OK):
+        command = run([str(RUST_EXPORT_LOGS_BIN), "export-logs", service_key, severity, window, search], timeout=15.0)
+        if command.returncode == 0:
+            try:
+                result = json.loads(command.stdout)
+                if (type(result) is dict and result.get("ok") is True and type(result.get("path")) is str
+                        and type(result.get("message")) is str):
+                    return result
+                if type(result) is dict and result.get("error") is True:
+                    return result
+            except (ValueError, TypeError):
+                pass
+        return {"error": True, "ok": False, "message": "Rust log export failed; no Python retry to avoid duplicate exports."}
     payload = logs(service_key, severity, window, search)
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -3208,13 +4225,13 @@ def validate_state() -> dict:
     add("Wi-Fi WoWLAN detection", state["wake"]["wifi"]["capability"] != "unknown", state["wake"]["wifi"])
     add("Linger detected", state["linger"]["value"] != "unknown", state["linger"]["value"])
     add("No known service bind violations", state["exposure"]["unexpected_count"] == 0, state["exposure"]["groups"]["unexpected"])
-    share_security = lan_share_security_posture()
+    share_security = snapshot_lan_share_security_posture()
     add(
         "LAN Share security contract",
         bool(share_security.get("ok")),
         share_security,
     )
-    pair_support = pair_command_support()
+    pair_support = snapshot_pair_command_support()
     add(
         "LAN Share pairing command detected",
         pair_support["available"],
@@ -3816,6 +4833,38 @@ def reference_model(state: dict) -> dict:
 
 
 
+def snapshot_reference_model(state: dict) -> dict:
+    """Render the on-demand reference in Rust, retaining the legacy model as fallback."""
+    if RUST_REFERENCE_BIN.is_file() and os.access(RUST_REFERENCE_BIN, os.X_OK):
+        result = run([str(RUST_REFERENCE_BIN), "reference"], timeout=4.0,
+                     input_text=json.dumps({"state": state, "user": USER, "home": str(HOME)},
+                                           ensure_ascii=False))
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+                sections = payload["sections"]
+                dynamic = payload["dynamic"]
+                ids = [entry["id"] for section in sections for entry in section["entries"]]
+                valid = (type(payload) is dict and set(payload) == {
+                    "ok", "schema_version", "generated_at", "snapshot_generation", "dynamic", "sections"}
+                         and payload["ok"] is True and payload["schema_version"] == REFERENCE_SCHEMA_VERSION
+                         and payload["snapshot_generation"] == int(state.get("generation", 0) or 0)
+                         and type(sections) is list and len(sections) == 13
+                         and type(dynamic) is dict and dynamic["user"] ==
+                             ((state.get("phone_guide") or {}).get("user") or USER)
+                         and len(ids) == len(set(ids)) and len(ids) >= 85
+                         and "share-url" in ids and "ssh-policy" in ids and "avnc-config" in ids
+                         and not any(token in json.dumps(sections, ensure_ascii=False) for token in
+                                     ("/pair#t=", "authkey-", "session_cookie", "pair_url")))
+                share_url = ((state.get("phone_guide") or {}).get("share") or {}).get("url") or ""
+                valid = valid and dynamic["serve_url"] == share_url
+                if valid:
+                    return payload
+            except (ValueError, TypeError, KeyError):
+                pass
+    return reference_model(state)
+
+
 def contract_payload() -> dict:
     return {
         "ok": True,
@@ -3854,6 +4903,8 @@ def main() -> int:
             return emit(deployment_integrity_posture())
         if command == "snapshot":
             return emit(snapshot("--full" in sys.argv[2:]))
+        if command == "snapshot-evidence":
+            return emit(snapshot_evidence("--full" in sys.argv[2:]))
         if command == "snapshot-cache":
             return emit(cached_snapshot())
         if command == "operation-start":
@@ -3876,11 +4927,11 @@ def main() -> int:
         if command == "pairing-cancel":
             return emit(locked_direct_call(pairing_cancel))
         if command == "reference":
-            return emit(reference_model(snapshot(False)))
+            return emit(snapshot_reference_model(snapshot(False)))
         if command == "pairing-capability":
             state = snapshot(False)
-            readiness = private_share_pairing_readiness(state)
-            support = pair_command_support()
+            readiness = snapshot_private_share_pairing_readiness(state)
+            support = snapshot_pair_command_support()
             return emit({
                 "ok": True,
                 "available": readiness["available"],

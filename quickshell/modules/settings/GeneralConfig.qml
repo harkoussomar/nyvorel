@@ -10,6 +10,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Layout values belong to this page. Corner geometry does not:
     // every corner uses the project's semantic Appearance.radius.* system.
@@ -21,6 +23,8 @@ ContentPage {
     readonly property int compactControlHeight: 38
 
     property bool translationExpanded: false
+    property int lastFullChargeThreshold:
+        Math.min(100, Config.options.battery.full)
 
     // >>> TOUCHPAD-SCROLL-SETTINGS-V1 >>>
     readonly property string scrollSettingsHelper:
@@ -182,41 +186,31 @@ ContentPage {
         property string subtitle: ""
         property string iconName: ""
 
-        // Natural height is computed only from this card's own content.
-        // matchedHeight may point at a sibling's naturalHeight, which avoids
-        // circular layout bindings while still guaranteeing equal-height pairs.
+        // Let each card fit its own controls. Matching short cards to their
+        // neighbors created large empty panels when a setting was off.
         readonly property real naturalHeight:
             cardColumn.implicitHeight + root.cardPadding * 2
-        property real matchedHeight: 0
 
         default property alias content: contentColumn.data
 
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignTop
-        Layout.preferredHeight: Math.max(card.naturalHeight, card.matchedHeight)
+        Layout.preferredHeight: card.naturalHeight
 
         implicitHeight: card.naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
 
         ColumnLayout {
             id: cardColumn
 
-            // Keep the card's content packed from the top. The card itself may
-            // be stretched to match its sibling's height, but the content
-            // should never stretch/distribute vertically with it.
+            // Keep content packed at the top of its card.
             anchors {
                 top: parent.top
                 left: parent.left
@@ -256,7 +250,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -335,7 +329,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -433,7 +427,7 @@ ContentPage {
             Layout.fillWidth: true
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -456,9 +450,7 @@ ContentPage {
 
             SettingsCard {
                 id: volumeCard
-                matchedHeight: systemGrid.columns > 1
-                    ? batteryCard.naturalHeight
-                    : 0
+
                 title: Translation.tr("Volume protection")
                 subtitle: Translation.tr("Limit sudden volume jumps and cap maximum output.")
                 iconName: "hearing"
@@ -518,9 +510,7 @@ ContentPage {
 
             SettingsCard {
                 id: batteryCard
-                matchedHeight: systemGrid.columns > 1
-                    ? volumeCard.naturalHeight
-                    : 0
+
                 title: Translation.tr("Battery")
                 subtitle: Translation.tr("Choose when battery warnings appear and when the system may suspend.")
                 iconName: "battery_android_full"
@@ -586,17 +576,39 @@ ContentPage {
                     }
                 }
 
+                PreferenceSwitchRow {
+                    title: Translation.tr("Notify when fully charged")
+                    subtitle: Translation.tr("Show a notification when charging reaches the selected level.")
+                    iconName: "charger"
+                    switchChecked: Config.options.battery.full <= 100
+
+                    onUserToggled: checked => {
+                        if (checked) {
+                            Config.options.battery.full =
+                                root.lastFullChargeThreshold
+                        } else {
+                            root.lastFullChargeThreshold =
+                                Math.min(100, Config.options.battery.full)
+                            Config.options.battery.full = 101
+                        }
+                    }
+                }
+
                 ConfigSpinBox {
+                    visible: Config.options.battery.full <= 100
                     Layout.fillWidth: true
-                    icon: "charger"
-                    text: Translation.tr("Full-charge warning (%)")
-                    value: Config.options.battery.full
-                    from: 0
-                    to: 101
+                    icon: "battery_charging_full"
+                    text: Translation.tr("Charged alert at (%)")
+                    value: Math.min(100, Config.options.battery.full)
+                    from: 50
+                    to: 100
                     stepSize: 5
 
                     onValueChanged: {
-                        Config.options.battery.full = value
+                        if (Config.options.battery.full <= 100) {
+                            root.lastFullChargeThreshold = value
+                            Config.options.battery.full = value
+                        }
                     }
                 }
 
@@ -625,7 +637,7 @@ ContentPage {
                             Layout.fillWidth: true
                             text: Translation.tr("Check the battery order: Suspend should not be above Critical, and Critical should not be above Low.")
                             color: Appearance.colors.colOnTertiaryContainer
-                            font.pixelSize: Appearance.font.pixelSize.smallest
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             wrapMode: Text.Wrap
                         }
                     }
@@ -755,7 +767,7 @@ ContentPage {
                             Layout.fillWidth: true
                             text: root.inputScrollError
                             color: Appearance.colors.colOnTertiaryContainer
-                            font.pixelSize: Appearance.font.pixelSize.smallest
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             wrapMode: Text.Wrap
                         }
 
@@ -791,9 +803,7 @@ ContentPage {
 
             SettingsCard {
                 id: languageCard
-                matchedHeight: localeGrid.columns > 1
-                    ? clockCard.naturalHeight
-                    : 0
+
                 title: Translation.tr("Interface language")
                 subtitle: Translation.tr("Choose the language used throughout the shell.")
                 iconName: "translate"
@@ -860,7 +870,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Generate a UI translation with Gemini. You need a Gemini API key first; type /key in the sidebar for setup instructions.")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
 
@@ -911,9 +921,7 @@ ContentPage {
 
             SettingsCard {
                 id: clockCard
-                matchedHeight: localeGrid.columns > 1
-                    ? languageCard.naturalHeight
-                    : 0
+
                 title: Translation.tr("Clock")
                 subtitle: Translation.tr("Choose how time is rendered across the shell and lock screen.")
                 iconName: "schedule"

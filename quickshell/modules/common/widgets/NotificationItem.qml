@@ -367,7 +367,7 @@ Item {
 
 
         radius:
-            Appearance.inlayMode ? 0 : Appearance.rounding.small
+            Appearance.rounding.small
 
 
         anchors.leftMargin:
@@ -527,9 +527,7 @@ Item {
 
 
                         radius:
-                            Appearance.inlayMode
-                                ? 0
-                                : Appearance.rounding.full
+                             Appearance.rounding.full
 
 
                         color: {
@@ -966,9 +964,7 @@ Item {
                                         actionsFlickable.height
 
                                     radius:
-                                        Appearance.inlayMode
-                                            ? 0
-                                            : Appearance.rounding.small
+                                         Appearance.rounding.small
                                 }
                         }
 

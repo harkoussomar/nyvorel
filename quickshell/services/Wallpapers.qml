@@ -151,7 +151,12 @@ Singleton {
         thumbgenProc.running = false
         thumbgenProc.command = [
             "bash", "-c",
-            `${thumbgenScriptPath} --size ${size} --machine_progress -d ${FileUtils.trimFileProtocol(root.directory)} || ${generateThumbnailsMagickScriptPath} --size ${size} -d ${FileUtils.trimFileProtocol(root.directory)}`,
+            '"$1" --size "$2" --machine_progress -d "$4" || "$3" --size "$2" -d "$4"',
+            "nyvorel-thumbnail",
+            thumbgenScriptPath,
+            size,
+            generateThumbnailsMagickScriptPath,
+            decodeURIComponent(FileUtils.trimFileProtocol(root.directory)),
         ]
         // console.log("[Wallpapers] Updating thumbnails with command ", thumbgenProc.command.join(" "))
         root.thumbnailGenerationProgress = 0

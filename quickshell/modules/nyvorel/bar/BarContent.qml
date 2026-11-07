@@ -11,6 +11,8 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.modules.nyvorel.sidebarRight
+import qs.modules.nyvorel.sidebarLeft
 
 
 Item {
@@ -55,21 +57,22 @@ Item {
     // Visibility changes in one zone never move the center anchor.
     // ============================================================
 
-    readonly property real zoneGap: Appearance.prismMode ? Appearance.prism.islandGap : 8
-    readonly property real safetyGap: 12
+    readonly property real zoneGap: Appearance.barLayout.zoneGap
+    readonly property real safetyGap: Appearance.barLayout.safetyGap
 
-    // prism-v2-phase2a3: all persistent Prism islands use the canonical
-    // 40px bar host height. Do not shrink the surface to manufacture equality:
-    // BarContent's surrounding shell already owns the outer vertical rhythm.
-    readonly property real prismIslandHeight:
-        Appearance.sizes.baseBarHeight
+    // nyvorel-phase3e-media-yield: preserve the left launcher before
+    // allocating the remaining left-half width to contextual media.
+    readonly property real mediaFitWidth:
+        Math.max(0,
+            root.width / 2 - middleSection.implicitWidth / 2
+            - root.safetyGap - Appearance.barLayout.edgeInset
+            - leftSidebarButton.implicitWidth - root.zoneGap)
 
     readonly property real mediaDesiredWidth:
-        (
-            root.useShortenedForm < 2
-            && mediaWidget.hasMedia
-        )
-            ? Math.min(mediaWidget.implicitWidth + 10, 200)
+        root.useShortenedForm < 2
+        && mediaWidget.hasMedia
+        && root.mediaFitWidth >= Appearance.barLayout.minimumMediaWidth
+            ? Math.min(mediaWidget.implicitWidth + 10, 200, root.mediaFitWidth)
             : 0
 
     readonly property real leftAvailableWidth:
@@ -78,6 +81,7 @@ Item {
             root.width / 2
                 - middleSection.implicitWidth / 2
                 - root.safetyGap
+                - Appearance.barLayout.edgeInset
                 - root.mediaDesiredWidth
                 - (root.mediaDesiredWidth > 0 ? root.zoneGap : 0)
         )
@@ -88,6 +92,7 @@ Item {
             root.width / 2
                 - middleSection.implicitWidth / 2
                 - root.safetyGap
+                - Appearance.barLayout.edgeInset
         )
 
     readonly property bool wantsRightClock:
@@ -109,76 +114,93 @@ Item {
         root.useShortenedForm === 0
         && Config.options.bar.weather.enable
 
+    // Default and Fluid share Axiom structure; only their material differs.
+    // Retain the established property name for pre-existing bindings.
+    readonly property bool axiomFluidRight: Appearance.barLayout.axiomComponents
+    // The content contract is independent of the navbar material.
+    readonly property bool sharedNavbarContent: true
+    // No second surface: the original Fluid bar owns all outer padding.
+    // Match the natural breathing room at the left outer navbar edge.
+    readonly property real axiomSideInset: root.axiomFluidRight ? 3 : 0
+    readonly property real rightFitWidth:
+        Math.max(0, root.rightAvailableWidth - root.axiomSideInset * 2)
+    // 6px either side of each 1px section divider = 13px total.
+    readonly property real axiomFitGap:
+        root.axiomFluidRight ? 13 : Appearance.barLayout.rightSectionGap
+
+    // nyvorel-phase3e-essential-fit: all right-side fit decisions use the
+    // actual RowLayout gap and include the status control's right inset.
+    // The right sidebar control remains visible at every width.
+    readonly property real rightStatusWidth:
+        rightSidebarButton.implicitWidth + Appearance.barLayout.rightStatusInset
+        + networkButton.implicitWidth + root.axiomFitGap
+
+    readonly property bool showRightBattery:
+        root.useShortenedForm < 2
+        && Battery.available
+        && root.rightFitWidth >= root.rightStatusWidth
+            + root.axiomFitGap + batteryIndicator.implicitWidth
+
+    readonly property real rightAfterBatteryWidth:
+        root.rightStatusWidth
+        + (root.showRightBattery
+            ? root.axiomFitGap + batteryIndicator.implicitWidth
+            : 0)
+
+    readonly property bool showRightClock:
+        root.wantsRightClock
+        && root.rightFitWidth >= root.rightAfterBatteryWidth
+            + root.axiomFitGap + clockRightGroup.implicitWidth
+
     readonly property real rightEssentialWidth:
-        rightSidebarButton.implicitWidth
-        + (
-            batteryIndicator.visible
-                ? batteryIndicator.implicitWidth + root.zoneGap
-                : 0
-        )
-        + (
-            root.wantsRightClock
-                ? clockRightGroup.implicitWidth + root.zoneGap
-                : 0
-        )
+        root.rightAfterBatteryWidth
+        + (root.showRightClock
+            ? root.axiomFitGap + clockRightGroup.implicitWidth
+            : 0)
 
     readonly property bool showRightResources:
         root.wantsRightResources
-        && root.rightAvailableWidth
-            >= root.rightEssentialWidth
-                + resourcesRightGroup.implicitWidth
-                + root.zoneGap
+        && root.rightFitWidth >= root.rightEssentialWidth
+            + root.axiomFitGap + resourcesRightGroup.implicitWidth
 
     readonly property real rightAfterResourcesWidth:
         root.rightEssentialWidth
-        + (
-            root.showRightResources
-                ? resourcesRightGroup.implicitWidth + root.zoneGap
-                : 0
-        )
+        + (root.showRightResources
+            ? root.axiomFitGap + resourcesRightGroup.implicitWidth
+            : 0)
 
     readonly property bool showRightTray:
         root.wantsRightTray
-        && root.rightAvailableWidth
-            >= root.rightAfterResourcesWidth
-                + sysTray.implicitWidth
-                + root.zoneGap
+        && root.rightFitWidth >= root.rightAfterResourcesWidth
+            + root.axiomFitGap + sysTray.implicitWidth
 
     readonly property real rightAfterTrayWidth:
         root.rightAfterResourcesWidth
-        + (
-            root.showRightTray
-                ? sysTray.implicitWidth + root.zoneGap
-                : 0
-        )
+        + (root.showRightTray
+            ? root.axiomFitGap + sysTray.implicitWidth
+            : 0)
 
     readonly property real utilityActionsWidth:
         utilityActionsLoader.item?.implicitWidth ?? 0
 
     readonly property bool showRightUtilities:
         root.wantsRightUtilities
-        && root.rightAvailableWidth
-            >= root.rightAfterTrayWidth
-                + root.utilityActionsWidth
-                + root.zoneGap
+        && root.rightFitWidth >= root.rightAfterTrayWidth
+            + root.axiomFitGap + root.utilityActionsWidth
 
     readonly property real rightAfterUtilitiesWidth:
         root.rightAfterTrayWidth
-        + (
-            root.showRightUtilities
-                ? root.utilityActionsWidth + root.zoneGap
-                : 0
-        )
+        + (root.showRightUtilities
+            ? root.axiomFitGap + root.utilityActionsWidth
+            : 0)
 
     readonly property real weatherWidth:
         weatherLoader.item?.implicitWidth ?? 0
 
     readonly property bool showRightWeather:
         root.wantsRightWeather
-        && root.rightAvailableWidth
-            >= root.rightAfterUtilitiesWidth
-                + root.weatherWidth
-                + root.zoneGap
+        && root.rightFitWidth >= root.rightAfterUtilitiesWidth
+            + root.axiomFitGap + root.weatherWidth
 
 
     // ============================================================
@@ -190,8 +212,8 @@ Item {
             Config.options.bar.showBackground
             && Config.options.bar.cornerStyle === 1
             && Config.options.bar.floatStyleShadow
-            && !Appearance.prismMode
-            && !Appearance.inlayMode
+            && !false
+            && !false
 
         anchors.fill:
             barBackground
@@ -220,37 +242,34 @@ Item {
                     : 0
         }
 
-        // inlay-v2-i2: a single opaque material rail owns the navbar.
         // Functional zones are carved into it with crisp inset borders.
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? (Config.options.bar.showBackground
-                        ? Appearance.inlay.surfaceFill
-                        : "transparent")
-                    : (Config.options.bar.showBackground
-                        ? Appearance.colors.colLayer0
-                        : "transparent")
+              (Config.options.bar.showBackground
+                 ? Appearance.barVisual.attachedSurfaceFill
+                 : "transparent")
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Config.options.bar.cornerStyle === 1
-                    ? Appearance.radius.bar
-                    : 0
+             Config.options.bar.cornerStyle === 1
+                ? Appearance.radius.bar
+                : 0
 
         border.width:
-            Appearance.prismMode
-                ? 0
-                : Appearance.inlayMode
-                    ? (Config.options.bar.showBackground ? Appearance.inlay.borderWidth : 0)
-                    : (Config.options.bar.cornerStyle === 1 ? 1 : 0)
+              (Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 ? 1 : 0)
 
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
+
+        Rectangle {
+            visible: Config.options.bar.showBackground && Config.options.bar.cornerStyle !== 1
+            color: Appearance.colors.colLayer0Border
+            width: parent.width - (Config.options.bar.cornerStyle === 0
+                ? Appearance.rounding.screenRounding * 2 : 0)
+            x: Config.options.bar.cornerStyle === 0
+                ? Appearance.rounding.screenRounding : 0
+            height: 1
+            anchors.top: Config.options.bar.bottom ? parent.top : undefined
+            anchors.bottom: Config.options.bar.bottom ? undefined : parent.bottom
+        }
     }
 
 
@@ -266,65 +285,21 @@ Item {
     // bar space is not a hidden click target.
     // ============================================================
 
-    PrismSurface {
-        id: leftContextSurface
-        z: 0
-        visible: Appearance.prismMode
-        depth: Appearance.prism.depthPersistent
-        surfaceRadius: Appearance.prism.radiusPersistent
-        hovered: barLeftSideMouseArea.hovered && !GlobalStates.sidebarLeftOpen
-        active: GlobalStates.sidebarLeftOpen
 
-        anchors {
-            left: barLeftSideMouseArea.left
-            right: barLeftSideMouseArea.right
-            verticalCenter: barLeftSideMouseArea.verticalCenter
-        }
-
-        height: root.prismIslandHeight
-    }
-
-    Rectangle {
-        id: inlayContextSegment
-        z: 0
-        visible: Appearance.inlayMode
-        anchors {
-            left: barLeftSideMouseArea.left
-            right: barLeftSideMouseArea.right
-            leftMargin: -Appearance.spacing.xs
-            rightMargin: -Appearance.spacing.xs
-            verticalCenter: barLeftSideMouseArea.verticalCenter
-        }
-        height: Appearance.sizes.baseBarHeight - 10
-        radius: 0
-        color: GlobalStates.sidebarLeftOpen
-            ? Appearance.inlay.selectedFill
-            : barLeftSideMouseArea.hovered
-                ? Appearance.inlay.hoverFill
-                : Appearance.inlay.insetFill
-        border.width: Appearance.inlay.borderWidth
-        border.color: GlobalStates.sidebarLeftOpen
-            ? Appearance.inlay.borderFocus
-            : Appearance.inlay.borderSection
-
-        Behavior on color { MotionColorAnim { type: MotionColorAnim.FastEffects } }
-    }
 
     FocusedScrollMouseArea {
         id: barLeftSideMouseArea
         z: 1
 
+        // nyvorel-phase3a-real-hit-plane: interact only with the
+        // 40px persistent control plane, not transparent floating insets.
         anchors {
-            top: parent.top
-            bottom: parent.bottom
+            verticalCenter: parent.verticalCenter
             left: parent.left
 
+            // nyvorel-phase3e: the hit plane and width budgets share one inset.
             leftMargin:
-                Appearance.prismMode
-                    ? Appearance.prism.screenInset
-                    : Appearance.inlayMode
-                        ? Appearance.sizes.hyprlandGapsOut + Appearance.spacing.md
-                        : 0
+                Appearance.barLayout.edgeInset
         }
 
         width:
@@ -333,8 +308,8 @@ Item {
                 root.leftAvailableWidth
             )
 
-        implicitHeight:
-            Appearance.sizes.baseBarHeight
+        height:
+            Appearance.barLayout.persistentHeight
 
         clip:
             true
@@ -385,8 +360,7 @@ Item {
 
         onPressed: event => {
             if (event.button === Qt.LeftButton) {
-                GlobalStates.sidebarLeftOpen =
-                    !GlobalStates.sidebarLeftOpen;
+                GlobalStates.toggleBarPopup("operations", root.screen?.name);
             }
         }
 
@@ -401,9 +375,7 @@ Item {
             }
 
             height:
-                Appearance.prismMode
-                    ? Appearance.sizes.baseBarHeight
-                    : parent.height
+                 parent.height
 
             spacing:
                 0
@@ -416,47 +388,29 @@ Item {
                     Qt.AlignVCenter
 
                 Layout.leftMargin:
-                    Appearance.prismMode
-                        ? Appearance.spacing.sm
-                        : Appearance.inlayMode
-                            ? Appearance.spacing.md
-                            : Appearance.rounding.screenRounding
+                      Appearance.rounding.screenRounding
 
-                // Inlay state belongs to the outer framed region; the
                 // icon is content, not another nested chip.
                 colBackground:
-                    (Appearance.prismMode || Appearance.inlayMode)
-                        ? "transparent"
-                        : barLeftSideMouseArea.hovered
-                            ? Appearance.colors.colLayer1Hover
-                            : ColorUtils.transparentize(
-                                Appearance.colors.colLayer1Hover,
-                                1
-                            )
-                colBackgroundHover:
-                    (Appearance.prismMode || Appearance.inlayMode)
-                        ? "transparent"
-                        : Appearance.colors.colLayer1Hover
-                colBackgroundToggled:
-                    (Appearance.prismMode || Appearance.inlayMode)
-                        ? "transparent"
-                        : Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover:
-                    (Appearance.prismMode || Appearance.inlayMode)
-                        ? "transparent"
-                        : Appearance.colors.colSecondaryContainerHover
+                    barLeftSideMouseArea.hovered
+                        ? Appearance.colors.colLayer1Hover
+                        : ColorUtils.transparentize(
+                            Appearance.colors.colLayer1Hover,
+                            1
+                        )
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
             }
 
 
             ActiveWindow {
                 Layout.leftMargin:
-                    8
+                    (Appearance.barLayout.axiomComponents ? Appearance.spacing.sm : 8)
                     + (
                         leftSidebarButton.visible
                             ? 0
-                            : Appearance.inlayMode
-                                ? Appearance.spacing.md
-                                : Appearance.rounding.screenRounding
+                            : Appearance.rounding.screenRounding
                     )
 
                 Layout.rightMargin:
@@ -475,6 +429,21 @@ Item {
     }
 
 
+    // Operations grows from the left navbar control and shares the joined
+    // popup geometry used by the right control center.
+    StyledPopup {
+        id: operationsPopup
+        hoverTarget: leftSidebarButton
+        showOnHover: false
+        forceActive: GlobalStates.isBarPopupOpen("operations", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        popupRadius: Appearance.radius.bar
+        contentMargin: 0
+        onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
+        SidebarLeftContent {}
+    }
+
     // ============================================================
     // CENTER
     //
@@ -485,6 +454,10 @@ Item {
     BarGroup {
         id: middleSection
         z: 4
+
+        // Axiom / Fluid-native: workspace chrome is owned by the existing bar.
+        // The active workspace remains visible, centered and interactive.
+        quiet: Appearance.barLayout.axiomComponents
 
         anchors {
             horizontalCenter:
@@ -501,11 +474,8 @@ Item {
             implicitHeight
 
         padding:
-            Appearance.prismMode
-                ? Appearance.spacing.sm
-                : workspacesWidget.widgetPadding
+             workspacesWidget.widgetPadding
 
-        prismActive: Appearance.prismMode && GlobalStates.overviewOpen
 
         Workspaces {
             id: workspacesWidget
@@ -532,6 +502,26 @@ Item {
     }
 
 
+    // The control center grows from the right navbar control.
+    StyledPopup {
+        id: rightHubPopup
+        popupRadius: Appearance.radius.bar
+        contentMargin: 0
+        hoverTarget: rightSidebarButton
+        showOnHover: false
+        forceActive: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
+        SidebarRightContent {}
+    }
+
+    NetworkOperationsPopup {
+        barScreenName: root.screen?.name
+        hoverTarget: networkButton
+    }
+
+
     // ============================================================
     // MEDIA
     //
@@ -543,10 +533,11 @@ Item {
         id: mediaCenterGroup
         z: 4
 
+        // Axiom / Fluid-native: no secondary opaque island around media.
+        quiet: Appearance.barLayout.axiomComponents
+
         // Contextual media belongs to the persistent plane but should never
         // compete with navigation/system anchors for visual weight.
-        prismElevated: false
-        prismSurfaceOpacity: 0.82
 
         anchors {
             right:
@@ -562,55 +553,22 @@ Item {
         }
 
         visible:
-            Appearance.prismMode
-                ? (root.mediaDesiredWidth > 0 || width > 0.5)
-                : root.mediaDesiredWidth > 0
+             root.mediaDesiredWidth > 0
 
         width:
-            Appearance.prismMode
-                ? root.mediaDesiredWidth
-                : (visible ? root.mediaDesiredWidth : 0)
+             (visible ? root.mediaDesiredWidth : 0)
 
         height:
             implicitHeight
 
         opacity:
-            Appearance.prismMode
-                ? (root.mediaDesiredWidth > 0 ? 1 : 0)
-                : 1
+             1
 
         scale:
-            Appearance.prismMode
-                ? (root.mediaDesiredWidth > 0 ? 1 : Appearance.prism.enterScale)
-                : 1
+             1
 
         transformOrigin: Item.Right
         clip: true
-
-        Behavior on width {
-            enabled: Appearance.prismMode
-            MotionAnim {
-                type: MotionAnim.DefaultSpatial
-                duration: Appearance.prism.enterDuration
-            }
-        }
-
-        Behavior on opacity {
-            enabled: Appearance.prismMode
-            MotionAnim {
-                type: MotionAnim.FastEffects
-                duration: Appearance.prism.exitDuration
-            }
-        }
-
-        Behavior on scale {
-            enabled: Appearance.prismMode
-            MotionAnim {
-                type: MotionAnim.DefaultSpatial
-                duration: Appearance.prism.enterDuration
-            }
-        }
-
 
         Media {
             id: mediaWidget
@@ -630,80 +588,33 @@ Item {
     // Click  -> right sidebar
     // ============================================================
 
-    // prism-v2-phase2a: one coherent system-state island replaces the
     // previous collection of independently framed right-side pills.
-    PrismSurface {
-        z: 0
-        visible: Appearance.prismMode
-        depth: Appearance.prism.depthPersistent
-        surfaceRadius: Appearance.prism.radiusPersistent
-        hovered: barRightSideMouseArea.hovered && !GlobalStates.sidebarRightOpen
-        active: GlobalStates.sidebarRightOpen
-        anchors {
-            left: barRightSideMouseArea.left
-            right: barRightSideMouseArea.right
-            verticalCenter: barRightSideMouseArea.verticalCenter
-        }
 
-        height: root.prismIslandHeight
-    }
-
-    Rectangle {
-        id: inlaySystemSegment
-        z: 0
-        visible: Appearance.inlayMode
-        anchors {
-            left: barRightSideMouseArea.left
-            right: barRightSideMouseArea.right
-            leftMargin: -Appearance.spacing.xs
-            rightMargin: -Appearance.spacing.xs
-            verticalCenter: barRightSideMouseArea.verticalCenter
-        }
-        height: Appearance.sizes.baseBarHeight - 10
-        radius: 0
-        color: GlobalStates.sidebarRightOpen
-            ? Appearance.inlay.selectedFill
-            : barRightSideMouseArea.hovered
-                ? Appearance.inlay.hoverFill
-                : Appearance.inlay.insetFill
-        border.width: Appearance.inlay.borderWidth
-        border.color: GlobalStates.sidebarRightOpen
-            ? Appearance.inlay.borderFocus
-            : Appearance.inlay.borderSection
-
-        Behavior on color { MotionColorAnim { type: MotionColorAnim.FastEffects } }
-    }
 
     FocusedScrollMouseArea {
         id: barRightSideMouseArea
         z: 1
 
+        // nyvorel-phase3a-real-hit-plane: mirror the left control plane.
         anchors {
-            top:
-                parent.top
-
-            bottom:
-                parent.bottom
+            verticalCenter:
+                parent.verticalCenter
 
             right:
                 parent.right
 
             rightMargin:
-                Appearance.prismMode
-                    ? Appearance.prism.screenInset
-                    : Appearance.inlayMode
-                        ? Appearance.sizes.hyprlandGapsOut + Appearance.spacing.md
-                        : 0
+                Appearance.barLayout.edgeInset
         }
 
         width:
             Math.min(
-                rightSectionRowLayout.implicitWidth,
+                rightSectionRowLayout.implicitWidth + root.axiomSideInset * 2,
                 root.rightAvailableWidth
             )
 
-        implicitHeight:
-            Appearance.sizes.baseBarHeight
+        height:
+            Appearance.barLayout.persistentHeight
 
         clip:
             true
@@ -742,11 +653,13 @@ Item {
 
         onPressed: event => {
             if (event.button === Qt.LeftButton) {
-                GlobalStates.sidebarRightOpen =
-                    !GlobalStates.sidebarRightOpen;
+                GlobalStates.toggleBarPopup("controls", root.screen?.name);
             }
         }
 
+
+        // The Fluid shell's barBackground is the *only* navbar surface.
+        // This zone contains Axiom controls, not a nested navbar panel.
 
         RowLayout {
             id: rightSectionRowLayout
@@ -754,20 +667,16 @@ Item {
             anchors {
                 left: parent.left
                 right: parent.right
+                leftMargin: root.axiomSideInset
+                rightMargin: root.axiomSideInset
                 verticalCenter: parent.verticalCenter
             }
 
             height:
-                Appearance.prismMode
-                    ? Appearance.sizes.baseBarHeight
-                    : parent.height
+                 parent.height
 
             spacing:
-                Appearance.prismMode
-                    ? Appearance.spacing.xs
-                    : Appearance.inlayMode
-                        ? Appearance.spacing.sm
-                        : 8
+                root.axiomFluidRight ? 6 : Appearance.barLayout.rightSectionGap
 
             // First child appears at the physical right edge.
             layoutDirection:
@@ -785,39 +694,27 @@ Item {
                     Qt.AlignRight | Qt.AlignVCenter
 
                 Layout.rightMargin:
-                    Appearance.prismMode
-                        ? Appearance.spacing.sm
-                        : Appearance.inlayMode
-                            ? Appearance.spacing.md
-                            : Appearance.rounding.screenRounding
+                    Appearance.barLayout.rightStatusInset
 
                 Layout.fillWidth:
                     false
 
                 implicitWidth:
                     indicatorsRowLayout.implicitWidth
-                        + (Appearance.prismMode
-                            ? 12
-                            : Appearance.inlayMode
-                                ? 0
-                                : 16)
+                        + (root.axiomFluidRight ? 0 : 16)
 
                 implicitHeight:
-                    indicatorsRowLayout.implicitHeight
-                        + (Appearance.prismMode ? 6 : 8)
+                    root.axiomFluidRight ? 24
+                        : indicatorsRowLayout.implicitHeight + 8
 
                 buttonRadius:
-                    Appearance.inlayMode
-                        ? 0
-                        : Appearance.prismMode
-                            ? Appearance.prism.radiusControl
-                            : Appearance.rounding.full
+                    root.axiomFluidRight ? 5 : Appearance.rounding.full
 
 
                 colBackground:
-                    (Appearance.prismMode || Appearance.inlayMode)
+                    root.axiomFluidRight
                         ? "transparent"
-                        : GlobalStates.sidebarRightOpen
+                        : GlobalStates.isBarPopupOpen("controls", root.screen?.name)
                             ? Appearance.colors.colSecondaryContainer
                             : barRightSideMouseArea.hovered
                                 ? Appearance.colors.colLayer1Hover
@@ -827,20 +724,17 @@ Item {
                                 )
 
                 colBackgroundHover:
-                    (Appearance.prismMode || Appearance.inlayMode)
+                    root.axiomFluidRight
                         ? "transparent"
                         : Appearance.colors.colLayer1Hover
 
                 colRipple:
                     Appearance.colors.colLayer1Active
 
-                colBackgroundToggled:
-                    (Appearance.prismMode || Appearance.inlayMode)
-                        ? "transparent"
-                        : Appearance.colors.colSecondaryContainer
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
 
                 colBackgroundToggledHover:
-                    (Appearance.prismMode || Appearance.inlayMode)
+                    root.axiomFluidRight
                         ? "transparent"
                         : Appearance.colors.colSecondaryContainerHover
 
@@ -848,7 +742,7 @@ Item {
                     Appearance.colors.colSecondaryContainerActive
 
                 toggled:
-                    GlobalStates.sidebarRightOpen
+                    GlobalStates.isBarPopupOpen("controls", root.screen?.name)
 
 
                 property color colText:
@@ -864,9 +758,9 @@ Item {
                 }
 
 
-                onPressed: {
-                    GlobalStates.sidebarRightOpen =
-                        !GlobalStates.sidebarRightOpen;
+                // nyvorel-phase1b-ripple-click-contract
+                onClicked: {
+                    GlobalStates.toggleBarPopup("controls", root.screen?.name);
                 }
 
 
@@ -877,7 +771,7 @@ Item {
                         parent
 
                     property real realSpacing:
-                        Appearance.prismMode ? Appearance.spacing.md : 10
+                        root.sharedNavbarContent ? 10 : Appearance.barLayout.statusIconGap
 
                     spacing:
                         0
@@ -903,7 +797,7 @@ Item {
                         Behavior on Layout.rightMargin {
                             MotionAnim {
                                 type: MotionAnim.FastSpatial
-                                duration: 220
+                                duration: Appearance.barMotion.statusDuration
                             }
                         }
 
@@ -913,7 +807,7 @@ Item {
                                 "volume_off"
 
                             iconSize:
-                                Appearance.font.pixelSize.larger
+                                root.sharedNavbarContent ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
 
                             color:
                                 rightSidebarButton.colText
@@ -941,7 +835,7 @@ Item {
                         Behavior on Layout.rightMargin {
                             MotionAnim {
                                 type: MotionAnim.FastSpatial
-                                duration: 220
+                                duration: Appearance.barMotion.statusDuration
                             }
                         }
 
@@ -951,7 +845,7 @@ Item {
                                 "mic_off"
 
                             iconSize:
-                                Appearance.font.pixelSize.larger
+                                root.sharedNavbarContent ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
 
                             color:
                                 rightSidebarButton.colText
@@ -981,16 +875,12 @@ Item {
 
                     Revealer {
                         reveal:
-                            Notifications.silent
+                            root.sharedNavbarContent
+                            || Notifications.silent
                             || Notifications.unread > 0
 
                         Layout.fillHeight:
                             true
-
-                        Layout.rightMargin:
-                            reveal
-                                ? indicatorsRowLayout.realSpacing
-                                : 0
 
                         implicitHeight:
                             reveal
@@ -1002,36 +892,9 @@ Item {
                                 ? notificationUnreadCount.implicitWidth
                                 : 0
 
-
-                        Behavior on Layout.rightMargin {
-                            MotionAnim {
-                                type: MotionAnim.FastSpatial
-                                duration: 220
-                            }
-                        }
-
-
                         NotificationUnreadCount {
                             id: notificationUnreadCount
                         }
-                    }
-
-
-                    // --------------------------------------------
-                    // Network
-                    // --------------------------------------------
-
-                    MaterialSymbol {
-                        text:
-                            Network.ethernet
-                                ? "signal_wifi_4_bar"
-                                : Network.materialSymbol
-
-                        iconSize:
-                            Appearance.font.pixelSize.larger
-
-                        color:
-                            rightSidebarButton.colText
                     }
 
 
@@ -1055,7 +918,7 @@ Item {
                                 : "bluetooth"
 
                         iconSize:
-                            Appearance.font.pixelSize.larger
+                            root.sharedNavbarContent ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
 
                         color:
                             rightSidebarButton.colText
@@ -1064,28 +927,81 @@ Item {
             }
 
 
+            // Wi-Fi is an independent control; the remaining status area opens Controls.
+            Rectangle {
+                visible: root.axiomFluidRight
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
+
+            RippleButton {
+                id: networkButton
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 28
+                implicitHeight: 28
+                buttonRadius: Appearance.rounding.small
+                toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
+                colBackground: "transparent"
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colRipple: Appearance.colors.colLayer1Active
+                onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: Network.materialSymbol
+                    iconSize: root.sharedNavbarContent ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
+                    color: networkButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                }
+            }
+
+            // Axiom / precision divider, visible only in Fluid.
+            Rectangle {
+                visible: root.axiomFluidRight && root.showRightBattery
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
+
             // ====================================================
             // Battery
             // ====================================================
 
             BatteryIndicator {
+
+                barScreenName: root.screen?.name
                 id: batteryIndicator
+                axiomMode: root.sharedNavbarContent
 
                 visible:
-                    root.useShortenedForm < 2
-                    && Battery.available
+                    root.showRightBattery
 
                 Layout.alignment:
                     Qt.AlignVCenter
             }
 
 
+            // Axiom / precision divider, visible only in Fluid.
+            Rectangle {
+                visible: root.axiomFluidRight && root.showRightTray && sysTray.implicitWidth > 0
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
+
             // ====================================================
             // System tray
             // ====================================================
 
             SysTray {
+
+                barScreenName: root.screen?.name
                 id: sysTray
+                axiomMode: root.sharedNavbarContent
 
                 visible:
                     root.showRightTray
@@ -1131,24 +1047,28 @@ Item {
 
                 sourceComponent:
                     BarGroup {
-                        prismSurface: false
 
                         quiet:
-                            Appearance.fluidMode
+                            Appearance.barLayout.axiomComponents
 
                         padding:
-                            Appearance.inlayMode
+                             Appearance.fluidMode
                                 ? 0
-                                : Appearance.fluidMode
-                                    ? 0
-                                    : Appearance.prismMode
-                                        ? Appearance.spacing.xxs
-                                        : 3
+                                : Appearance.barLayout.axiomComponents ? 0 : 3
 
                         UtilButtons {}
                     }
             }
 
+
+            // Axiom / precision divider, visible only in Fluid.
+            Rectangle {
+                visible: root.axiomFluidRight && root.showRightClock
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
 
             // ====================================================
             // Clock
@@ -1156,16 +1076,12 @@ Item {
 
             BarGroup {
                 id: clockRightGroup
-                prismSurface: false
+                quiet: root.axiomFluidRight
                 padding:
-                    Appearance.inlayMode
-                        ? 0
-                        : Appearance.prismMode
-                            ? Appearance.spacing.xs
-                            : 5
+                    root.axiomFluidRight ? 0 : 5
 
                 visible:
-                    root.wantsRightClock
+                    root.showRightClock
 
                 width:
                     visible
@@ -1173,6 +1089,9 @@ Item {
                         : 0
 
                 ClockWidget {
+
+                    barScreenName: root.screen?.name
+                    axiomMode: root.sharedNavbarContent
                     showDate:
                         false
 
@@ -1181,6 +1100,15 @@ Item {
                 }
             }
 
+
+            // Axiom / precision divider, visible only in Fluid.
+            Rectangle {
+                visible: root.axiomFluidRight && root.showRightResources
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
 
             // ====================================================
             // Resources
@@ -1191,7 +1119,7 @@ Item {
 
             BarGroup {
                 id: resourcesRightGroup
-                prismSurface: false
+                quiet: root.axiomFluidRight
 
                 visible:
                     root.showRightResources
@@ -1202,15 +1130,13 @@ Item {
                         : 0
 
                 padding:
-                    Appearance.inlayMode
-                        ? 0
-                        : Appearance.fluidMode
-                            ? 4
-                            : Appearance.prismMode
-                                ? Appearance.spacing.xs
-                                : 5
+                    root.axiomFluidRight ? 0
+                        : Appearance.barLayout.axiomComponents ? 4 : 5
 
                 Resources {
+
+                    barScreenName: root.screen?.name
+                    axiomMode: root.sharedNavbarContent
                     alwaysShowAllResources:
                         false
                 }
@@ -1232,14 +1158,9 @@ Item {
 
                 sourceComponent:
                     BarGroup {
-                        prismSurface: false
                         padding:
-                    Appearance.inlayMode
-                        ? 0
-                        : Appearance.prismMode
-                            ? Appearance.spacing.xs
-                            : 5
-                        WeatherBar {}
+                      5
+                    WeatherBar {}
                     }
             }
         }

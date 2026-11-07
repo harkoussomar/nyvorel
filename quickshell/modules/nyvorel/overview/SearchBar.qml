@@ -167,38 +167,20 @@ RowLayout {
             40
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : height / 2
+             height / 2
 
 
         color:
-            Appearance.inlayMode
-                ? (
-                    root.searchPrefixType
-                        === SearchBar.SearchPrefixType.DefaultSearch
-                            ? "transparent"
-                            : Appearance.inlay.insetFill
-                  )
-                : root.searchPrefixType
-                    === SearchBar.SearchPrefixType.DefaultSearch
-                        ? Appearance.colors.colSurfaceContainerHigh
-                        : Appearance.colors.colSecondaryContainer
+             root.searchPrefixType
+                === SearchBar.SearchPrefixType.DefaultSearch
+                    ? Appearance.colors.colSurfaceContainerHigh
+                    : Appearance.colors.colSecondaryContainer
 
         border.width:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderWidth
-                : 0
+             0
 
         border.color:
-            Appearance.inlayMode
-                ? (
-                    root.searchPrefixType
-                        === SearchBar.SearchPrefixType.DefaultSearch
-                            ? Appearance.inlay.borderControl
-                            : Appearance.colors.colPrimary
-                  )
-                : "transparent"
+             "transparent"
 
 
         Behavior on color {

@@ -20,7 +20,6 @@ Singleton {
         case "appearanceStudio": return "quickshell:appearanceStudio"
         case "archRemote": return "quickshell:archRemote"
         case "backupRecovery": return "quickshell:backupRecovery"
-        case "projects": return "quickshell:projectLauncher"
         case "cheatsheet": return "quickshell:cheatsheet"
         case "session": return "quickshell:session"
         case "sidebarLeft": return "quickshell:sidebarLeft"
@@ -40,7 +39,6 @@ Singleton {
         case "quickshell:appearanceStudio": return "appearanceStudio"
         case "quickshell:archRemote": return "archRemote"
         case "quickshell:backupRecovery": return "backupRecovery"
-        case "quickshell:projectLauncher": return "projects"
         case "quickshell:cheatsheet": return "cheatsheet"
         case "quickshell:session": return "session"
         case "quickshell:sidebarLeft": return "sidebarLeft"
@@ -60,7 +58,6 @@ Singleton {
         case "appearanceStudio": return GlobalStates.appearanceStudioOpen
         case "archRemote": return GlobalStates.archRemoteOpen
         case "backupRecovery": return GlobalStates.backupRecoveryOpen
-        case "projects": return GlobalStates.exclusiveSurfaceActive("projects")
         case "cheatsheet": return GlobalStates.exclusiveSurfaceActive("cheatsheet")
         case "session": return GlobalStates.sessionOpen
         case "sidebarLeft": return GlobalStates.sidebarLeftOpen
@@ -92,9 +89,7 @@ Singleton {
         }
 
         if (id === "sidebarRight") {
-            return Appearance.prismMode
-                ? Appearance.radius.sidebar
-                : (
+            return (
                     Config.options.appearance.transparency.enable
                         ? Appearance.radius.window
                         : Math.max(

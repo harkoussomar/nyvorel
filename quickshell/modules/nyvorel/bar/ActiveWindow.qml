@@ -14,6 +14,7 @@ import Quickshell.Widgets
 
 Item {
     id: root
+    property bool compact: false
 
     readonly property HyprlandMonitor monitor:
         Hyprland.monitorFor(root.QsWindow.window?.screen)
@@ -263,25 +264,29 @@ Item {
     // ============================================================
 
     implicitWidth:
-        Math.min(content.implicitWidth, 280)
+        compact ? 30 : Math.min(content.implicitWidth, 280)
 
+    // nyvorel-phase3a-content-height: prevent floating inset height leaking
+    // into active-window sizing.
     implicitHeight:
-        Appearance.sizes.barHeight
+        compact ? 30 : Appearance.barLayout.persistentHeight
 
 
     // ============================================================
-    // CONTENT
+    // CONTENT: one information hierarchy, all four bar materials.
     // ============================================================
+    readonly property bool sharedNavbarContent: true
 
     RowLayout {
         id: content
 
         anchors {
-            left: parent.left
+            left: root.compact ? undefined : parent.left
+            horizontalCenter: root.compact ? parent.horizontalCenter : undefined
             verticalCenter: parent.verticalCenter
         }
 
-        spacing: 6
+        spacing: root.sharedNavbarContent ? Appearance.spacing.xs : 6
 
 
         IconImage {
@@ -292,7 +297,7 @@ Item {
                 root.appIcon
 
             implicitSize:
-                18
+                Appearance.barLayout.axiomComponents ? 18 : 18
 
             // IconImage exposes its backing QtQuick Image through `backer`.
             // Image-only sampling properties must be applied there.
@@ -310,32 +315,66 @@ Item {
         }
 
 
+        // Retain the classic app/title composition outside the shared navbar layout.
         StyledText {
-            Layout.alignment:
-                Qt.AlignVCenter
-
-            Layout.maximumWidth:
-                245
-
+            visible: !root.compact && !root.sharedNavbarContent
+            Layout.alignment: Qt.AlignVCenter
+            Layout.maximumWidth: 245
             font {
-                pixelSize:
-                    Appearance.font.pixelSize.small
-
-                weight:
-                    Font.Medium
+                pixelSize: Appearance.font.pixelSize.small
+                weight: Font.Medium
             }
-
-            color:
-                Appearance.colors.colOnLayer0
-
-            text:
-                root.displayText
-
-            elide:
-                Text.ElideRight
-
-            maximumLineCount:
-                1
+            color: Appearance.colors.colOnLayer0
+            text: root.displayText
+            elide: Text.ElideRight
+            maximumLineCount: 1
         }
+
+        // Axiom / Fluid-native: title is a precision readout rather than
+        // another surface. Both text roles follow the active shell theme.
+        StyledText {
+            visible: !root.compact && root.sharedNavbarContent
+            Layout.alignment: Qt.AlignVCenter
+            Layout.maximumWidth: 90
+            font.family: Appearance.font.family.monospace
+            font.pixelSize: Appearance.barVisual.axiomTextSize
+            font.weight: Font.DemiBold
+            color: Appearance.barVisual.axiomValue
+            text: root.appName
+            elide: Text.ElideRight
+            maximumLineCount: 1
+        }
+
+        StyledText {
+            visible: !root.compact && root.sharedNavbarContent && root.cleanTitle.length > 0
+            Layout.alignment: Qt.AlignVCenter
+            font.pixelSize: Appearance.barVisual.axiomTextSize
+            color: Appearance.barVisual.axiomLabel
+            text: "·"
+        }
+
+        StyledText {
+            visible: !root.compact && root.sharedNavbarContent && root.cleanTitle.length > 0
+            Layout.alignment: Qt.AlignVCenter
+            Layout.maximumWidth: 160
+            font.family: Appearance.font.family.monospace
+            font.pixelSize: Appearance.barVisual.axiomTextSize
+            font.weight: Font.Medium
+            color: Appearance.colors.colOnLayer1
+            text: root.cleanTitle
+            elide: Text.ElideRight
+            maximumLineCount: 1
+        }
+    }
+
+    HoverHandler {
+        id: compactHover
+        enabled: root.compact
+    }
+
+    PopupToolTip {
+        text: root.displayText
+        extraVisibleCondition: root.compact && compactHover.hovered
+        anchorEdges: Config.options.bar.bottom ? Edges.Left : Edges.Right
     }
 }

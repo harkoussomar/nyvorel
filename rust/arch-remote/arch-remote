@@ -1,0 +1,5 @@
+#!/bin/sh
+# User-facing Arch Remote command; all work is performed by the one-shot Rust binary.
+set -eu
+root="${NYVOREL_ROOT:-$HOME/.config/quickshell/nyvorel}"
+exec "$root/scripts/arch-remote/nyvorel-arch-remote" cli "$@"

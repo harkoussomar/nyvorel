@@ -9,19 +9,29 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.nyvorel.bar as Bar
+import qs.modules.nyvorel.sidebarLeft
+import qs.modules.nyvorel.sidebarRight
 
 Item { // Bar content region
     id: root
 
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
+    // Match the horizontal bar's information order from top to bottom.
+    readonly property bool axiomOrientation: Appearance.barLayout.axiomComponents
+    readonly property bool compactAxiom: root.axiomOrientation && root.height < 760
+    readonly property bool showResources: Config.options.bar.visibility.resources && root.height >= 900
+    readonly property bool showClock: Config.options.bar.visibility.clock
+    readonly property bool showTray: root.height >= 700
+        && ((TrayService.pinnedItems?.length ?? 0) > 0
+            || (TrayService.unpinnedItems?.length ?? 0) > 0)
 
     component HorizontalBarSeparator: Rectangle {
         Layout.leftMargin: Appearance.sizes.baseBarHeight / 3
         Layout.rightMargin: Appearance.sizes.baseBarHeight / 3
         Layout.fillWidth: true
         implicitHeight: 1
-        color: Appearance.colors.colOutlineVariant
+        color: Appearance.barLayout.axiomComponents ? Appearance.barVisual.axiomDivider : Appearance.colors.colOutlineVariant
     }
 
     // Background shadow
@@ -40,10 +50,22 @@ Item { // Bar content region
             fill: parent
             margins: Config.options.bar.cornerStyle === 1 ? (Appearance.sizes.hyprlandGapsOut) : 0 // idk why but +1 is needed
         }
-        color: Config.options.bar.showBackground ? Appearance.colors.colLayer0 : "transparent"
+        color: Config.options.bar.showBackground ? Appearance.barVisual.attachedSurfaceFill : "transparent"
         radius: Config.options.bar.cornerStyle === 1 ? Appearance.radius.bar : 0
-        border.width: Config.options.bar.cornerStyle === 1 ? 1 : 0
+        border.width: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 ? 1 : 0
         border.color: Appearance.colors.colLayer0Border
+
+        Rectangle {
+            visible: Config.options.bar.showBackground && Config.options.bar.cornerStyle !== 1
+            color: Appearance.colors.colLayer0Border
+            width: 1
+            height: parent.height - (Config.options.bar.cornerStyle === 0
+                ? Appearance.rounding.screenRounding * 2 : 0)
+            y: Config.options.bar.cornerStyle === 0
+                ? Appearance.rounding.screenRounding : 0
+            anchors.left: Config.options.bar.bottom ? parent.left : undefined
+            anchors.right: Config.options.bar.bottom ? undefined : parent.right
+        }
     }
 
     FocusedScrollMouseArea { // Top section | scroll to change brightness
@@ -57,10 +79,6 @@ Item { // Bar content region
         onScrollDown: root.brightnessMonitor.setBrightness(root.brightnessMonitor.brightness - 0.05)
         onScrollUp: root.brightnessMonitor.setBrightness(root.brightnessMonitor.brightness + 0.05)
         onMovedAway: GlobalStates.osdBrightnessOpen = false
-        onPressed: event => {
-            if (event.button === Qt.LeftButton)
-                GlobalStates.sidebarLeftOpen = !GlobalStates.sidebarLeftOpen;
-        }
 
         ColumnLayout { // Content
             id: topSectionColumnLayout
@@ -68,16 +86,33 @@ Item { // Bar content region
             spacing: 10
 
             Bar.LeftSidebarButton { // Left sidebar button
+                id: leftSidebarButton
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: (Appearance.sizes.baseVerticalBarWidth - implicitWidth) / 2 + Appearance.sizes.hyprlandGapsOut
                 colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
             }
 
-            Item {
-                Layout.fillHeight: true
+            Bar.ActiveWindow {
+                compact: true
+                visible: appIcon.length > 0
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 2
             }
-            
+
+            Item { Layout.fillHeight: true }
         }
+    }
+
+    Bar.StyledPopup {
+        hoverTarget: leftSidebarButton
+        showOnHover: false
+        forceActive: GlobalStates.isBarPopupOpen("operations", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        popupRadius: Appearance.radius.bar
+        contentMargin: 0
+        onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
+        SidebarLeftContent {}
     }
 
     Column { // Middle section
@@ -86,29 +121,10 @@ Item { // Bar content region
         spacing: 4
 
         Bar.BarGroup {
-            vertical: true
-            padding: 8
-            Resources {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
-            
-            HorizontalBarSeparator {}
-
-            VerticalMedia {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
-        }
-
-        HorizontalBarSeparator {
-            visible: Config.options?.bar.borderless
-        }
-
-        Bar.BarGroup {
             id: middleCenterGroup
             vertical: true
-            padding: 6
+            quiet: root.axiomOrientation
+            padding: root.axiomOrientation ? 3 : 6
 
             Bar.Workspaces {
                 id: workspacesWidget
@@ -126,39 +142,43 @@ Item { // Bar content region
                 }
             }
         }
+    }
 
-        HorizontalBarSeparator {
-            visible: Config.options?.bar.borderless
-        }
+    // The same contextual media that sits beside the horizontal workspaces
+    // sits immediately above them on the narrow rail.
+    Bar.BarGroup {
+        z: 4
+        vertical: true
+        quiet: root.axiomOrientation
+        padding: root.axiomOrientation ? 3 : 6
+        visible: mediaWidget.hasMedia && !root.compactAxiom
+        anchors.bottom: middleSection.top
+        anchors.bottomMargin: 8
+        anchors.horizontalCenter: parent.horizontalCenter
 
-        Bar.BarGroup {
-            vertical: true
-            padding: 8
-            
-            VerticalClockWidget {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
-
-            HorizontalBarSeparator {}
-
-            VerticalDateWidget {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
-
-            HorizontalBarSeparator {
-                visible: Battery.available
-            }
-
-            BatteryIndicator {
-                visible: Battery.available
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
-            
+        VerticalMedia {
+            id: mediaWidget
+            Layout.fillWidth: true
         }
     }
+
+    Bar.StyledPopup {
+        hoverTarget: rightSidebarButton
+        showOnHover: false
+        forceActive: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        popupRadius: Appearance.radius.bar
+        contentMargin: 0
+        onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
+        SidebarRightContent {}
+    }
+
+    Bar.NetworkOperationsPopup {
+        barScreenName: root.screen?.name
+        hoverTarget: networkButton
+    }
+
 
     FocusedScrollMouseArea { // Bottom section | scroll to change volume
         id: barBottomSectionMouseArea
@@ -174,11 +194,6 @@ Item { // Bar content region
         onScrollDown: Audio.decrementVolume();
         onScrollUp: Audio.incrementVolume();
         onMovedAway: GlobalStates.osdVolumeOpen = false;
-        onPressed: event => {
-            if (event.button === Qt.LeftButton) {
-                GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
-            }
-        }
 
         ColumnLayout {
             id: bottomSectionColumnLayout
@@ -190,11 +205,91 @@ Item { // Bar content region
                 Layout.fillHeight: true 
             }
 
-            Bar.SysTray {
+            Bar.BarGroup {
                 vertical: true
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                invertSide: Config?.options.bar.bottom
+                Layout.alignment: Qt.AlignHCenter
+                quiet: root.axiomOrientation
+                padding: root.axiomOrientation ? 3 : 8
+                verticalRowSpacing: root.axiomOrientation ? 4 : 8
+                visible: root.showResources || root.showClock || root.showTray || Battery.available
+
+                Resources {
+
+                    barScreenName: root.screen?.name
+                    visible: root.showResources
+                    Layout.fillWidth: true
+                }
+
+                HorizontalBarSeparator {
+                    visible: root.axiomOrientation && root.showResources && root.showClock
+                }
+
+                VerticalClockWidget {
+
+                    barScreenName: root.screen?.name
+                    visible: root.showClock
+                    Layout.fillWidth: true
+                }
+
+                VerticalDateWidget {
+                    visible: !root.axiomOrientation && root.showClock
+                    Layout.fillWidth: true
+                }
+
+                HorizontalBarSeparator {
+                    visible: root.axiomOrientation && root.showClock && root.showTray
+                }
+
+                Bar.SysTray {
+
+                    barScreenName: root.screen?.name
+                    vertical: true
+                    axiomMode: root.axiomOrientation
+                    showSeparator: !root.axiomOrientation
+                    visible: root.showTray
+                    Layout.fillWidth: true
+                    invertSide: Config?.options.bar.bottom
+                }
+
+                HorizontalBarSeparator {
+                    visible: root.axiomOrientation && root.showTray && Battery.available
+                }
+
+                BatteryIndicator {
+
+                    barScreenName: root.screen?.name
+                    visible: Battery.available
+                    Layout.fillWidth: true
+                }
+            }
+
+            HorizontalBarSeparator {
+                visible: root.axiomOrientation && Battery.available
+            }
+
+            RippleButton {
+                id: networkButton
+                Layout.alignment: Qt.AlignHCenter
+                implicitWidth: 30
+                implicitHeight: 30
+                buttonRadius: Appearance.rounding.small
+                toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
+                colBackground: "transparent"
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colRipple: Appearance.colors.colLayer1Active
+                onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: Network.materialSymbol
+                    iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
+                    color: networkButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                }
+            }
+
+            HorizontalBarSeparator {
+                visible: root.axiomOrientation
             }
 
             RippleButton { // Right sidebar button
@@ -207,28 +302,29 @@ Item { // Bar content region
                 implicitHeight: indicatorsColumnLayout.implicitHeight + 4 * 2
                 implicitWidth: indicatorsColumnLayout.implicitWidth + 6 * 2
 
-                buttonRadius: Appearance.rounding.full
+                buttonRadius: root.axiomOrientation ? Appearance.rounding.small : Appearance.rounding.full
                 colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
                 colBackgroundHover: Appearance.colors.colLayer1Hover
                 colRipple: Appearance.colors.colLayer1Active
                 colBackgroundToggled: Appearance.colors.colSecondaryContainer
                 colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
                 colRippleToggled: Appearance.colors.colSecondaryContainerActive
-                toggled: GlobalStates.sidebarRightOpen
+                toggled: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
                 property color colText: toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
 
                 Behavior on colText {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                 }
 
-                onPressed: {
-                    GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
+                // nyvorel-phase1b-ripple-click-contract
+                onClicked: {
+                    GlobalStates.toggleBarPopup("controls", root.screen?.name);
                 }
 
                 ColumnLayout {
                     id: indicatorsColumnLayout
                     anchors.centerIn: parent
-                    property real realSpacing: 6
+                    property real realSpacing: root.axiomOrientation ? 4 : 6
                     spacing: 0
 
                     Revealer {
@@ -241,7 +337,7 @@ Item { // Bar content region
                         }
                         MaterialSymbol {
                             text: "volume_off"
-                            iconSize: Appearance.font.pixelSize.larger
+                            iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                             color: rightSidebarButton.colText
                         }
                     }
@@ -255,7 +351,7 @@ Item { // Bar content region
                         }
                         MaterialSymbol {
                             text: "mic_off"
-                            iconSize: Appearance.font.pixelSize.larger
+                            iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                             color: rightSidebarButton.colText
                         }
                     }
@@ -267,28 +363,19 @@ Item { // Bar content region
                     }
                     Revealer {
                         vertical: true
-                        reveal: Notifications.silent || Notifications.unread > 0
+                        reveal: root.axiomOrientation || Notifications.silent || Notifications.unread > 0
                         Layout.fillWidth: true
-                        Layout.bottomMargin: reveal ? indicatorsColumnLayout.realSpacing : 0
                         implicitHeight: reveal ? notificationUnreadCount.implicitHeight : 0
                         implicitWidth: reveal ? notificationUnreadCount.implicitWidth : 0
-                        Behavior on Layout.bottomMargin {
-                            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                        }
                         Bar.NotificationUnreadCount {
                             id: notificationUnreadCount
                         }
                     }
                     MaterialSymbol {
-                        text: Network.materialSymbol
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: rightSidebarButton.colText
-                    }
-                    MaterialSymbol {
-                        Layout.topMargin: indicatorsColumnLayout.realSpacing
-                        visible: BluetoothStatus.available
-                        text: BluetoothStatus.connected ? "bluetooth_connected" : BluetoothStatus.enabled ? "bluetooth" : "bluetooth_disabled"
-                        iconSize: Appearance.font.pixelSize.larger
+                        visible: BluetoothStatus.available && BluetoothStatus.enabled
+                        Layout.topMargin: visible ? indicatorsColumnLayout.realSpacing : 0
+                        text: BluetoothStatus.connected ? "bluetooth_connected" : "bluetooth"
+                        iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                         color: rightSidebarButton.colText
                     }
                 }

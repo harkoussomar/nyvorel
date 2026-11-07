@@ -15,49 +15,46 @@ Rectangle {
     property real backgroundAnimationMovementDistance: 60
 
     property bool interfaceStyleAware: false
+    property bool atlasStyle: false
 
     readonly property color effectiveDialogColor:
-        !root.interfaceStyleAware
+        root.atlasStyle
+            ? ColorUtils.applyAlpha(
+                ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82),
+                1)
+            : !root.interfaceStyleAware
             ? Appearance.m3colors.m3surfaceContainerHigh
-            : Appearance.inlayMode
-                ? Appearance.inlay.surfaceFill
-                : Appearance.prismMode
-                    ? Appearance.prism.modalFill
-                    : Appearance.fluidMode
-                        ? Appearance.material.modalFill
-                        : Appearance.m3colors.m3surfaceContainerHigh
+            : Appearance.fluidMode
+                ? Appearance.material.modalFill
+                : Appearance.m3colors.m3surfaceContainerHigh
 
     readonly property color effectiveDialogBorderColor:
-        !root.interfaceStyleAware
+        root.atlasStyle
+            ? Appearance.colors.colLayer0Border
+            : !root.interfaceStyleAware
             ? "transparent"
-            : Appearance.inlayMode
-                ? Appearance.inlay.borderSection
-                : Appearance.prismMode
-                    ? Appearance.prism.borderStrong
-                    : Appearance.fluidMode
-                        ? Appearance.material.modalBorder
-                        : Appearance.colors.colOutlineVariant
+            : Appearance.fluidMode
+                ? Appearance.material.modalBorder
+                : Appearance.colors.colOutlineVariant
 
     readonly property int effectiveDialogBorderWidth:
-        root.interfaceStyleAware ? 1 : 0
+        (root.atlasStyle || root.interfaceStyleAware) ? 1 : 0
 
     readonly property real effectiveDialogRadius:
-        !root.interfaceStyleAware
+        root.atlasStyle
+            ? 13
+            : !root.interfaceStyleAware
             ? Appearance.rounding.large
-            : Appearance.inlayMode
-                ? Appearance.inlay.radius
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusModal
-                    : Appearance.radius.modal
+            : Appearance.radius.modal
 
     readonly property color effectiveScrimColor:
-        !root.interfaceStyleAware
+        root.atlasStyle
+            ? "transparent"
+            : !root.interfaceStyleAware
             ? Appearance.colors.colScrim
             : Appearance.fluidMode
                 ? ColorUtils.transparentize(Appearance.colors.colScrim, 0.72)
-                : Appearance.prismMode
-                    ? ColorUtils.transparentize(Appearance.colors.colScrim, 0.62)
-                    : Appearance.colors.colScrim
+                : Appearance.colors.colScrim
     
     signal dismiss()
     Keys.onPressed: (event) => {
@@ -76,7 +73,15 @@ Rectangle {
     visible: dialogBackground.implicitHeight > 0
 
     onShowChanged: {
-        dialogBackground.implicitHeight = show ? backgroundHeight : 0
+        dialogBackground.implicitHeight = show ? (atlasStyle ? Math.min(backgroundHeight, Math.max(0, height - 20)) : backgroundHeight) : 0
+    }
+    onBackgroundHeightChanged: {
+        if (atlasStyle && show)
+            dialogBackground.implicitHeight = Math.min(backgroundHeight, Math.max(0, height - 20))
+    }
+    onHeightChanged: {
+        if (atlasStyle && show)
+            dialogBackground.implicitHeight = Math.min(backgroundHeight, Math.max(0, height - 20))
     }
 
     radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
@@ -86,19 +91,24 @@ Rectangle {
         acceptedButtons: Qt.AllButtons
         hoverEnabled: true
         onPressed: root.dismiss()
+        onWheel: (wheel) => { if (root.atlasStyle) wheel.accepted = true }
     }
 
     Rectangle {
         id: dialogBackground
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: root.atlasStyle && root.width > 650
+            ? Math.max(10, root.width - width - 14)
+            : Math.max(10, (root.width - width) / 2)
         radius: root.effectiveDialogRadius
         color: root.effectiveDialogColor
         border.width: root.effectiveDialogBorderWidth
         border.color: root.effectiveDialogBorderColor
         
-        property real targetY: root.height / 2 - root.backgroundHeight / 2
+        property real targetY: root.atlasStyle
+            ? Math.max(10, (root.height - dialogBackground.implicitHeight) / 2)
+            : root.height / 2 - root.backgroundHeight / 2
         y: root.show ? targetY : (targetY - root.backgroundAnimationMovementDistance)
-        implicitWidth: root.backgroundWidth
+        implicitWidth: root.atlasStyle ? Math.min(root.backgroundWidth, Math.max(0, root.width - 20)) : root.backgroundWidth
         implicitHeight: contentColumn.implicitHeight + dialogBackground.radius * 2
         Behavior on implicitHeight {
             MotionAnim {
@@ -115,15 +125,16 @@ Rectangle {
             anchors.fill: parent
             acceptedButtons: Qt.AllButtons
             hoverEnabled: true
+            onWheel: (wheel) => { if (root.atlasStyle) wheel.accepted = true }
         }
 
         ColumnLayout {
             id: contentColumn
             anchors {
                 fill: parent
-                margins: dialogBackground.radius
+                margins: root.atlasStyle ? 18 : dialogBackground.radius
             }
-            spacing: 16
+            spacing: root.atlasStyle ? 12 : 16
             opacity: root.show ? 1 : 0
             Behavior on opacity {
                 MotionAnim {

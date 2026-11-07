@@ -1,3 +1,4 @@
+import qs
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -9,12 +10,14 @@ import qs.modules.common.widgets
 
 Item {
     id: root
+    property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
     implicitWidth: gridLayout.implicitWidth
     implicitHeight: gridLayout.implicitHeight
     property bool vertical: false
     property bool invertSide: false
-    property bool trayOverflowOpen: false
+    readonly property bool trayOverflowOpen: GlobalStates.isBarPopupOpen("tray", root.barScreenName)
     property bool showSeparator: true
+    property bool axiomMode: false
     property bool showOverflowMenu: true
     property var activeMenu: null
 
@@ -39,20 +42,23 @@ Item {
 
     function closeOverflowMenu() {
         focusGrab.active = false;
+        GlobalStates.closeBarPopup("tray", root.barScreenName);
     }
 
     onTrayOverflowOpenChanged: {
         if (root.trayOverflowOpen) {
             root.grabFocus();
+        } else if (!root.activeMenu) {
+            root.releaseFocus();
         }
     }
 
     HyprlandFocusGrab {
         id: focusGrab
         active: false
-        windows: [trayOverflowLayout.QsWindow?.window, root.activeMenu]
+        windows: [trayOverflowLayout.QsWindow?.window, root.activeMenu, root.QsWindow?.window]
         onCleared: {
-            root.trayOverflowOpen = false;
+            GlobalStates.closeBarPopup("tray", root.barScreenName);
             if (root.activeMenu) {
                 root.activeMenu.close();
                 root.activeMenu = null;
@@ -65,7 +71,7 @@ Item {
         columns: root.vertical ? 1 : -1
         anchors.fill: parent
         rowSpacing: 8
-        columnSpacing: 8
+        columnSpacing: root.axiomMode ? 5 : 8
 
         RippleButton {
             id: trayOverflowButton
@@ -73,12 +79,12 @@ Item {
             toggled: root.trayOverflowOpen
             property bool containsMouse: hovered
 
-            downAction: () => root.trayOverflowOpen = !root.trayOverflowOpen
+            downAction: () => GlobalStates.toggleBarPopup("tray", root.barScreenName)
 
             Layout.fillHeight: !root.vertical
             Layout.fillWidth: root.vertical
-            background.implicitWidth: 24
-            background.implicitHeight: 24
+            background.implicitWidth: root.axiomMode ? 23 : 24
+            background.implicitHeight: root.axiomMode ? 23 : 24
             background.anchors.centerIn: this
             colBackgroundToggled: Appearance.colors.colSecondaryContainer
             colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
@@ -86,12 +92,15 @@ Item {
 
             contentItem: MaterialSymbol {
                 anchors.centerIn: parent
-                iconSize: Appearance.font.pixelSize.larger
+                iconSize: root.axiomMode
+                    ? Appearance.barVisual.axiomIconSize
+                    : Appearance.font.pixelSize.larger
                 text: "expand_more"
                 horizontalAlignment: Text.AlignHCenter
                 color: root.trayOverflowOpen ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer2
                 rotation: (root.trayOverflowOpen ? 180 : 0) - (90 * root.vertical) + (180 * root.invertSide)
                 Behavior on rotation {
+                    enabled: Appearance.barMotion.allowSpatial
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
             }
@@ -99,7 +108,9 @@ Item {
             StyledPopup {
                 id: overflowPopup
                 hoverTarget: trayOverflowButton
-                active: root.trayOverflowOpen && root.unpinnedItems.length > 0
+                showOnHover: false
+                forceActive: root.trayOverflowOpen && root.unpinnedItems.length > 0
+                irisAnimation: Appearance.barLayout.axiomComponents
 
                 GridLayout {
                     id: trayOverflowLayout
@@ -114,6 +125,7 @@ Item {
                         delegate: SysTrayItem {
                             required property SystemTrayItem modelData
                             item: modelData
+                            axiomMode: root.axiomMode
                             Layout.fillHeight: !root.vertical
                             Layout.fillWidth: root.vertical
                             onMenuClosed: root.releaseFocus();
@@ -132,6 +144,7 @@ Item {
             delegate: SysTrayItem {
                 required property SystemTrayItem modelData
                 item: modelData
+                axiomMode: root.axiomMode
                 Layout.fillHeight: !root.vertical
                 Layout.fillWidth: root.vertical
                 onMenuClosed: root.releaseFocus();

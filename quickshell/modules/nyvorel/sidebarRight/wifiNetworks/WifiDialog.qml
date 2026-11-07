@@ -9,45 +9,78 @@ import Quickshell
 
 WindowDialog {
     id: root
-    interfaceStyleAware: true
-    backgroundHeight: 600
+    atlasStyle: true
+    backgroundWidth: 520
+    backgroundHeight: Math.min(height - 20, Math.max(245, 142 + Math.min(wifiList.contentHeight, 430)))
 
-    WindowDialogTitle {
-        text: Translation.tr("Connect to Wi-Fi")
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 12
+        MaterialSymbol {
+            text: "wifi"
+            iconSize: 24
+            color: Appearance.colors.colPrimary
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+            StyledText {
+                text: Translation.tr("Connect to Wi-Fi")
+                font.pixelSize: Appearance.font.pixelSize.large
+                color: Appearance.material.textPrimary
+            }
+            StyledText {
+                text: Network.wifiScanning ? Translation.tr("Scanning for networks") :
+                    (wifiList.count + " " + Translation.tr("networks available"))
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.material.textMuted
+            }
+        }
     }
-    WindowDialogSeparator {
-        visible: !Network.wifiScanning
-    }
+
     StyledIndeterminateProgressBar {
         visible: Network.wifiScanning
         Layout.fillWidth: true
-        Layout.topMargin: -8
-        Layout.bottomMargin: -8
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
     }
-    ListView {
-        Layout.fillHeight: true
+    Rectangle {
         Layout.fillWidth: true
-        Layout.topMargin: -15
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
+    }
 
+    StyledListView {
+        id: wifiList
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 70
         clip: true
-        spacing: 0
+        spacing: 7
+        animateAppearance: false
+        boundsBehavior: Flickable.StopAtBounds
 
-        model: ScriptModel {
-            values: Network.friendlyWifiNetworks
-        }
+        model: ScriptModel { values: Network.friendlyWifiNetworks }
         delegate: WifiNetworkItem {
             required property WifiAccessPoint modelData
             wifiNetwork: modelData
             width: ListView.view.width
         }
     }
-    WindowDialogSeparator {}
-    WindowDialogButtonRow {
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: Appearance.colors.colLayer0Border
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 4
+        DialogButton {
+            buttonText: "Network Operations"
+            onClicked: {
+                root.dismiss()
+                GlobalStates.openBarPopup("network")
+            }
+        }
         DialogButton {
             buttonText: Translation.tr("Details")
             onClicked: {
@@ -55,14 +88,6 @@ WindowDialog {
                 GlobalStates.sidebarRightOpen = false;
             }
         }
-
-        Item {
-            Layout.fillWidth: true
-        }
-
-        DialogButton {
-            buttonText: Translation.tr("Done")
-            onClicked: root.dismiss()
-        }
+        Item { Layout.fillWidth: true }
     }
 }

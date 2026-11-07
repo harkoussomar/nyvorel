@@ -15,23 +15,14 @@ TERMINAL_SYNC = HOME / ".local/bin/nyvorel-terminal-theme-sync"
 BEGIN = "-- >>> nyvorel-fluid-interface-v1 >>>"
 END = "-- <<< nyvorel-fluid-interface-v1 <<<"
 
-BLOCK = r'''-- >>> nyvorel-fluid-interface-v1 >>>
--- Fluid: Caelestia-style transparent/xray layer material.
-hl.layer_rule({ match = { namespace = "^quickshell:(bar|verticalBar|sidebarLeft|sidebarRight|appearanceStudio|projectLauncher|popup|notificationPopup|mediaControls|onScreenDisplay|session)$" }, blur = true, blur_popups = true, xray = true, ignore_alpha = 0.57 })
-
--- Reference-terminal geometry.
-hl.window_rule({ match = { class = "^(kitty)$" }, border_size = 2, rounding = 8 })
--- <<< nyvorel-fluid-interface-v1 <<<
-'''
+BLOCK = '-- >>> nyvorel-fluid-interface-v1 >>>\n-- Fluid: Caelestia-style transparent/xray layer material.\nhl.layer_rule({["blur"] = true, ["match"] = {["namespace"] = "^quickshell:(bar|verticalBar|sidebarLeft|sidebarRight|appearanceStudio|popup|notificationPopup|mediaControls|onScreenDisplay|session)$"}, ["name"] = "appearance-block-1"})\nhl.layer_rule({["blur_popups"] = true, ["match"] = {["namespace"] = "^quickshell:(bar|verticalBar|sidebarLeft|sidebarRight|appearanceStudio|popup|notificationPopup|mediaControls|onScreenDisplay|session)$"}, ["name"] = "appearance-block-2"})\nhl.layer_rule({["xray"] = true, ["match"] = {["namespace"] = "^quickshell:(bar|verticalBar|sidebarLeft|sidebarRight|appearanceStudio|popup|notificationPopup|mediaControls|onScreenDisplay|session)$"}, ["name"] = "appearance-block-3"})\nhl.layer_rule({["ignore_alpha"] = 0.57, ["match"] = {["namespace"] = "^quickshell:(bar|verticalBar|sidebarLeft|sidebarRight|appearanceStudio|popup|notificationPopup|mediaControls|onScreenDisplay|session)$"}, ["name"] = "appearance-block-4"})\n\n-- Reference-terminal geometry.\nhl.window_rule({["border_size"] = 2, ["match"] = {["class"] = "^(kitty)$"}, ["name"] = "appearance-block-5"})\nhl.window_rule({["rounding"] = 8, ["match"] = {["class"] = "^(kitty)$"}, ["name"] = "appearance-block-6"})\n-- <<< nyvorel-fluid-interface-v1 <<<\n'
 
 def replace_block(text: str, replacement: str) -> str:
     pat = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END) + r"\n?", re.S)
-    block = replacement.strip() + "\n" if replacement else ""
-    if pat.search(text):
-        return pat.sub(lambda _match: block, text, count=1)
-    if not block:
-        return text
-    return text.rstrip() + "\n\n" + block if text.strip() else block
+    text = pat.sub("", text).rstrip() + "\n"
+    if replacement:
+        text += "\n" + replacement.strip() + "\n"
+    return text
 
 def quiet(cmd: list[str]) -> None:
     try:

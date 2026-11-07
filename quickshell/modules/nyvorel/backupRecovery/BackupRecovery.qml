@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import QtQuick
 import Quickshell
@@ -10,14 +11,64 @@ Scope {
     id: root
 
     property bool presentationClosing: false
+    property bool placementPending: false
+    property string targetScreenName: ""
 
-    function openCenter() {
-        presentationCloseTimer.stop()
+    function focusedScreenName() {
+        const name = Hyprland.focusedMonitor?.name ?? ""
+        return Quickshell.screens.find(screen => screen.name === name)?.name
+            ?? Quickshell.screens[0]?.name
+            ?? ""
+    }
+
+    function screenAtCursor(position) {
+        const x = Number(position?.x)
+        const y = Number(position?.y)
+        if (!Number.isFinite(x) || !Number.isFinite(y))
+            return ""
+
+        for (const monitor of HyprlandData.monitors) {
+            const scale = Number(monitor.scale)
+            const rotation = Number(monitor.transform) % 2 === 1
+            const width = Number(rotation ? monitor.height : monitor.width) / scale
+            const height = Number(rotation ? monitor.width : monitor.height) / scale
+            const left = Number(monitor.x)
+            const top = Number(monitor.y)
+            if (!Number.isFinite(width) || !Number.isFinite(height)
+                    || !Number.isFinite(left) || !Number.isFinite(top)
+                    || width <= 0 || height <= 0)
+                continue
+            if (x >= left && x < left + width && y >= top && y < top + height
+                    && Quickshell.screens.some(screen => screen.name === monitor.name))
+                return monitor.name
+        }
+        return ""
+    }
+
+    function finishPlacement(screenName) {
+        if (!root.placementPending)
+            return
+        root.placementPending = false
+        placementFallbackTimer.stop()
+        root.targetScreenName = screenName || root.focusedScreenName()
         root.presentationClosing = false
         GlobalStates.backupRecoveryOpen = true
     }
 
+    function openCenter() {
+        presentationCloseTimer.stop()
+        root.presentationClosing = false
+        root.placementPending = true
+        placementFallbackTimer.restart()
+        if (!cursorPositionProc.running) {
+            cursorPositionProc.command = ["hyprctl", "-j", "cursorpos"]
+            cursorPositionProc.running = true
+        }
+    }
+
     function closeCenter() {
+        root.placementPending = false
+        placementFallbackTimer.stop()
         if (!GlobalStates.backupRecoveryOpen)
             return
         root.presentationClosing = true
@@ -26,10 +77,30 @@ Scope {
     }
 
     function toggleCenter() {
-        if (GlobalStates.backupRecoveryOpen)
+        if (GlobalStates.backupRecoveryOpen || root.placementPending)
             root.closeCenter()
         else
             root.openCenter()
+    }
+
+    Process {
+        id: cursorPositionProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.finishPlacement(root.screenAtCursor(JSON.parse(this.text)))
+                } catch (error) {
+                    root.finishPlacement("")
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: placementFallbackTimer
+        interval: 350
+        repeat: false
+        onTriggered: root.finishPlacement("")
     }
 
     Timer {
@@ -62,19 +133,20 @@ Scope {
     }
 
     LazyLoader {
-        // backup-recovery-persistent-host-v1
-        // Keep the native layer-shell host mapped like Project Launcher.
-        // Only the visual content is created/destroyed on open/close.
-        active: true
+        // Create the native host only after the target screen is known.
+        // A mapped layer-shell window cannot reliably move to another output.
+        active: GlobalStates.backupRecoveryOpen || root.presentationClosing
 
         component: PanelWindow {
             visible: true
             id: backupRecoveryWindow
+            screen: Quickshell.screens.find(screen => screen.name === root.targetScreenName)
+                ?? Quickshell.screens.find(screen => screen.name === Hyprland.focusedMonitor?.name)
+                ?? null
             anchors { left: true; right: true; top: true; bottom: true }
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
             WlrLayershell.namespace: "quickshell:backupRecovery"
-            // backup-recovery-persistent-host-v1 input
             mask: Region {
                 item:
                     GlobalStates.backupRecoveryOpen

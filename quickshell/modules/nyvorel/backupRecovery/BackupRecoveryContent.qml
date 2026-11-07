@@ -13,44 +13,6 @@ Item {
 
     property string captureScreenName: ""
 
-    // phase4e-consolidated-surface-deformation-v1
-    // phase4d-large-surface-deformation-v1
-    // prism-v2-phase7: final Prism modals use spatial lift + uniform scale.
-    // Preserve the older non-uniform deformation path for other styles only.
-    readonly property bool largeSurfaceDeformationEnabled:
-        Appearance.surfaceDeformation.enabled
-        && !Appearance.prismMode
-
-    property real largeSurfaceScaleX: 1
-    property real largeSurfaceScaleY: 1
-    property real largeSurfaceRadiusScale: 1
-
-    function resetLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-        root.largeSurfaceScaleX = 1
-        root.largeSurfaceScaleY = 1
-        root.largeSurfaceRadiusScale = 1
-    }
-
-    function kickLargeSurfaceDeformation() {
-        largeSurfaceDeformAnimation.stop()
-
-        if (!root.largeSurfaceDeformationEnabled) {
-            root.resetLargeSurfaceDeformation()
-            return
-        }
-
-        root.largeSurfaceScaleX = Appearance.surfaceDeformation.largeStartX
-        root.largeSurfaceScaleY = Appearance.surfaceDeformation.largeStartY
-        root.largeSurfaceRadiusScale = Appearance.surfaceDeformation.largeRadiusStart
-        largeSurfaceDeformAnimation.restart()
-    }
-
-    onLargeSurfaceDeformationEnabledChanged: {
-        if (!root.largeSurfaceDeformationEnabled)
-            root.resetLargeSurfaceDeformation()
-    }
-
     function syncShellCaptureRegion() {
         if (
             !GlobalStates.backupRecoveryOpen
@@ -82,18 +44,16 @@ Item {
 
         function onBackupRecoveryOpenChanged() {
             if (GlobalStates.backupRecoveryOpen) {
-                root.resetLargeSurfaceDeformation()
                 root.modalShown = false
                 modalOpenKickTimer.restart()
             } else {
-                root.resetLargeSurfaceDeformation()
                 root.modalShown = false
             }
             Qt.callLater(() => root.syncShellCaptureRegion())
         }
     }
 
-    property string helperPath: Quickshell.shellPath("scripts/backup-recovery/control_center.py")
+    property string helperPath: Quickshell.shellPath("scripts/system/nyvorel-backup-recovery")
     property int selectedPage: 0
     property int activePage: 0
     property int previousPage: 0
@@ -247,7 +207,7 @@ Item {
         root.loading = true
         root.backgroundRefreshing = false
         root.snapshotRequestKind = "instant"
-        snapshotProc.command = ["python3", root.helperPath, "snapshot", "--instant"]
+        snapshotProc.command = [root.helperPath, "snapshot", "--instant"]
         snapshotProc.running = true
     }
 
@@ -260,8 +220,8 @@ Item {
             ? (isBackground ? "background-full" : "full")
             : (isBackground ? "background-fast" : "fast")
         snapshotProc.command = full
-            ? ["python3", root.helperPath, "snapshot", "--refresh"]
-            : ["python3", root.helperPath, "snapshot"]
+            ? [root.helperPath, "snapshot", "--refresh"]
+            : [root.helperPath, "snapshot"]
         snapshotProc.running = true
     }
 
@@ -344,7 +304,7 @@ Item {
         root.lastRequestedAction = name
         root.actionPending = true
         root.actionWaitTicks = 0
-        actionProc.command = ["python3", root.helperPath, "action", name]
+        actionProc.command = [root.helperPath, "action", name]
         actionProc.running = true
         actionPollTimer.start()
     }
@@ -575,6 +535,7 @@ Item {
         id: snapshotProc
         stdout: StdioCollector {
             onStreamFinished: {
+                const completedKind = root.snapshotRequestKind
                 root.loading = false
                 root.backgroundRefreshing = false
                 root.snapshotRequestKind = ""
@@ -590,6 +551,8 @@ Item {
                     root.stateContractError = ""
                     root.protectionState = data
                     root.initialStateReady = true
+                    if (completedKind === "instant")
+                        deferredFullRefreshTimer.restart()
                     if (data.action_running === true) {
                         if (!actionPollTimer.running) actionPollTimer.start()
                     } else if (!root.actionPending) {
@@ -606,6 +569,8 @@ Item {
                     root.toastError = true
                     root.toastMessage = "Backup state could not be parsed"
                     toastTimer.restart()
+                    if (completedKind === "instant")
+                        deferredFullRefreshTimer.restart()
                 }
             }
         }
@@ -650,83 +615,13 @@ Item {
         repeat: false
         onTriggered: {
             if (GlobalStates.backupRecoveryOpen) {
-                root.kickLargeSurfaceDeformation()
                 root.modalShown = true
             }
         }
     }
 
     // phase4d-large-surface-deformation-v1
-    // Restrained production profile for large Prism modal surfaces.
-    ParallelAnimation {
-        id: largeSurfaceDeformAnimation
 
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: Appearance.surfaceDeformation.largeMiddleX
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleX"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeXSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: Appearance.surfaceDeformation.largeMiddleY
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastSpatial
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceScaleY"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeYSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultSpatial
-            }
-        }
-
-        SequentialAnimation {
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: Appearance.surfaceDeformation.largeRadiusMiddle
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusCompressMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveFastEffects
-            }
-
-            NumberAnimation {
-                target: root
-                property: "largeSurfaceRadiusScale"
-                to: 1
-                duration: Math.max(1, Math.round(Appearance.surfaceDeformation.largeRadiusSettleMs * Appearance.motionScale))
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve:
-                    Appearance.animationCurves.expressiveDefaultEffects
-            }
-        }
-    }
 
     Timer {
         interval: 1000
@@ -737,14 +632,25 @@ Item {
     }
 
     Timer {
-        // Poll unprivileged live state while open. A full system refresh is
-        // reserved for explicit user action, so opening never asks for auth.
+        id: deferredFullRefreshTimer
+        interval: 120
+        repeat: false
+        onTriggered: {
+            if (!root.globallyBusy)
+                root.refresh(true, true)
+        }
+    }
+
+    Timer {
+        // Full Restic/SMART/Timeshift collection is intentionally not run every
+        // minute. The last verified state paints instantly; expensive domains
+        // refresh in the background every five minutes while the modal exists.
         interval: 300000
         repeat: true
         running: true
         onTriggered: {
             if (!root.globallyBusy)
-                root.refresh(false, true)
+                root.refresh(true, true)
         }
     }
     Timer {
@@ -789,34 +695,24 @@ Item {
         }
 
         color:
-            Appearance.prismMode
-                ? (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.prism.persistentActiveFill
-                        : "transparent"
-                  )
-                : (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Qt.rgba(
-                            Appearance.colors.colOnSurfaceVariant.r,
-                            Appearance.colors.colOnSurfaceVariant.g,
-                            Appearance.colors.colOnSurfaceVariant.b,
-                            0.07
-                          )
-                  )
+             (
+                active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colPrimary
+                    : Qt.rgba(
+                        Appearance.colors.colOnSurfaceVariant.r,
+                        Appearance.colors.colOnSurfaceVariant.g,
+                        Appearance.colors.colOnSurfaceVariant.b,
+                        0.07
+                      )
+              )
 
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? (active || button.activeFocus
-                    ? Appearance.prism.focusBorder
-                    : Appearance.prism.borderSubtle)
-                : (
-                    active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colLayer0Border
-                  )
+             (
+                active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colPrimary
+                    : Appearance.colors.colLayer0Border
+              )
 
         MaterialSymbol {
             anchors.centerIn: parent
@@ -824,13 +720,9 @@ Item {
             iconSize: 19
             fill: button.active ? 1 : 0
             color:
-                Appearance.prismMode
-                    ? (active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colOnSurfaceVariant)
-                    : (active || headerButtonArea.containsMouse || button.activeFocus
-                        ? Appearance.colors.colOnPrimary
-                        : Appearance.colors.colOnSurfaceVariant)
+                 (active || headerButtonArea.containsMouse || button.activeFocus
+                    ? Appearance.colors.colOnPrimary
+                    : Appearance.colors.colOnSurfaceVariant)
         }
 
         MouseArea {
@@ -931,18 +823,12 @@ Item {
         buttonRadiusPressed: Appearance.radius.control
         colBackground:
             selected
-                ? (Appearance.prismMode
-                    ? Appearance.prism.persistentActiveFill
-                    : Appearance.colors.colLayer2Base)
+                ? (Appearance.colors.colLayer2Base)
                 : "transparent"
         colBackgroundHover:
-            Appearance.prismMode
-                ? Appearance.prism.persistentHoverFill
-                : Appearance.colors.colLayer2Hover
+             Appearance.colors.colLayer2Hover
         colRipple:
-            Appearance.prismMode
-                ? Appearance.prism.persistentActiveFill
-                : Appearance.colors.colLayer2Active
+             Appearance.colors.colLayer2Active
         onClicked: root.switchPage(pageIndex)
         contentItem: RowLayout {
             anchors.fill: parent
@@ -1054,14 +940,10 @@ Item {
         implicitHeight: 82
         radius: Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer1Base
+             Appearance.colors.colLayer1Base
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         RowLayout {
             anchors.fill: parent
             anchors.margins: 11
@@ -1149,9 +1031,7 @@ Item {
         implicitHeight: 58
         radius: Appearance.radius.control
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer2Base
+             Appearance.colors.colLayer2Base
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 11
@@ -1200,9 +1080,7 @@ Item {
         implicitHeight: 58
         radius: Appearance.radius.control
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer2Base
+             Appearance.colors.colLayer2Base
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 11
@@ -1283,14 +1161,10 @@ Item {
         implicitHeight: 118
         radius: Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer1Base
+             Appearance.colors.colLayer1Base
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         ColumnLayout {
             anchors.centerIn: parent
             width: Math.min(parent.width - 40, 520)
@@ -1328,24 +1202,6 @@ Item {
         }
     }
 
-    // prism-v2-phase7: depth-4 spatial material lives beside the legacy modal
-    // so Fluid/Mica/Default keep their exact Rectangle/shadow path.
-    PrismSurface {
-        visible: Appearance.prismMode
-        x: modal.x
-        y: modal.y
-        width: modal.width
-        height: modal.height
-        depth: Appearance.prism.depthModal
-        surfaceRadius: Appearance.prism.radiusModal
-        elevated: true
-        opacity: modal.opacity
-        scale: modal.scale
-        transformOrigin: Item.Center
-        transform: Translate {
-            y: modalTranslate.y
-        }
-    }
 
     Rectangle {
         id: modal
@@ -1359,38 +1215,20 @@ Item {
         anchors.centerIn: parent
         width: Math.min(1160, parent.width - 48)
         height: Math.min(740, parent.height - 48)
-        radius:
-            Appearance.inlayMode
-                ? 0
-                : (Appearance.prismMode
-                    ? Appearance.prism.radiusModal
-                    : Appearance.radius.modal)
-                * root.largeSurfaceRadiusScale
+        radius: Appearance.radius.modal
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colLayer0Base
+              Appearance.colors.colLayer0Base
         border.width:
-            Appearance.prismMode
-                ? 0
-                : Appearance.inlayMode
-                    ? Appearance.inlay.borderWidth
-                    : 1
+              1
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderControl
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
         transformOrigin: Item.Center
         opacity: root.modalShown ? 1 : 0
         scale:
             root.modalShown
                 ? 1
-                : Appearance.inlayMode
-                    ? 1
-                    : (Appearance.prismMode ? Appearance.prism.enterScale : 0.970)
+                : (0.970)
 
         transform: [
             Translate {
@@ -1398,9 +1236,7 @@ Item {
                 y:
                     root.modalShown
                         ? 0
-                        : Appearance.inlayMode
-                            ? Appearance.inlay.enterDistance
-                            : (Appearance.prismMode ? Appearance.prism.enterDistance * 2 : 34)
+                        : (34)
 
                 Behavior on y {
                     MotionExpressiveAnim {
@@ -1410,16 +1246,9 @@ Item {
                                 : MotionExpressiveAnim.Exit
                     }
                 }
-            },
-
-            // phase4d-large-surface-deformation-v1
-            Scale {
-                id: modalDeformationScale
-                origin.x: modal.width / 2
-                origin.y: modal.height / 2
-                xScale: root.largeSurfaceScaleX
-                yScale: root.largeSurfaceScaleY
             }
+
+
         ]
 
         Behavior on opacity {

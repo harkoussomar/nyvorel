@@ -53,23 +53,11 @@ PopupWindow {
         }
 
         StyledRectangularShadow {
-            visible: !Appearance.prismMode && !Appearance.inlayMode
+            visible: true
             target: popupBackground
             opacity: popupBackground.opacity
         }
 
-        PrismSurface {
-            visible: Appearance.prismMode
-            x: popupBackground.x
-            y: popupBackground.y
-            width: popupBackground.width
-            height: popupBackground.height
-            depth: Appearance.prism.depthTransient
-            surfaceRadius: Appearance.prism.radiusTransient
-            opacity: popupBackground.opacity
-            scale: popupBackground.scale
-            transformOrigin: popupBackground.transformOrigin
-        }
 
         Rectangle {
             id: popupBackground
@@ -84,36 +72,18 @@ PopupWindow {
             }
 
             color:
-                Appearance.prismMode
-                    ? "transparent"
-                    : Appearance.inlayMode
-                        ? Appearance.inlay.surfaceFill
-                        : Appearance.colors.colLayer0
+                  Appearance.colors.colLayer0
             radius:
-                Appearance.inlayMode
-                    ? 0
-                    : Appearance.prismMode
-                        ? Appearance.prism.radiusTransient
-                        : Appearance.rounding.windowRounding
+                  Appearance.rounding.windowRounding
             border.width:
-                Appearance.prismMode
-                    ? 0
-                    : Appearance.inlayMode
-                        ? Appearance.inlay.borderWidth
-                        : 1
+                  1
             border.color:
-                Appearance.inlayMode
-                    ? Appearance.inlay.borderControl
-                    : Appearance.colors.colLayer0Border
+                 Appearance.colors.colLayer0Border
             clip: true
 
             opacity: 0
             scale:
-                Appearance.inlayMode
-                    ? 1
-                    : Appearance.prismMode && !Appearance.reducedMotion
-                        ? 0.98 + 0.02 * opacity
-                        : 1
+                  1
             transformOrigin:
                 Config.options.bar.vertical
                     ? (Config.options.bar.bottom ? Item.Right : Item.Left)
@@ -199,9 +169,7 @@ PopupWindow {
             sourceComponent: RippleButton {
                 id: backButton
                 buttonRadius:
-                    Appearance.inlayMode
-                        ? 0
-                        : popupBackground.radius - popupBackground.padding
+                     popupBackground.radius - popupBackground.padding
                 horizontalPadding: 12
                 implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
                 implicitHeight: 36
@@ -253,9 +221,7 @@ PopupWindow {
                 menuEntry: modelData
 
                 buttonRadius:
-                    Appearance.inlayMode
-                        ? 0
-                        : popupBackground.radius - popupBackground.padding
+                     popupBackground.radius - popupBackground.padding
 
                 onDismiss: root.close()
                 onOpenSubmenu: handle => {

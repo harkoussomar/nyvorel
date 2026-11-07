@@ -1,0 +1,21 @@
+[package]
+name = "nyvorel-backup-recovery"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+libc = "0.2"
+regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[[bin]]
+name = "nyvorel-backup-recovery-root"
+path = "src/bin/root.rs"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = true

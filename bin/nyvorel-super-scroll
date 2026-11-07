@@ -71,7 +71,7 @@ other_state_for_side() {
 }
 
 get_factor() {
-    local option="$1"
+    local option="${1//:/.}"
     hyprctl getoption "$option" -j 2>/dev/null | jq -er '
         if .float != null then .float
         elif .int != null then .int
@@ -85,10 +85,9 @@ apply_scroll() {
     local mouse="$1"
     local touchpad="$2"
 
-    hyprctl keyword input:scroll_factor "$mouse" >/dev/null
-    if ! hyprctl keyword input:touchpad:scroll_factor "$touchpad" >/dev/null; then
-        return 1
-    fi
+    local response
+    response="$(hyprctl eval "hl.config({input={scroll_factor=$mouse,touchpad={scroll_factor=$touchpad}}})")" || return 1
+    [[ "$response" == "ok" ]]
 }
 
 capture_baseline() {
@@ -253,7 +252,7 @@ release() {
     unlock_state
 
     if (( should_toggle )); then
-        hyprctl dispatch 'hl.dsp.global("quickshell:searchToggle")' >/dev/null
+        hyprctl dispatch 'hl.dsp.global("quickshell:searchToggle")'  >/dev/null
     fi
 }
 

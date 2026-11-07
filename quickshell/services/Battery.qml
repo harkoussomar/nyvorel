@@ -159,7 +159,7 @@ Singleton {
 
     Process {
         id: chargeStatusQuery
-        command: ["python3", Directories.scriptPath + "/battery/control.py", "status"]
+        command: [Quickshell.shellPath("scripts/system/nyvorel-operations"), "battery-control", "status"]
         stdout: StdioCollector {
             onStreamFinished: root.acceptChargeStatus(this.text)
         }
@@ -308,12 +308,12 @@ Singleton {
 
     function setChargeLimit(limit) {
         if (chargeLimitAvailable && [60, 70, 80, 90, 100].indexOf(limit) !== -1)
-            runPowerAction(["python3", Directories.scriptPath + "/battery/control.py", "set", String(limit)]);
+            runPowerAction([Quickshell.shellPath("scripts/system/nyvorel-operations"), "battery-control", "set", String(limit)]);
     }
 
     function chargeToFullOnce() {
         if (chargeProtectionEnabled)
-            runPowerAction(["python3", Directories.scriptPath + "/battery/control.py", "once"]);
+            runPowerAction([Quickshell.shellPath("scripts/system/nyvorel-operations"), "battery-control", "once"]);
     }
 
 

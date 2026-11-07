@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "$ROOT"
@@ -34,6 +35,7 @@ echo "image=$IMAGE"
   "$IMAGE" \
   bash -s <<'CONTAINER'
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 pacman -Syu --noconfirm --needed \
   bash python coreutils >/dev/null
@@ -101,6 +103,7 @@ rm -f /work/fake-bin/git
 cat >/work/fake-pacman <<'PACMAN'
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 printf '%s\n' "$*" >>"${NYVOREL_TEST_PACMAN_LOG:?}"
 
 if [[ "${1:-}" == "-Si" && $# -eq 2 ]]; then

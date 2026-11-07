@@ -250,20 +250,11 @@ Item {
 
 
     StyledRectangularShadow {
-        visible: !Appearance.prismMode && !Appearance.inlayMode
+        visible: true
         target:
             card
     }
 
-    PrismSurface {
-        visible: Appearance.prismMode
-        x: card.x
-        y: card.y
-        width: card.width
-        height: card.height
-        depth: Appearance.prism.depthTransient
-        surfaceRadius: Appearance.prism.radiusTransient
-    }
 
 
     Rectangle {
@@ -283,37 +274,27 @@ Item {
             implicitHeight
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusTransient
-                    : Appearance.rounding.normal
+              Appearance.rounding.normal
 
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.fluidMode
+              Appearance.fluidMode
 
-                    ? ColorUtils.transparentize(
-                        Appearance
-                            .colors
-                            .fluidLayer2Tone,
+             ? ColorUtils.transparentize(
+                 Appearance
+                     .colors
+                     .fluidLayer2Tone,
 
-                        0.16
-                    )
+                 0.16
+             )
 
-                    : Appearance
-                        .colors
-                        .colBackgroundSurfaceContainer
+             : Appearance
+                 .colors
+                 .colBackgroundSurfaceContainer
 
         border.width:
-            Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
+            0
         border.color:
-            Appearance.inlayMode
-                ? (root.isCritical ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                : "transparent"
+             "transparent"
 
 
         ColumnLayout {

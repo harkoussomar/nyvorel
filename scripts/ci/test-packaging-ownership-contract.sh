@@ -126,7 +126,7 @@ audit=data["audit_evidence"]
 assert audit["phase6d_baseline_commit"]=="b7da6435371ee812af4c873b73963807cc2528ef"
 assert audit["current_user_managed_files"]==989
 assert audit["installer_HOME_template_files"]==10
-assert audit["installer_HOME_occurrences"]==29
+assert audit["installer_HOME_occurrences"]==28
 assert audit["source_bin_files"]==22
 assert audit["source_systemd_files"]==20
 assert audit["source_quickshell_files"]==911

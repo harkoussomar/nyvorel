@@ -1,0 +1,125 @@
+{
+  "schema_version": 2,
+  "ui_contract": "1.6.0",
+  "backend_revision": "unavailable",
+  "deployment": {},
+  "generated_at": 0,
+  "state_health": {
+    "compatible": true,
+    "fresh": false,
+    "age_seconds": null,
+    "refresh_ok": null,
+    "error": "State unavailable"
+  },
+  "overall": {
+    "status": "unverified",
+    "label": "Not verified",
+    "summary": "State unavailable"
+  },
+  "disk": {
+    "connected": false,
+    "mounted": false,
+    "status": "offline",
+    "filesystem_accessible": false
+  },
+  "restic": {
+    "configured": false,
+    "known": false,
+    "availability": "unavailable",
+    "snapshots": [],
+    "count": null,
+    "latest": null,
+    "check": {
+      "known": false,
+      "ok": null,
+      "time": 0
+    },
+    "restore_test": {
+      "known": false,
+      "ok": null,
+      "time": 0
+    },
+    "data_check": {
+      "known": false,
+      "ok": null
+    },
+    "backup_proof": {
+      "known": false,
+      "ok": null,
+      "current": false
+    },
+    "repository_id": "",
+    "scope": {},
+    "timer": {},
+    "maintenance_timer": {}
+  },
+  "timeshift": {
+    "configured": false,
+    "known": false,
+    "availability": "unavailable",
+    "snapshots": [],
+    "count": null,
+    "latest": null,
+    "mode": "RSYNC",
+    "schedule": {
+      "daily": false,
+      "daily_keep": 0,
+      "weekly": false,
+      "weekly_keep": 0
+    }
+  },
+  "smart": {
+    "known": false,
+    "available": false,
+    "availability": "unavailable",
+    "attributes": {},
+    "self_tests": [],
+    "last_test": null,
+    "test_durations": {}
+  },
+  "recovery": {
+    "core_ready": 0,
+    "core_total": 7,
+    "core_checks": [],
+    "ready": 0,
+    "total": 7,
+    "checks": [],
+    "resilience_checks": [],
+    "restore_doc": "/mnt/backup/recovery/RESTORE.md",
+    "manifests_updated_at": 0,
+    "credential_evidence": {},
+    "recovery_media_evidence": {},
+    "second_copy_evidence": {}
+  },
+  "history": {
+    "dotfiles": {
+      "available": false,
+      "clean": false,
+      "changed_count": null,
+      "latest": null
+    },
+    "etc": {
+      "available": false,
+      "clean": false,
+      "changed_count": null,
+      "latest": null
+    }
+  },
+  "attention": [],
+  "activity": [],
+  "actions": {},
+  "action_running": false,
+  "current_action": "",
+  "operation": {
+    "running": false,
+    "action": "",
+    "state": "idle",
+    "phase": "",
+    "started_at": 0,
+    "updated_at": 0,
+    "finished_at": 0,
+    "elapsed_seconds": 0,
+    "progress": {},
+    "message": ""
+  }
+}

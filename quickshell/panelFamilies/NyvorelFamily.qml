@@ -14,7 +14,6 @@ import qs.modules.nyvorel.notificationPopup
 import qs.modules.nyvorel.onScreenDisplay
 import qs.modules.nyvorel.onScreenKeyboard
 import qs.modules.nyvorel.overview
-import qs.modules.nyvorel.projectLauncher
 import qs.modules.nyvorel.archRemote
 import qs.modules.nyvorel.backupRecovery
 import qs.modules.nyvorel.polkit
@@ -38,7 +37,6 @@ PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
     PanelLoader { component: OnScreenKeyboard {} }
     PanelLoader { component: Overlay {} }
     PanelLoader { component: Overview {} }
-    PanelLoader { component: ProjectLauncher {} }
     PanelLoader { component: ArchRemote {} }
     PanelLoader { component: BackupRecovery {} }
     PanelLoader { component: Polkit {} }

@@ -1,4 +1,6 @@
 import QtQuick
+import Quickshell
+import Quickshell.Widgets
 import qs
 import qs.services
 import qs.modules.common
@@ -13,10 +15,12 @@ RippleButton {
     property bool animeEnabled: Config.options.policies.weeb !== 0
     visible: true
 
-    property real buttonPadding: Appearance.inlayMode ? 0 : 5
+    property real buttonPadding: 5
     implicitWidth: distroIcon.width + buttonPadding * 2
     implicitHeight: distroIcon.height + buttonPadding * 2
-    buttonRadius: Appearance.inlayMode ? 0 : Appearance.rounding.full
+    // Axiom / Fluid: compact precision hover surface.
+    buttonRadius: Appearance.barLayout.axiomComponents
+        ? Appearance.rounding.small : Appearance.rounding.full
     colBackgroundHover: Appearance.colors.colLayer1Hover
     colRipple: Appearance.colors.colLayer1Active
     colBackgroundToggled: Appearance.colors.colSecondaryContainer
@@ -24,8 +28,9 @@ RippleButton {
     colRippleToggled: Appearance.colors.colSecondaryContainerActive
     toggled: GlobalStates.sidebarLeftOpen
 
-    onPressed: {
-        GlobalStates.sidebarLeftOpen = !GlobalStates.sidebarLeftOpen;
+    // nyvorel-phase1b-ripple-click-contract
+    onClicked: {
+        GlobalStates.toggleBarPopup("operations", root.QsWindow?.window?.screen?.name);
     }
 
     Connections {
@@ -51,14 +56,34 @@ RippleButton {
         }
     }
 
-    CustomIcon {
+    Item {
         id: distroIcon
         anchors.centerIn: parent
-        width: 19.5
-        height: 19.5
-        source: Config.options.bar.topLeftIcon == 'distro' ? SystemInfo.distroIcon : `${Config.options.bar.topLeftIcon}-symbolic`
-        colorize: true
-        color: Appearance.colors.colOnLayer0
+        width: 20
+        height: 20
+
+        Loader {
+            anchors.fill: parent
+            active: Config.options.bar.topLeftIcon === "nyvorel"
+            sourceComponent: IconImage {
+                anchors.fill: parent
+                source: "file://" + Quickshell.shellPath("assets/icons/nyvorel.svg")
+                implicitSize: 20
+                backer.sourceSize: Qt.size(64, 64)
+            }
+        }
+
+        Loader {
+            anchors.fill: parent
+            active: Config.options.bar.topLeftIcon !== "nyvorel"
+            sourceComponent: CustomIcon {
+                anchors.fill: parent
+                source: Config.options.bar.topLeftIcon === "distro"
+                    ? SystemInfo.distroIcon : `${Config.options.bar.topLeftIcon}-symbolic`
+                colorize: true
+                color: Appearance.colors.colOnLayer0
+            }
+        }
 
         Rectangle {
             opacity: root.showPing ? 1 : 0
@@ -71,7 +96,7 @@ RippleButton {
             }
             implicitWidth: 8
             implicitHeight: 8
-            radius: Appearance.inlayMode ? 0 : Appearance.rounding.full
+            radius: Appearance.rounding.full
             color: Appearance.colors.colTertiary
 
             Behavior on opacity {

@@ -2,7 +2,7 @@
 import argparse
 import re
 import os
-import json
+import subprocess
 from pathlib import Path
 from os.path import expandvars as os_expandvars
 from typing import Dict, List
@@ -40,7 +40,19 @@ class Section(dict):
 def read_content(path: str) -> str:
     if (not os.access(os.path.expanduser(os.path.expandvars(path)), os.R_OK)):
         return ("error")
-    with open(os.path.expanduser(os.path.expandvars(path)), "r") as file:
+    resolved = Path(os.path.expanduser(os.path.expandvars(path)))
+    if resolved.suffix == ".lua":
+        # Parse Lua as data with the installed HyprMod reader. Never execute it.
+        python = Path.home() / ".local/share/uv/tools/hyprmod/bin/python"
+        try:
+            result = subprocess.run(
+                [str(python), str(Path(__file__).with_name("lua_keybind_reader.py")), str(resolved)],
+                check=True, capture_output=True, text=True, timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "error"
+        return result.stdout
+    with resolved.open("r") as file:
         return file.read()
 
 
@@ -211,50 +223,18 @@ def get_binds_recursive(current_content, scope):
 
 def parse_keys(path: str) -> Dict[str, List[KeyBinding]]:
     global content_lines
+    global reading_line
+    reading_line = 0
     content_lines = read_content(path).splitlines()
-    if content_lines[0] == "error":
+    if not content_lines or content_lines[0] == "error":
+        if Path(os.path.expanduser(os.path.expandvars(path))).suffix == ".lua":
+            return Section([], [], "")
         return "error"
     return get_binds_recursive(Section([], [], ""), 0)
 
 
-def parse_lua_keys(path: str):
-    """Read literal bind declarations and descriptions from native Hyprland Lua."""
-    source = open(path, encoding="utf-8").read()
-    binds = []
-    call = re.compile(r'^\s*hl\.bind(?:_release|_repeat)?\(\s*("(?:\\.|[^"\\])*")', re.M)
-    description = re.compile(r'\["description"\]\s*=\s*("(?:\\.|[^"\\])*")')
-    for line in source.splitlines():
-        match = call.search(line)
-        if not match:
-            continue
-        combo = json.loads(match.group(1))
-        tail = line[match.end():]
-        desc = description.search(tail)
-        comment = json.loads(desc.group(1)) if desc else ""
-        if not comment:
-            action = re.search(r'hl\.dsp\.([a-zA-Z_]+)', tail)
-            comment = action.group(1).replace("_", " ").capitalize() if action else ""
-        pieces = re.split(r"\s*\+\s*", combo)
-        key = pieces.pop().strip() if pieces else combo
-        mods = [part.strip() for part in pieces if part.strip()]
-        binds.append(KeyBinding(mods, key, "lua", "", comment))
-    return Section([Section([Section([], binds, "Nyvorel")], [], "Hyprland")], [], "")
-
-
-def parse_config(path: str):
-    resolved = Path(os.path.expanduser(os.path.expandvars(path)))
-    if resolved.suffix.lower() == ".lua":
-        return parse_lua_keys(str(resolved))
-    # The installed source keeps the native entry beside the legacy tree. Prefer
-    # its real runtime binds when present, then retain the legacy parser fallback.
-    native = (resolved.parent if resolved.parent.name == "hypr" else resolved.parent.parent) / "hyprland.lua"
-    if native.is_file():
-        if resolved.parent.name == "custom":
-            return Section([], [], "")
-        return parse_lua_keys(str(native))
-    return parse_keys(str(resolved))
-
-
 if __name__ == "__main__":
-    ParsedKeys = parse_config(args.path)
+    import json
+
+    ParsedKeys = parse_keys(args.path)
     print(json.dumps(ParsedKeys))

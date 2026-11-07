@@ -103,7 +103,7 @@
     "phase6d_baseline_commit": "b7da6435371ee812af4c873b73963807cc2528ef",
     "current_user_managed_files": 989,
     "installer_HOME_template_files": 10,
-    "installer_HOME_occurrences": 29,
+    "installer_HOME_occurrences": 28,
     "source_bin_files": 22,
     "source_systemd_files": 20,
     "source_quickshell_files": 911,

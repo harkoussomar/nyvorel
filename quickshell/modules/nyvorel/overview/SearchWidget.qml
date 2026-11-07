@@ -352,41 +352,25 @@ Item {
 
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : height / 2
+             height / 2
 
 
         color:
-            Appearance.inlayMode
-                ? (
-                    modeChip.active
-                        ? Appearance.inlay.insetFill
-                        : chipMouse.containsMouse
-                            ? Appearance.colors.colLayer2Hover
-                            : "transparent"
-                  )
-                : modeChip.active
-                    ? Appearance.colors.colSecondaryContainer
-                    : chipMouse.containsMouse
-                        ? Appearance.colors.colLayer2Hover
-                        : Appearance.colors.colLayer1
+             modeChip.active
+                ? Appearance.colors.colSecondaryContainer
+                : chipMouse.containsMouse
+                    ? Appearance.colors.colLayer2Hover
+                    : Appearance.colors.colLayer1
 
 
         // Stronger selected-state hierarchy.
         border.width:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderWidth
-                : (modeChip.active ? 1 : 0)
+             (modeChip.active ? 1 : 0)
 
         border.color:
-            Appearance.inlayMode
-                ? (modeChip.active
-                    ? Appearance.colors.colPrimary
-                    : Appearance.inlay.borderControl)
-                : modeChip.active
-                    ? Appearance.colors.colSecondary
-                    : "transparent"
+             modeChip.active
+                ? Appearance.colors.colSecondary
+                : "transparent"
 
 
         Behavior on color {
@@ -492,38 +476,22 @@ Item {
             27
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : height / 2
+             height / 2
 
         color:
-            Appearance.inlayMode
-                ? (
-                    filterChip.active
-                        ? Appearance.inlay.insetFill
-                        : filterMouse.containsMouse
-                            ? Appearance.colors.colLayer2Hover
-                            : "transparent"
-                  )
-                : filterChip.active
-                    ? Appearance.colors.colPrimaryContainer
-                    : filterMouse.containsMouse
-                        ? Appearance.colors.colLayer2Hover
-                        : Appearance.colors.colLayer1
+             filterChip.active
+                ? Appearance.colors.colPrimaryContainer
+                : filterMouse.containsMouse
+                    ? Appearance.colors.colLayer2Hover
+                    : Appearance.colors.colLayer1
 
         border.width:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderWidth
-                : (filterChip.active ? 1 : 0)
+             (filterChip.active ? 1 : 0)
 
         border.color:
-            Appearance.inlayMode
-                ? (filterChip.active
-                    ? Appearance.colors.colPrimary
-                    : Appearance.inlay.borderControl)
-                : filterChip.active
-                    ? Appearance.colors.colPrimary
-                    : "transparent"
+             filterChip.active
+                ? Appearance.colors.colPrimary
+                : "transparent"
 
         Row {
             id: filterContent
@@ -580,32 +548,12 @@ Item {
 
     StyledRectangularShadow {
         visible:
-            !Appearance.prismMode && !Appearance.inlayMode
+            true
 
         target:
             searchWidgetContent
     }
 
-    // prism-v2-phase5: search is the focused command surface above overview.
-    PrismSurface {
-        visible:
-            Appearance.prismMode
-
-        anchors.fill:
-            searchWidgetContent
-
-        depth:
-            Appearance.prism.depthModal
-
-        surfaceRadius:
-            Appearance.prism.radiusModal
-
-        elevated:
-            true
-
-        borderWidth:
-            1
-    }
 
 
     Rectangle {
@@ -637,22 +585,14 @@ Item {
 
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusModal
-                    : Appearance.rounding.large
+              Appearance.rounding.large
 
 
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colBackgroundSurfaceContainer
+              Appearance.colors.colBackgroundSurfaceContainer
 
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-        border.color: Appearance.inlayMode ? Appearance.inlay.borderControl : "transparent"
+        border.width: 0
+        border.color: "transparent"
 
 
         Behavior on implicitHeight {

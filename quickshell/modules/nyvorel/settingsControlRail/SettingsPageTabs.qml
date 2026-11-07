@@ -10,6 +10,11 @@ Item {
     property var pages: []
     property int currentPage: 0
     property bool entered: false
+    readonly property bool canScrollLeft: tabsFlickable.contentX > 2
+    readonly property bool canScrollRight:
+        tabsFlickable.contentWidth > tabsFlickable.width + 2
+        && tabsFlickable.contentX
+            < tabsFlickable.contentWidth - tabsFlickable.width - 2
 
     signal pageRequested(int index)
 
@@ -93,8 +98,63 @@ Item {
         root.focusTab(normalized)
     }
 
+    function scrollTabs(direction) {
+        const maxOffset = Math.max(
+            0, tabsFlickable.contentWidth - tabsFlickable.width
+        )
+        const step = Math.max(120, tabsFlickable.width * 0.55)
+        tabsFlickable.contentX = Math.max(
+            0,
+            Math.min(maxOffset, tabsFlickable.contentX + direction * step)
+        )
+    }
+
     onCurrentPageChanged:
         Qt.callLater(() => root.ensureTabVisible(root.currentPage))
+    onWidthChanged:
+        Qt.callLater(() => root.ensureTabVisible(root.currentPage))
+
+    component EdgeCue: Item {
+        id: cue
+        property bool leftEdge: false
+
+        width: 34
+        height: parent.height
+        z: 1
+
+        Accessible.role: Accessible.Button
+        Accessible.name: cue.leftEdge
+            ? "Scroll settings tabs left"
+            : "Scroll settings tabs right"
+        Accessible.onPressAction:
+            root.scrollTabs(cue.leftEdge ? -1 : 1)
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Appearance.radius.control
+            color: Qt.rgba(
+                Appearance.colors.colLayer0.r,
+                Appearance.colors.colLayer0.g,
+                Appearance.colors.colLayer0.b,
+                1
+            )
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+        }
+
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: cue.leftEdge ? "chevron_left" : "chevron_right"
+            iconSize: 17
+            color: Appearance.colors.colPrimary
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.scrollTabs(cue.leftEdge ? -1 : 1)
+        }
+    }
 
     Flickable {
         id: tabsFlickable
@@ -146,44 +206,30 @@ Item {
                     Accessible.role: Accessible.Button
                     Accessible.name: modelData.name
 
-                    buttonRadius: Appearance.inlayMode ? 0 : Appearance.radius.control
-                    buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance.radius.control
+                    buttonRadius: Appearance.radius.control
+                    buttonRadiusPressed: Appearance.radius.control
 
                     colBackground:
                         selected
-                            ? (Appearance.inlayMode
-                                ? Appearance.inlay.selectedFill
-                                : Appearance.prismMode
-                                    ? Appearance.prism.persistentActiveFill
-                                    : Appearance.colors.colSecondaryContainer)
+                            ? (Appearance.colors.colSecondaryContainer)
                             : "transparent"
 
                     colBackgroundHover:
-                        Appearance.inlayMode
-                            ? Appearance.inlay.hoverFill
-                            : Appearance.prismMode
-                                ? Appearance.prism.persistentHoverFill
-                                : (selected
-                                    ? Appearance.colors.colSecondaryContainerHover
-                                    : Appearance.colors.colLayer2Hover)
+                          (selected
+                             ? Appearance.colors.colSecondaryContainerHover
+                             : Appearance.colors.colLayer2Hover)
 
                     colRipple:
-                        Appearance.inlayMode
-                            ? Appearance.inlay.pressedFill
-                            : Appearance.prismMode
-                                ? Appearance.prism.persistentActiveFill
-                                : (selected
-                                    ? Appearance.colors.colSecondaryContainerActive
-                                    : Appearance.colors.colLayer2Active)
+                          (selected
+                             ? Appearance.colors.colSecondaryContainerActive
+                             : Appearance.colors.colLayer2Active)
 
                     background: Rectangle {
                         radius: pageButton.buttonEffectiveRadius
                         color: pageButton.buttonColor
-                        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
+                        border.width: 0
                         border.color:
-                            Appearance.inlayMode
-                                ? (pageButton.selected ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                                : "transparent"
+                             "transparent"
                     }
 
                     Keys.priority: Keys.BeforeItem
@@ -236,11 +282,7 @@ Item {
                             fill: pageButton.selected ? 1 : 0
                             color:
                                 pageButton.selected
-                                    ? (Appearance.inlayMode
-                                        ? Appearance.colors.colPrimary
-                                        : Appearance.prismMode
-                                            ? Appearance.colors.colPrimary
-                                            : Appearance.colors.colOnSecondaryContainer)
+                                    ? (Appearance.colors.colOnSecondaryContainer)
                                     : Appearance.colors.colSubtext
                         }
 
@@ -253,11 +295,7 @@ Item {
                             elide: Text.ElideNone
                             color:
                                 pageButton.selected
-                                    ? (Appearance.inlayMode
-                                        ? Appearance.colors.colPrimary
-                                        : Appearance.prismMode
-                                            ? Appearance.colors.colOnLayer0
-                                            : Appearance.colors.colOnSecondaryContainer)
+                                    ? (Appearance.colors.colOnSecondaryContainer)
                                     : Appearance.colors.colOnLayer0
 
                             font {
@@ -272,5 +310,16 @@ Item {
                 }
             }
         }
+    }
+
+    EdgeCue {
+        anchors.left: parent.left
+        leftEdge: true
+        visible: root.canScrollLeft
+    }
+
+    EdgeCue {
+        anchors.right: parent.right
+        visible: root.canScrollRight
     }
 }

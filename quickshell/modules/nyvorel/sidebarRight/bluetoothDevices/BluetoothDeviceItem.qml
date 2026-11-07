@@ -9,15 +9,21 @@ DialogListItem {
     required property var device
     property bool expanded: false
     pointingHandCursor: !expanded
+    buttonRadius: 10
+    horizontalPadding: 13
+    verticalPadding: 13
+    colBackground: Appearance.material.nestedFill
+    colBackgroundHover: Appearance.material.nestedHover
+    colRipple: Appearance.material.nestedActive
 
     onClicked: expanded = !expanded
     altAction: () => expanded = !expanded
     
     component ActionButton: DialogButton {
-        colBackground: Appearance.colors.colPrimary
-        colBackgroundHover: Appearance.colors.colPrimaryHover
-        colRipple: Appearance.colors.colPrimaryActive
-        colText: Appearance.colors.colOnPrimary
+        colBackground: Appearance.material.groupFill
+        colBackgroundHover: Appearance.material.groupHover
+        colRipple: Appearance.material.groupActive
+        colText: Appearance.material.accent
     }
 
     contentItem: ColumnLayout {
@@ -36,7 +42,7 @@ DialogListItem {
             MaterialSymbol {
                 iconSize: Appearance.font.pixelSize.larger
                 text: Icons.getBluetoothDeviceMaterialSymbol(root.device?.icon || "")
-                color: Appearance.colors.colOnSurfaceVariant
+                color: Appearance.material.accent
             }
 
             ColumnLayout {
@@ -44,7 +50,7 @@ DialogListItem {
                 Layout.fillWidth: true
                 StyledText {
                     Layout.fillWidth: true
-                    color: Appearance.colors.colOnSurfaceVariant
+                    color: Appearance.material.textPrimary
                     elide: Text.ElideRight
                     text: root.device?.name || Translation.tr("Unknown device")
                     textFormat: Text.PlainText
@@ -53,7 +59,7 @@ DialogListItem {
                     visible: (root.device?.connected || root.device?.paired) ?? false
                     Layout.fillWidth: true
                     font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colSubtext
+                    color: Appearance.material.textMuted
                     elide: Text.ElideRight
                     text: {
                         if (!root.device?.paired) return "";
@@ -68,7 +74,7 @@ DialogListItem {
             MaterialSymbol {
                 text: "keyboard_arrow_down"
                 iconSize: Appearance.font.pixelSize.larger
-                color: Appearance.colors.colOnLayer3
+                color: Appearance.material.textMuted
                 rotation: root.expanded ? 180 : 0
                 Behavior on rotation {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)

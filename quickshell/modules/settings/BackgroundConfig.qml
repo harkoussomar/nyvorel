@@ -7,6 +7,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Page-local spacing/sizing only. All corner geometry uses the project's
     // semantic Appearance.radius.* system.
@@ -73,18 +75,12 @@ ContentPage {
         implicitHeight: card.naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
 
         ColumnLayout {
             id: cardColumn
@@ -130,7 +126,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -166,7 +162,7 @@ ContentPage {
             Layout.fillWidth: true
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -235,7 +231,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -410,7 +406,7 @@ ContentPage {
                 color: box.warning
                     ? Appearance.colors.colOnTertiaryContainer
                     : Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
         }
@@ -490,7 +486,7 @@ ContentPage {
                 Layout.maximumWidth: 380
                 text: Config.options.background.widgets.clock.quote.text
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
             }
@@ -671,7 +667,7 @@ ContentPage {
                     color: Config.options.background.widgets.clock.cookie.dateStyle === "bubble"
                         ? Appearance.colors.colOnSecondaryContainer
                         : Appearance.colors.colOnPrimaryContainer
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                 }
             }
         }
@@ -694,7 +690,7 @@ ContentPage {
                     Config.options.background.widgets.clock.cookie.sides
                 )
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
             }
         }
     }

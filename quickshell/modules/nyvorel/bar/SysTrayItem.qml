@@ -11,6 +11,7 @@ import qs.modules.common.functions
 MouseArea {
     id: root
     required property SystemTrayItem item
+    property bool axiomMode: false
     property bool targetMenuOpen: false
 
     signal menuOpened(qsWindow: var)
@@ -18,8 +19,8 @@ MouseArea {
 
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton
-    implicitWidth: 20
-    implicitHeight: 20
+    implicitWidth: root.axiomMode ? 23 : 20
+    implicitHeight: root.axiomMode ? 23 : 20
     onPressed: (event) => {
         switch (event.button) {
         case Qt.LeftButton:
@@ -61,13 +62,27 @@ MouseArea {
         }
     }
 
+    // Axiom integration: real application icons sit directly on Fluid.
+    // No framed tray tile; existing mouse target and menu behavior remain.
+    // Keep the horizontal underline; it reads as a stray dot in the vertical rail.
+    Rectangle {
+        visible: root.axiomMode && !Config.options.bar.vertical
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: -3
+        width: 3
+        height: 2
+        color: Appearance.barVisual.axiomBatteryAccent
+        z: 2
+    }
+
     IconImage {
         id: trayIcon
         visible: !Config.options.tray.monochromeIcons
         source: root.item.icon
         anchors.centerIn: parent
-        width: parent.width
-        height: parent.height
+        width: root.axiomMode ? Appearance.barVisual.axiomTrayIconSize : parent.width
+        height: root.axiomMode ? Appearance.barVisual.axiomTrayIconSize : parent.height
     }
 
     Loader {

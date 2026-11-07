@@ -44,8 +44,7 @@ FLUID_RUNTIME = HOME / ".local/bin/nyvorel-fluid-runtime"  # fluid-interface-v1
 EDITOR_COLOR_SCRIPT = NYVOREL_DIR / "scripts/colors/code/material-code-set-color.sh"
 QT_WRAPPER = XDG_CONFIG / "matugen/templates/kde/kde-material-you-colors-wrapper.sh"
 VIDEO_RESTORE_SCRIPT = XDG_CONFIG / "nyvorel/video-wallpaper-restore.sh"
-HYPR_LUA_ENTRY = XDG_CONFIG / "hypr/hyprland.lua"
-HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.lua" if HYPR_LUA_ENTRY.is_file() else XDG_CONFIG / "hypr/custom/appearance-runtime.conf"
+HYPR_CUSTOM_GENERAL = XDG_CONFIG / "hypr/custom/appearance-runtime.lua"
 HYPR_CUSTOM_RULES = HYPR_CUSTOM_GENERAL
 KITTY_CONFIG = XDG_CONFIG / "kitty/kitty.conf"
 TERMINAL_RUNTIME_FILES = [
@@ -210,69 +209,6 @@ UI_PROFILES: dict[str, dict[str, Any]] = {
             "bar.verbose": True,
         },
     },
-    # inlay-v2-foundation
-    "inlay": {
-        "name": "Inlay",
-        "description": "Structured matte interface with embedded panels, sharp borders and crisp geometry",
-        "patch": {
-            "appearance.interfaceStyle": "inlay",
-            **_radius_patch(
-                0,
-                window=(False, 0),
-                bar=(False, 0),
-                modal=(False, 0),
-                sidebar=(False, 0),
-                popup=(False, 0),
-                card=(False, 0),
-                control=(False, 0),
-                screen=(False, 0),
-            ),
-            # Matte contract: no transparency and no automatic glass behavior.
-            "appearance.transparency.enable": False,
-            "appearance.transparency.automatic": False,
-            "appearance.transparency.backgroundTransparency": 0.0,
-            "appearance.transparency.contentTransparency": 0.0,
-            # Keep the proven wallpaper-derived material engine as Inlay's color base.
-            "appearance.extraBackgroundTint": True,
-            # Preserve the shell's existing spacing/margins; only shape/shadow changes here.
-            "bar.cornerStyle": 1,
-            "bar.floatStyleShadow": False,
-            "bar.borderless": False,
-            "bar.showBackground": True,
-            "bar.verbose": True,
-        },
-    },
-    # prism-interface-v1
-    "prism": {
-        "name": "Prism",
-        "description": "Spatial interface built from detached surfaces, layered depth and responsive motion",
-        "patch": {
-            "appearance.interfaceStyle": "prism",
-            **_radius_patch(
-                17,
-                window=(False, 8),
-                bar=(False, 8),
-                modal=(False, 23),
-                sidebar=(False, 23),
-                popup=(True, 17),
-                card=(True, 17),
-                control=(False, 12),
-                screen=(False, 8),
-            ),
-            "appearance.transparency.enable": False,
-            "appearance.transparency.automatic": False,
-            "appearance.transparency.backgroundTransparency": 0.0,
-            "appearance.transparency.contentTransparency": 0.0,
-            "appearance.extraBackgroundTint": False,
-            "bar.cornerStyle": 1,
-            "bar.floatStyleShadow": True,
-            "bar.borderless": False,
-            "bar.showBackground": True,
-            "bar.verbose": True,
-        },
-    },
-
-
     # fluid-interface-v1
     # Caelestia base=0.6 / layers=0.2 opacity maps to II transparency
     # amounts 0.40 / 0.80.
@@ -403,7 +339,7 @@ EDITOR_SETTINGS = [
 
 TARGET_FILES = {
     "shell": [COLORS_JSON],
-    "hyprland": [XDG_CONFIG / "hypr/hyprland/colors.conf", XDG_CONFIG / "hypr/hyprland/colors.lua"],
+    "hyprland": [XDG_CONFIG / "hypr/hyprland/colors.lua"],
     "hyprlock": [XDG_CONFIG / "hypr/hyprlock/colors.conf"],
     "fuzzel": [XDG_CONFIG / "fuzzel/fuzzel_theme.ini"],
     "gtk": [XDG_CONFIG / "gtk-3.0/gtk.css", XDG_CONFIG / "gtk-4.0/gtk.css"],
@@ -439,6 +375,12 @@ def _read_json(path: Path, default: Any) -> Any:
 
 
 def _write_json(path: Path, data: Any) -> None:
+    if path == NYVOREL_CONFIG and isinstance(data, dict):
+        appearance = data.get("appearance")
+        if isinstance(appearance, dict):
+            style = str(appearance.get("interfaceStyle") or "").strip().lower()
+            if style in LEGACY_UI_PROFILE_ALIASES:
+                appearance["interfaceStyle"] = LEGACY_UI_PROFILE_ALIASES[style]
     rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if path.is_file() and path.read_text() == rendered:
         return
@@ -521,6 +463,16 @@ def _load_state() -> dict[str, Any]:
         state["targets"].setdefault(key, value)
     if not isinstance(state.get("activeUi"), dict):
         state["activeUi"] = _config_snapshot()
+    active = state.get("active")
+    if isinstance(active, dict):
+        old_profile = str(active.get("uiProfile") or "").strip().lower()
+        if old_profile in LEGACY_UI_PROFILE_ALIASES:
+            active["uiProfile"] = LEGACY_UI_PROFILE_ALIASES[old_profile]
+    active_ui = state.get("activeUi")
+    if isinstance(active_ui, dict):
+        old_style = str(active_ui.get("appearance.interfaceStyle") or "").strip().lower()
+        if old_style in LEGACY_UI_PROFILE_ALIASES:
+            active_ui["appearance.interfaceStyle"] = LEGACY_UI_PROFILE_ALIASES[old_style]
     state["version"] = STATE_VERSION
     return state
 
@@ -589,29 +541,13 @@ def _resolved_radius(cfg: dict[str, Any], role: str) -> int:
 
 
 def _replace_managed_hypr_radius(text: str, value: int) -> str:
-    if HYPR_CUSTOM_GENERAL.suffix == ".lua":
-        begin = "-- >>> Appearance Studio: window radius >>>"
-        end = "-- <<< Appearance Studio: window radius <<<"
-        block = f'{begin}\nhl.config({{["decoration"] = {{["rounding"] = {int(value)}}}}})\n{end}'
-        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
-        if pattern.search(text):
-            return pattern.sub(block, text)
-        suffix = "" if not text or text.endswith("\n") else "\n"
-        return text + suffix + ("\n" if text else "") + block + "\n"
-    begin = "# >>> Appearance Studio: window radius >>>"
-    end = "# <<< Appearance Studio: window radius <<<"
-    block = (
-        f"{begin}\n"
-        "decoration {\n"
-        f"    rounding = {int(value)}\n"
-        "}\n"
-        f"{end}"
-    )
+    begin = "-- >>> Appearance Studio: window radius >>>"
+    end = "-- <<< Appearance Studio: window radius <<<"
+    block = f"{begin}\nhl.config({{decoration = {{rounding = {int(value)}}}}})\n{end}"
     pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
     if pattern.search(text):
         return pattern.sub(block, text)
-    suffix = "" if not text or text.endswith("\n") else "\n"
-    return text + suffix + ("\n" if text else "") + block + "\n"
+    return text.rstrip("\n") + "\n\n" + block + "\n"
 
 
 def _sync_hyprland_window_radius(cfg: dict[str, Any] | None = None, *, persist: bool) -> None:
@@ -631,7 +567,7 @@ def _sync_hyprland_window_radius(cfg: dict[str, Any] | None = None, *, persist: 
 
     if _is_hyprland_session() and shutil.which("hyprctl"):
         proc = subprocess.run(
-            ["hyprctl", "keyword", "decoration:rounding", str(value)],
+            ["hyprctl", "repl", f"hl.config({{decoration = {{rounding = {int(value)}}}}})"],
             check=False, capture_output=True, text=True, timeout=5,
         )
         if proc.returncode != 0 and persist:
@@ -640,12 +576,27 @@ def _sync_hyprland_window_radius(cfg: dict[str, Any] | None = None, *, persist: 
 
 
 LEGACY_UI_PROFILE_ALIASES: dict[str, str] = {
-    "mica": "inlay",
+    "mica": "fluid",
+    "prism": "fluid",
+    "inlay": "fluid",
+    "glass": "fluid",
+    "solid": "default",
+    "minimal": "default",
 }
 
 
+def _migrate_legacy_interface_style(cfg: dict[str, Any]) -> dict[str, Any]:
+    appearance = cfg.get("appearance") if isinstance(cfg, dict) else None
+    if isinstance(appearance, dict):
+        style = str(appearance.get("interfaceStyle") or "").strip().lower()
+        if style in LEGACY_UI_PROFILE_ALIASES:
+            appearance["interfaceStyle"] = LEGACY_UI_PROFILE_ALIASES[style]
+    return cfg
+
+
 def _detect_ui_profile(cfg: dict[str, Any] | None = None) -> str:
-    cfg = cfg or _read_json(NYVOREL_CONFIG, {})
+    cfg = deepcopy(cfg if cfg is not None else _read_json(NYVOREL_CONFIG, {}))
+    cfg = _migrate_legacy_interface_style(cfg)
 
     # First prefer the new exact profile contract, including interface identity.
     for profile_id, profile in UI_PROFILES.items():
@@ -669,7 +620,7 @@ def _detect_ui_profile(cfg: dict[str, Any] | None = None) -> str:
 
 
 def _config_snapshot() -> dict[str, Any]:
-    cfg = _read_json(NYVOREL_CONFIG, {})
+    cfg = _migrate_legacy_interface_style(_read_json(NYVOREL_CONFIG, {}))
     _ensure_radius_geometry(cfg)
     keys = [
         "appearance.interfaceStyle",
@@ -1893,15 +1844,43 @@ def _run_post_commit_integrations(
     return warnings
 
 def _launch_preview_watchdog(token: str, revision: int) -> None:
+    rust_launcher = NYVOREL_DIR / "scripts/system/nyvorel-appearance-studio"
+    backend = (
+        [str(rust_launcher)]
+        if rust_launcher.is_file() and os.access(rust_launcher, os.X_OK)
+        else [sys.executable, str(Path(__file__).resolve())]
+    )
+    command = [
+        *backend,
+        "preview-watchdog",
+        "--token", token,
+        "--revision", str(revision),
+    ]
+    # A transient user timer preserves crash-safe rollback without keeping a
+    # Python process resident for the entire preview countdown. The legacy
+    # detached watchdog remains the fallback if the user manager is absent.
+    if shutil.which("systemd-run"):
+        try:
+            scheduled = subprocess.run(
+                [
+                    "systemd-run", "--user", "--collect",
+                    f"--unit=nyvorel-appearance-preview-{token}-{revision}-{uuid.uuid4().hex[:8]}",
+                    f"--on-active={PREVIEW_TIMEOUT_SECONDS}s",
+                    *command,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=4,
+            )
+            if scheduled.returncode == 0:
+                return
+        except Exception:
+            pass
     try:
         subprocess.Popen(
-            [
-                sys.executable,
-                str(Path(__file__).resolve()),
-                "preview-watchdog",
-                "--token", token,
-                "--revision", str(revision),
-            ],
+            command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -2949,7 +2928,7 @@ def revert_preview() -> dict[str, Any]:
 
 
 def apply_ui_profile(profile_id: str) -> dict[str, Any]:
-    # Backward-compatible direct CLI action. Legacy `mica` now resolves to Inlay.
+    # Backward-compatible direct CLI action. Legacy `mica`, `prism`, and `inlay` resolve to Fluid.
     profile_id = LEGACY_UI_PROFILE_ALIASES.get(profile_id, profile_id)
     # The v0.3 QML stages profiles as draft UI and commits them through
     # apply/preview instead.
@@ -3276,7 +3255,7 @@ def variant_palettes(wallpaper: str, mode: str) -> dict[str, Any]:
 
 def status() -> dict[str, Any]:
     state = _load_state()
-    cfg = _read_json(NYVOREL_CONFIG, {})
+    cfg = _migrate_legacy_interface_style(_read_json(NYVOREL_CONFIG, {}))
     colors = _read_json(COLORS_JSON, {})
     active, committed_ui = _runtime_committed_view(state, cfg)
 

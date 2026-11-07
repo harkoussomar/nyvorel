@@ -11,52 +11,23 @@ RippleButton {
     property bool keyboardDown: false
     property real size: 120
 
-    // prism-v2-phase7: Prism session actions stay architectural rather than
     // morphing into circles. State is carried by tone + accent foreground.
     buttonRadius:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusInteractive
-                : ((button.focus || button.down) ? size / 2 : Appearance.rounding.verylarge)
+          ((button.focus || button.down) ? size / 2 : Appearance.rounding.verylarge)
     colBackground:
-        Appearance.inlayMode
-            ? ((button.keyboardDown || button.focus)
-                ? Appearance.inlay.selectedFill
-                : Appearance.inlay.controlFill)
-            : Appearance.prismMode
-                ? ((button.keyboardDown || button.focus)
-                    ? Appearance.prism.persistentActiveFill
-                    : Appearance.prism.interactiveFill)
-                : (button.keyboardDown
-                    ? Appearance.colors.colSecondaryContainerActive
-                    : button.focus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colSecondaryContainer)
+          (button.keyboardDown
+             ? Appearance.colors.colSecondaryContainerActive
+             : button.focus
+                 ? Appearance.colors.colPrimary
+                 : Appearance.colors.colSecondaryContainer)
     colBackgroundHover:
-        Appearance.inlayMode
-            ? Appearance.inlay.hoverFill
-            : Appearance.prismMode
-                ? Appearance.prism.persistentHoverFill
-                : Appearance.colors.colPrimary
+          Appearance.colors.colPrimary
     colRipple:
-        Appearance.inlayMode
-            ? Appearance.inlay.pressedFill
-            : Appearance.prismMode
-                ? Appearance.prism.persistentActiveFill
-                : Appearance.colors.colPrimaryActive
+          Appearance.colors.colPrimaryActive
     property color colText:
-        Appearance.inlayMode
-            ? ((button.down || button.keyboardDown || button.focus || button.hovered)
-                ? Appearance.colors.colPrimary
-                : Appearance.colors.colOnLayer0)
-            : Appearance.prismMode
-                ? ((button.down || button.keyboardDown || button.focus || button.hovered)
-                    ? Appearance.colors.colPrimary
-                    : Appearance.colors.colOnLayer0)
-                : ((button.down || button.keyboardDown || button.focus || button.hovered)
-                    ? Appearance.m3colors.m3onPrimary
-                    : Appearance.colors.colOnLayer0)
+          ((button.down || button.keyboardDown || button.focus || button.hovered)
+             ? Appearance.m3colors.m3onPrimary
+             : Appearance.colors.colOnLayer0)
 
     Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
 

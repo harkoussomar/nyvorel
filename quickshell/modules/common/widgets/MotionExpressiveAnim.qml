@@ -3,7 +3,6 @@ import qs.modules.common
 
 // Phase 3B expressive spatial primitive.
 //
-// Prism gets a restrained OutBack entrance. Other interface styles preserve
 // their existing semantic duration and Bezier curve. Exits remain deterministic
 // so LayerShell unmap timers cannot cut off a spring.
 NumberAnimation {
@@ -18,10 +17,9 @@ NumberAnimation {
 
     property int standardEnterDuration: 500
     property int standardExitDuration: 220
-    // prism-v2-phase6: final Prism cadence follows the semantic spatial
     // tokens rather than the older long/bouncy experimental timing.
-    property int expressiveEnterDuration: Appearance.prism.enterDuration
-    property int expressiveExitDuration: Appearance.prism.exitDuration
+    property int expressiveEnterDuration: 500
+    property int expressiveExitDuration: 220
 
     property var standardEnterCurve:
         Appearance.animationCurves.expressiveDefaultSpatial
@@ -32,7 +30,7 @@ NumberAnimation {
     property real overshootAmount: 1.025
 
     readonly property bool expressive:
-        Appearance.prismMode
+        false
         && Appearance.expressiveMotion
         && !Appearance.reducedMotion
 

@@ -61,10 +61,10 @@ assert metadata['install']==['nyvorel.install']
 assert metadata['source']==['nyvorel::git+https://github.com/harkoussomar/nyvorel.git#branch=main']
 assert metadata['sha256sums']==['SKIP']
 assert metadata['conflicts']==['nyvorel']
-assert 'makedepends' not in metadata, 'runtime git is implicitly available during build'
+assert metadata.get('makedepends')==['rust'], 'Rust is required at package build time'
 assert 'git' in metadata['depends']
 assert len(metadata['provides'])==1 and metadata['provides'][0].startswith('nyvorel=')
-assert metadata['arch']==['any']
+assert metadata['arch']==['x86_64']
 
 required=[]
 optional=[]
@@ -75,7 +75,7 @@ for group,name in ((deps['required'],required),(deps['optional'],optional)):
         if first:
             name.append(first[0])
         name.extend(whole)
-assert len(deps['required'])==18 and len(deps['optional'])==31 and len(deps['test-only'])==2
+assert len(deps['required'])==18 and len(deps['optional'])==34 and len(deps['test-only'])==2
 assert len(required)==len(set(required)),'duplicate required package names'
 assert len(optional)==len(set(optional)),'duplicate optional package names'
 provisioning={'python-pillow','python-pip'}

@@ -34,8 +34,8 @@ def interface_style() -> str:
     try:
         cfg = json.loads(NYVOREL_CONFIG.read_text(encoding="utf-8"))
         style = str(cfg.get("appearance", {}).get("interfaceStyle") or "").strip().lower()
-        style = {"mica": "inlay", "glass": "fluid", "solid": "default", "minimal": "default"}.get(style, style)
-        if style in {"fluid", "prism", "inlay", "default"}:
+        style = {"mica": "fluid", "glass": "fluid", "prism": "fluid", "inlay": "fluid", "solid": "default", "minimal": "default"}.get(style, style)
+        if style in {"fluid", "default"}:
             return style
     except Exception:
         pass
@@ -218,21 +218,15 @@ def arch_logo(p: dict[str, str]) -> list[str]:
 
 
 def frame_chars() -> dict[str, str]:
-    if STYLE == "inlay":
-        return {"tl": "┌", "tr": "┐", "ml": "├", "mr": "┤", "bl": "└", "br": "┘", "v": "│", "h": "─"}
-    if STYLE == "prism":
-        return {"tl": "╭", "tr": "╮", "ml": "├", "mr": "┤", "bl": "╰", "br": "╯", "v": "│", "h": "━"}
     if STYLE == "default":
         return {"tl": "+", "tr": "+", "ml": "+", "mr": "+", "bl": "+", "br": "+", "v": "|", "h": "-"}
-    # Frozen Fluid frame language.
     return {"tl": "╭", "tr": "╮", "ml": "├", "mr": "┤", "bl": "╰", "br": "╯", "v": "│", "h": "─"}
 
 
 def panel_top(title: str, icon: str, width: int, p: dict[str, str]) -> str:
     f = frame_chars()
     inner = width - 2
-    prism_mark = "◈ " if STYLE == "prism" else ""
-    label = f" {prism_mark}{icon} {title} "
+    label = f" {icon} {title} "
     fill = max(0, inner - cell_width(label))
     return (
         color(f["tl"], p["outline"])
@@ -317,84 +311,17 @@ def system_panel(width: int, p: dict[str, str]) -> list[str]:
     return out
 
 
-def quick_actions_panel(width: int, p: dict[str, str]) -> list[str]:
-    left_items = [
-        ("󰆍", "Ctrl + R", "history"),
-        ("󰆽", "z", "jump project"),
-        ("󰐊", "dev", "run project"),
-        ("󰊢", "gst", "git status"),
-    ]
-    right_items = [
-        ("󰈔", "ll", "files"),
-        ("󰕒", "c", "clear"),
-        ("󰌑", "Ctrl + L", "clear screen"),
-        ("󰗼", "Ctrl + D", "exit shell"),
-    ]
-
-    out = [
-        panel_top("Quick Actions", "", width, p),
-        panel_mid_rule(width, p),
-    ]
-
-    inner = width - 2
-    columns_width = inner - 1
-    left_col = columns_width // 2
-    right_col = columns_width - left_col
-
-    all_items = left_items + right_items
-    key_width = max(cell_width(key) for _, key, _ in all_items)
-
-    def action_cell(
-        icon: str,
-        key: str,
-        description: str,
-        column_width: int,
-    ) -> str:
-        key_padding = " " * max(0, key_width - cell_width(key))
-        prefix_raw = f" {icon} {key}{key_padding}  "
-        available = max(1, column_width - cell_width(prefix_raw))
-        shown_description = clip_cells(description, available)
-        raw = prefix_raw + shown_description
-
-        rendered = (
-            color(f" {icon} ", p["primary"])
-            + color(key, p["tertiary"], bold=True)
-            + key_padding
-            + "  "
-            + color(shown_description, p["text"])
-        )
-
-        return rendered + (
-            " " * max(0, column_width - cell_width(raw))
-        )
-
-    for left, right in zip(left_items, right_items):
-        row = (
-            color(frame_chars()["v"], p["outline"])
-            + action_cell(*left, left_col)
-            + color(frame_chars()["v"], p["outline"])
-            + action_cell(*right, right_col)
-            + color(frame_chars()["v"], p["outline"])
-        )
-        out.append(row)
-
-    out.append(panel_bottom(width, p))
-    return out
-
-
 def render() -> str:
     p = load_palette()
     cols = shutil.get_terminal_size((120, 40)).columns
 
     arch_w = 42
     system_w = 42
-    gap = "    " if STYLE == "prism" else (" " if STYLE == "inlay" else "  ")
+    gap = "  "
     top_total = arch_w + len(gap) + system_w
-    quick_w = top_total
 
     top_left = arch_panel(arch_w, p)
     top_right = system_panel(system_w, p)
-    quick = quick_actions_panel(quick_w, p)
 
     lines = [""]
 
@@ -404,14 +331,10 @@ def render() -> str:
             l = top_left[i] if i < len(top_left) else " " * arch_w
             r = top_right[i] if i < len(top_right) else " " * system_w
             lines.append(l + gap + r)
-        lines.append("")
-        lines.extend(quick)
     else:
         lines.extend(top_left)
         lines.append("")
         lines.extend(top_right)
-        lines.append("")
-        lines.extend(quick)
 
     lines.append("")
     return "\n".join(lines)

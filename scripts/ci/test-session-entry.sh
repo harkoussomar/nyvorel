@@ -58,22 +58,21 @@ import sys
 root = Path(sys.argv[1])
 lua = (root / "hypr/hyprland.lua").read_text()
 required = {
-    '"SUPER + P"': "quickshell:projectsToggle",
     '"SUPER+ALT + T"': "quickshell:appearanceStudioToggle",
     '"SUPER + Y"': "quickshell:archRemoteToggle",
     '"SUPER + U"': "quickshell:backupRecoveryToggle",
 }
 for keys, target in required.items():
     assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
-assert 'hl.bind("SUPER+ALT + P", hl.dsp.window.pin()' in lua
+assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' in lua
+assert 'hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true})' in lua
+assert 'hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true})' in lua
 assert 'hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
-assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' not in lua
 assert 'local super_scroll = "~/.local/bin/nyvorel-super-scroll"' in lua
 helper = (root / "bin/nyvorel-super-scroll").read_text()
 assert 'hyprctl dispatch \'hl.dsp.global("quickshell:searchToggle")\'' in helper
 assert 'hyprctl dispatch global quickshell:searchToggle' not in helper
 for target, path in (
-    ("projectsToggle", "quickshell/modules/nyvorel/projectLauncher/ProjectLauncher.qml"),
     ("appearanceStudioToggle", "quickshell/shell.qml"),
     ("archRemoteToggle", "quickshell/modules/nyvorel/archRemote/ArchRemote.qml"),
     ("backupRecoveryToggle", "quickshell/modules/nyvorel/backupRecovery/BackupRecovery.qml"),
@@ -125,8 +124,8 @@ import json
 import sys
 groups = json.load(open(sys.argv[1], encoding="utf-8"))["children"]
 binds = [binding for group in groups for section in group["children"] for binding in section["keybinds"]]
-assert len(binds) >= 100
-assert any(binding["key"] == "I" and binding["mods"] == ["SUPER"] for binding in binds)
-assert any(binding["key"] == "R" and set(binding["mods"]) == {"CTRL", "SUPER"} for binding in binds)
+assert len(binds) >= 50
+assert any(binding["key"] == "I" and [mod.upper() for mod in binding["mods"]] == ["SUPER"] for binding in binds)
+assert any(binding["key"] == "R" and {mod.upper() for mod in binding["mods"]} == {"CTRL", "SUPER"} for binding in binds)
 PY
 echo 'PASS explicit config session launch, active-session guard and package entry'

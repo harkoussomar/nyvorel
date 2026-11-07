@@ -57,11 +57,7 @@ Scope {
     Timer {
         id: osdExitTimer
         interval:
-            Appearance.inlayMode
-                ? Appearance.inlay.exitDuration
-                : Appearance.prismMode
-                    ? Appearance.prism.exitDuration
-                    : 190
+              190
         repeat: false
 
         onTriggered: {
@@ -196,21 +192,8 @@ Scope {
                 }
 
 
-                // glass-system-v2.3b-shape
-                Region {
-                    id: glassOsdVisibleMask
-                    item:
-                        (
-                            root.osdShown
-                            || root.osdClosing
-                        )
-                            ? osdValuesWrapper
-                            : null
-                }
-                HyprlandWindow.visibleMask:
-                    Config.options.appearance.transparency.enable
-                        ? glassOsdVisibleMask
-                        : null
+                // This small surface needs no compositor visible mask. A mask
+                // based on animated content can lag a resize and cut the card.
 
                 WlrLayershell.namespace:
                     "quickshell:onScreenDisplay"
@@ -247,11 +230,21 @@ Scope {
                 }
 
 
+                // Keep the Wayland surface at its full resting size from its
+                // first frame. Loader content is initially 0x0 during startup.
+                // 300x58 is the value indicator card; the remaining space is
+                // its shadow, wrapper safety margins, and entrance travel.
                 implicitWidth:
-                    columnLayout.implicitWidth
+                    Math.max(
+                        columnLayout.implicitWidth,
+                        300 + Appearance.sizes.elevationMargin * 4 + 16
+                    )
 
                 implicitHeight:
-                    columnLayout.implicitHeight
+                    Math.max(
+                        columnLayout.implicitHeight,
+                        58 + Appearance.sizes.elevationMargin * 4 + 16 + 20
+                    )
 
                 visible:
                     osdLoader.active
@@ -292,14 +285,8 @@ Scope {
                             root.osdShown
                                 ? 1
                                 : root.osdClosing
-                                    ? (Appearance.inlayMode
-                                        ? 1
-                                        : Appearance.prismMode ? 0.985 : 0.975)
-                                    : (Appearance.inlayMode
-                                        ? 1
-                                        : Appearance.prismMode
-                                            ? Appearance.prism.enterScale
-                                            : 0.94)
+                                    ? (0.975)
+                                    : (0.94)
 
                         implicitHeight:
                             contentColumnLayout.implicitHeight
@@ -321,16 +308,8 @@ Scope {
                                 root.osdShown
                                     ? 0
                                     : root.osdClosing
-                                        ? (Appearance.inlayMode
-                                            ? Math.round(Appearance.inlay.enterDistance * 0.5)
-                                            : Appearance.prismMode
-                                                ? Math.round(Appearance.prism.enterDistance * 0.5)
-                                                : 10)
-                                        : (Appearance.inlayMode
-                                            ? Appearance.inlay.enterDistance
-                                            : Appearance.prismMode
-                                                ? Appearance.prism.enterDistance
-                                                : 20)
+                                        ? (10)
+                                        : (20)
 
                             Behavior on y {
                                 MotionAnim {
@@ -440,7 +419,7 @@ Scope {
 
 
                                 StyledRectangularShadow {
-                                    visible: !Appearance.inlayMode
+                                    visible: !false
                                     target:
                                         protectionMessageBackground
                                 }
@@ -467,10 +446,10 @@ Scope {
                                         + padding * 2
 
                                     radius:
-                                        Appearance.inlayMode ? 0 : Appearance.rounding.normal
+                                        Appearance.rounding.normal
 
-                                    border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-                                    border.color: Appearance.inlayMode ? Appearance.inlay.borderFocus : "transparent"
+                                    border.width: 0
+                                    border.color: "transparent"
 
 
                                     RowLayout {

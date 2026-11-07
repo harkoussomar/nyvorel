@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
@@ -8,10 +9,13 @@ import qs.modules.nyvorel.bar as Bar
 
 MouseArea {
     id: root
+    property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
 
     property bool borderless: Config.options.bar.borderless
+    // Only the horizontal Fluid navbar enables this; all other users are unchanged.
+    property bool axiomMode: false
 
-    property bool popupPinned: false
+    readonly property bool popupPinned: GlobalStates.isBarPopupOpen("battery", root.barScreenName)
 
     readonly property var chargeState: Battery.chargeState
     readonly property bool isCharging: Battery.isCharging
@@ -24,26 +28,7 @@ MouseArea {
         Math.round(percentage * 100)
 
     readonly property string valueText:
-        Appearance.inlayMode
-            ? `${percentValue}%`
-            : percentValue.toString()
-
-    readonly property string inlayBatteryIcon:
-        isCharging || isPluggedIn
-            ? "battery_charging_full"
-            : percentValue >= 90
-                ? "battery_full"
-                : percentValue >= 75
-                    ? "battery_6_bar"
-                    : percentValue >= 60
-                        ? "battery_5_bar"
-                        : percentValue >= 45
-                            ? "battery_4_bar"
-                            : percentValue >= 30
-                                ? "battery_3_bar"
-                                : percentValue >= 15
-                                    ? "battery_2_bar"
-                                    : "battery_1_bar"
+         percentValue.toString()
 
     readonly property string powerProfileIcon:
         PowerProfiles.profile === PowerProfile.PowerSaver
@@ -56,63 +41,101 @@ MouseArea {
         PowerProfiles.profile === PowerProfile.Balanced ? 0 : 1
 
     readonly property string displayIcon:
-        Appearance.inlayMode
-            ? inlayBatteryIcon
-            : isPluggedIn
-                ? "bolt"
-                : powerProfileIcon
+         isPluggedIn
+            ? "bolt"
+            : powerProfileIcon
 
     readonly property int displayIconFill:
-        Appearance.inlayMode
+         isPluggedIn
             ? 1
-            : isPluggedIn
-                ? 1
-                : powerProfileFill
+            : powerProfileFill
 
     readonly property color accentColor:
         isLow && !isPluggedIn
             ? Appearance.m3colors.m3error
-            : (Appearance.prismMode || Appearance.inlayMode)
+            : (false)
                 ? Appearance.colors.colOnLayer1
                 : Appearance.colors.colOnSecondaryContainer
 
-    implicitWidth: batteryChip.implicitWidth
-    implicitHeight: batteryChip.implicitHeight
+    implicitWidth: root.axiomMode ? axiomBatteryRow.implicitWidth : batteryChip.implicitWidth
+    implicitHeight: root.axiomMode ? 24 : batteryChip.implicitHeight
 
     hoverEnabled: !Config.options.bar.tooltips.clickToShow
     acceptedButtons: Qt.LeftButton
     cursorShape: Qt.PointingHandCursor
 
     onClicked: {
-        root.popupPinned = !root.popupPinned
+        GlobalStates.toggleBarPopup("battery", root.barScreenName)
 
         if (root.popupPinned)
             Battery.refreshPowerSettings()
     }
 
+    // Exact Axiom shape: optional charging bolt + 28x4 rail + 11px mono %.
+    Row {
+        id: axiomBatteryRow
+        visible: root.axiomMode
+        anchors.centerIn: parent
+        spacing: 7
+
+        MaterialSymbol {
+            visible: root.isCharging || root.isPluggedIn
+            text: "bolt"
+            iconSize: Appearance.barVisual.axiomIconSize
+            color: root.isLow && !root.isPluggedIn
+                ? Appearance.colors.colError : Appearance.barVisual.axiomBatteryAccent
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        Rectangle {
+            width: 28
+            height: 4
+            radius: 1
+            color: Appearance.barVisual.axiomBatteryTrack
+            anchors.verticalCenter: parent.verticalCenter
+            clip: true
+            Rectangle {
+                width: parent.width * root.percentage
+                height: parent.height
+                radius: 1
+                color: root.isLow && !root.isPluggedIn
+                    ? Appearance.colors.colError : Appearance.barVisual.axiomBatteryAccent
+                Behavior on width {
+                    enabled: Appearance.barMotion.allowSpatial
+                    NumberAnimation { duration: Appearance.barMotion.statusDuration }
+                }
+            }
+        }
+        Text {
+            text: root.percentValue + "%"
+            font.family: Appearance.font.family.monospace
+            font.pixelSize: Appearance.barVisual.axiomTextSize
+            font.weight: Font.DemiBold
+            color: root.isLow && !root.isPluggedIn
+                ? Appearance.colors.colError : Appearance.barVisual.axiomValue
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
     Rectangle {
         id: batteryChip
+        visible: !root.axiomMode
 
         anchors.centerIn: parent
 
         implicitWidth:
-            Appearance.inlayMode
-                ? valueBubble.implicitWidth + iconBubble.width + 2
-                : Appearance.prismMode
-                    ? valueBubble.implicitWidth + iconBubble.width + 8
-                    : Math.max(
-                        72,
-                        valueBubble.implicitWidth + iconBubble.width + 12
-                    )
+              Math.max(
+                 72,
+                 valueBubble.implicitWidth + iconBubble.width + 12
+             )
         implicitHeight: 23
-        radius: Appearance.inlayMode ? 0 : (Appearance.prismMode ? Appearance.prism.radiusControl : height / 2)
+        radius: (height / 2)
 
         color:
-            (Appearance.prismMode || Appearance.inlayMode)
+            (false)
                 ? "transparent"
                 : Appearance.colors.colLayer0
         border.width:
-            (Appearance.prismMode || Appearance.inlayMode)
+            (false)
                 ? 0
                 : 1
         border.color:
@@ -126,7 +149,7 @@ MouseArea {
 
         Rectangle {
             id: fillPill
-            visible: !Appearance.prismMode && !Appearance.inlayMode
+            visible: true
 
             x: 1
             y: 1
@@ -145,17 +168,15 @@ MouseArea {
         Rectangle {
             id: iconBubble
 
-            x: Appearance.inlayMode ? 0 : 2
-            y: Appearance.inlayMode ? Math.round((parent.height - height) / 2) : 2
+            x: 2
+            y: 2
             width:
-                Appearance.inlayMode
-                    ? 18
-                    : parent.height - 4
+                 parent.height - 4
             height: width
-            radius: Appearance.inlayMode ? 0 : height / 2
+            radius: height / 2
 
-            color: (Appearance.prismMode || Appearance.inlayMode) ? "transparent" : Appearance.colors.colLayer0
-            border.width: (Appearance.prismMode || Appearance.inlayMode) ? 0 : 1
+            color: (false) ? "transparent" : Appearance.colors.colLayer0
+            border.width: (false) ? 0 : 1
             border.color: Qt.rgba(
                 root.accentColor.r,
                 root.accentColor.g,
@@ -170,9 +191,7 @@ MouseArea {
                 text: root.displayIcon
                 fill: root.displayIconFill
                 iconSize:
-                    Appearance.inlayMode
-                        ? Appearance.font.pixelSize.larger
-                        : 14
+                     14
                 animateChange: true
             }
         }
@@ -182,29 +201,20 @@ MouseArea {
 
             anchors {
                 right: parent.right
-                rightMargin: Appearance.inlayMode ? 0 : 2
+                rightMargin: 2
                 verticalCenter: parent.verticalCenter
             }
 
             implicitWidth:
-                (Appearance.inlayMode
-                    ? inlayValueText.implicitWidth
-                    : valueTextItem.implicitWidth)
-                + (Appearance.inlayMode
-                    ? 2
-                    : Appearance.prismMode
-                        ? 4
-                        : 12)
+                (valueTextItem.implicitWidth)
+                + (12)
             height:
-                Appearance.inlayMode
-                    ? parent.height
-                    : parent.height - 4
-            radius: Appearance.inlayMode ? 0 : (Appearance.prismMode ? Appearance.prism.radiusControl : height / 2)
+                 parent.height - 4
+            radius: (height / 2)
 
-            // Prism and Inlay integrate battery into their owning system region
             // instead of nesting another pill/card.
-            color: (Appearance.prismMode || Appearance.inlayMode) ? "transparent" : Appearance.colors.colLayer0
-            border.width: (Appearance.prismMode || Appearance.inlayMode) ? 0 : 1
+            color: (false) ? "transparent" : Appearance.colors.colLayer0
+            border.width: (false) ? 0 : 1
             border.color: Qt.rgba(
                 root.accentColor.r,
                 root.accentColor.g,
@@ -215,28 +225,16 @@ MouseArea {
 
             Text {
                 id: valueTextItem
-                visible: !Appearance.inlayMode
+                visible: !false
 
                 anchors.centerIn: parent
 
                 text: root.valueText
-                color: Appearance.prismMode ? root.accentColor : "#F7FFF9"
+                color: "#F7FFF9"
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
             }
 
-            StyledText {
-                id: inlayValueText
-                visible: Appearance.inlayMode
-
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: 1
-
-                text: root.valueText
-                color: root.accentColor
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-            }
         }
     }
 
@@ -252,6 +250,6 @@ MouseArea {
         forceActive: root.popupPinned
 
         onCloseRequested:
-            root.popupPinned = false
+            GlobalStates.closeBarPopup("battery", root.barScreenName)
     }
 }

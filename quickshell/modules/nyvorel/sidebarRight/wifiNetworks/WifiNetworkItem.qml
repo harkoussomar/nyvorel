@@ -1,6 +1,7 @@
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.services
 import qs.services.network
 import QtQuick
@@ -12,6 +13,14 @@ DialogListItem {
     enabled: !(Network.wifiConnectTarget === root.wifiNetwork && !wifiNetwork?.active)
 
     active: (wifiNetwork?.askingPassword || wifiNetwork?.active) ?? false
+    buttonRadius: 10
+    horizontalPadding: 13
+    verticalPadding: 13
+    colBackground: active
+        ? ColorUtils.mix(Appearance.material.nestedFill, Appearance.material.accent, 0.86)
+        : Appearance.material.nestedFill
+    colBackgroundHover: Appearance.material.nestedHover
+    colRipple: Appearance.material.nestedActive
     onClicked: {
         Network.connectToWifiNetwork(wifiNetwork);
     }
@@ -33,11 +42,11 @@ DialogListItem {
                 iconSize: Appearance.font.pixelSize.larger
                 property int strength: root.wifiNetwork?.strength ?? 0
                 text: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
-                color: Appearance.colors.colOnSurfaceVariant
+                color: Appearance.material.accent
             }
             StyledText {
                 Layout.fillWidth: true
-                color: Appearance.colors.colOnSurfaceVariant
+                color: Appearance.material.textPrimary
                 elide: Text.ElideRight
                 text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
                 textFormat: Text.PlainText
@@ -46,7 +55,7 @@ DialogListItem {
                 visible: (root.wifiNetwork?.isSecure || root.wifiNetwork?.active) ?? false
                 text: root.wifiNetwork?.active ? "check" : Network.wifiConnectTarget === root.wifiNetwork ? "settings_ethernet" : "lock"
                 iconSize: Appearance.font.pixelSize.larger
-                color: Appearance.colors.colOnSurfaceVariant
+                color: root.wifiNetwork?.active ? Appearance.material.accent : Appearance.material.textMuted
             }
         }
 

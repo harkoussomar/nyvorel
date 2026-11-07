@@ -197,7 +197,7 @@ Scope {
                         : (
                             root.mediaControlsClosing
                                 ? 0.988
-                                : (Appearance.prismMode ? 0.965 : 0.975)
+                                : (0.975)
                         )
 
                 transform: Translate {
@@ -206,7 +206,7 @@ Scope {
                     readonly property real distance:
                         root.mediaControlsClosing
                             ? 14
-                            : (Appearance.prismMode ? 34 : 28)
+                            : (28)
 
                     x:
                         root.mediaControlsShown

@@ -55,9 +55,9 @@ Item {
 
     // Compact macOS-like HUD with an exact percentage.
     property real cardWidth:
-        (Appearance.prismMode || Appearance.inlayMode) ? 288 : 300
+        (false) ? 288 : 300
     property real cardHeight:
-        (Appearance.prismMode || Appearance.inlayMode) ? 56 : 58
+        (false) ? 56 : 58
 
     implicitWidth:
         root.cardWidth
@@ -76,16 +76,10 @@ Item {
 
 
     StyledRectangularShadow {
-        visible: !Appearance.prismMode && !Appearance.inlayMode
+        visible: true
         target: card
     }
 
-    PrismSurface {
-        visible: Appearance.prismMode
-        anchors.fill: card
-        depth: Appearance.prism.depthTransient
-        surfaceRadius: Appearance.prism.radiusTransient
-    }
 
 
     Rectangle {
@@ -99,30 +93,16 @@ Item {
         implicitHeight: root.cardHeight
 
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusTransient
-                    : 22
+              22
 
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colLayer0
+              Appearance.colors.colLayer0
 
         border.width:
-            Appearance.prismMode
-                ? 0
-                : Appearance.inlayMode
-                    ? Appearance.inlay.borderWidth
-                    : 1
+              1
 
         border.color:
-            Appearance.inlayMode
-                ? Appearance.inlay.borderControl
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
 
 
         RowLayout {
@@ -140,17 +120,13 @@ Item {
 
                 implicitWidth: 38
                 implicitHeight: 38
-                radius: Appearance.inlayMode ? 0 : 14
+                radius: 14
 
                 color:
-                    Appearance.inlayMode
-                        ? Appearance.inlay.controlFill
-                        : Appearance.prismMode
-                            ? Appearance.prism.interactiveFill
-                            : root.iconBackgroundColor
+                      root.iconBackgroundColor
 
-                border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-                border.color: Appearance.inlayMode ? Appearance.inlay.borderControl : "transparent"
+                border.width: 0
+                border.color: "transparent"
 
 
                 MaterialSymbol {
@@ -165,7 +141,7 @@ Item {
                             : 1
 
                     color:
-                        Appearance.prismMode && !root.muted
+                        false && !root.muted
                             ? Appearance.colors.colPrimary
                             : root.iconForegroundColor
 
@@ -181,18 +157,14 @@ Item {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
 
-                implicitHeight: Appearance.prismMode ? 6 : 8
-                radius: Appearance.inlayMode ? 0 : implicitHeight / 2
+                implicitHeight: 8
+                radius: implicitHeight / 2
 
                 color:
-                    Appearance.inlayMode
-                        ? Appearance.inlay.insetFill
-                        : Appearance.prismMode
-                            ? Appearance.prism.borderSubtle
-                            : Appearance.colors.colLayer3
+                      Appearance.colors.colLayer3
 
-                border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-                border.color: Appearance.inlayMode ? Appearance.inlay.borderSection : "transparent"
+                border.width: 0
+                border.color: "transparent"
 
                 clip: true
 

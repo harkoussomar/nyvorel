@@ -6,23 +6,32 @@ SETTINGS_SIGNAL_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/nyvorel"
 SETTINGS_SIGNAL="$SETTINGS_SIGNAL_DIR/settings-open"
 mkdir -p "$SETTINGS_SIGNAL_DIR"
 
-# The standalone Settings process remains alive after its window closes.
-# Signal that process to show the existing window instead of loading QML again.
-if pgrep -u "$(id -u)" -f "^(qs|quickshell) -p $SETTINGS_QML$" >/dev/null; then
+# Reuse an already open Settings window. The process exits after its close
+# animation, so a later launch starts a fresh instance.
+settings_running() {
+    pgrep -u "$(id -u)" -f "^(/usr/bin/)?(qs|quickshell) (-n )?-p $SETTINGS_QML$" >/dev/null
+}
+
+if settings_running; then
     printf '%s\n' "$(date +%s%N)" > "$SETTINGS_SIGNAL"
-    exit 0
+    # The previous instance may have been in its final close frame when the
+    # signal arrived. Allow it to exit before deciding whether to launch anew.
+    sleep 0.25
+    if settings_running; then
+        exit 0
+    fi
 fi
 
 touch "$SETTINGS_SIGNAL"
 
 if command -v qs >/dev/null 2>&1; then
     exec env XDG_CURRENT_DESKTOP=gnome \
-        qs -p "$SETTINGS_QML"
+        qs -n -p "$SETTINGS_QML"
 fi
 
 if command -v quickshell >/dev/null 2>&1; then
     exec env XDG_CURRENT_DESKTOP=gnome \
-        quickshell -p "$SETTINGS_QML"
+        quickshell -n -p "$SETTINGS_QML"
 fi
 
 for app in systemsettings gnome-control-center better-control; do

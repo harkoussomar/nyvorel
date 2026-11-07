@@ -10,17 +10,9 @@ RippleButton {
     implicitHeight: 70
     implicitWidth: 70
     colBackground:
-        Appearance.inlayMode
-            ? Appearance.inlay.insetFill
-            : Appearance.prismMode
-                ? Appearance.prism.persistentFill
-                : Appearance.colors.colLayer2
+          Appearance.colors.colLayer2
     buttonRadius:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.rounding.small
+          Appearance.rounding.small
 
     Rectangle {
         anchors {
@@ -30,7 +22,7 @@ RippleButton {
             leftMargin: 4
         }
         color: ColorUtils.transparentize(Appearance.colors.colLayer2)
-        radius: Appearance.inlayMode ? 0 : Appearance.rounding.full
+        radius: Appearance.rounding.full
         implicitWidth: Math.max(20, elementNumber.implicitWidth)
         implicitHeight: Math.max(20, elementNumber.implicitHeight)
         width: height
@@ -52,7 +44,7 @@ RippleButton {
             rightMargin: 4
         }
         color: ColorUtils.transparentize(Appearance.colors.colLayer2)
-        radius: Appearance.inlayMode ? 0 : Appearance.rounding.full
+        radius: Appearance.rounding.full
         implicitWidth: Math.max(20, elementWeight.implicitWidth)
         implicitHeight: Math.max(20, elementWeight.implicitHeight)
         width: height

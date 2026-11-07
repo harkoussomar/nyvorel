@@ -14,9 +14,13 @@ MouseArea {
     id: root
     property bool borderless: Config.options.bar.borderless
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || ""
+    readonly property bool hasMedia: activePlayer !== null
+        && cleanedTitle.length > 0
+        && activePlayer?.playbackState !== MprisPlaybackState.Stopped
 
-    Layout.fillHeight: true
+    visible: hasMedia
+    Layout.fillHeight: false
     implicitHeight: mediaCircProg.implicitHeight
     implicitWidth: Appearance.sizes.verticalBarWidth
 
@@ -28,8 +32,9 @@ MouseArea {
     }
 
     acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton | Qt.RightButton | Qt.LeftButton
-    hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    hoverEnabled: true
     onPressed: (event) => {
+        if (!activePlayer) return;
         if (event.button === Qt.MiddleButton) {
             activePlayer.togglePlaying();
         } else if (event.button === Qt.BackButton) {
@@ -47,8 +52,9 @@ MouseArea {
         implicitSize: 20
 
         lineWidth: Appearance.rounding.unsharpen
-        value: activePlayer?.position / activePlayer?.length
-        colPrimary: Appearance.colors.colOnSecondaryContainer
+        value: (activePlayer?.length ?? 0) > 0
+            ? activePlayer.position / activePlayer.length : 0
+        colPrimary: Appearance.barLayout.axiomComponents ? Appearance.colors.colPrimary : Appearance.colors.colOnSecondaryContainer
         enableAnimation: false
 
         Item {
@@ -66,24 +72,5 @@ MouseArea {
         }
     }
 
-    Bar.StyledPopup {
-        hoverTarget: root
-        active: GlobalStates.mediaControlsOpen ? false : root.containsMouse
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 4
-
-            Bar.StyledPopupHeaderRow {
-                icon: "music_note"
-                label: Translation.tr("Media")
-            }
-
-            StyledText {
-                color: Appearance.colors.colOnSurfaceVariant
-                text: `${cleanedTitle}${activePlayer?.trackArtist ? '\n' + activePlayer.trackArtist : ''}`
-            }
-        }
-    }
 
 }

@@ -88,20 +88,11 @@ Scope { // Scope
                         implicitWidth: dockRow.implicitWidth + 5 * 2
                         height: parent.height - Appearance.sizes.elevationMargin - Appearance.sizes.hyprlandGapsOut
 
-                        // prism-v2-phase5: the dock joins the persistent spatial plane.
                         StyledRectangularShadow {
-                            visible: !Appearance.prismMode && !Appearance.inlayMode
+                            visible: true
                             target: dockVisualBackground
                         }
 
-                        PrismSurface {
-                            visible: Appearance.prismMode
-                            anchors.fill: dockVisualBackground
-                            depth: Appearance.prism.depthPersistent
-                            surfaceRadius: Appearance.prism.radiusPersistent
-                            elevated: true
-                            borderWidth: 1
-                        }
 
                         Rectangle { // The real rectangle remains mask/content authority.
                             id: dockVisualBackground
@@ -110,27 +101,13 @@ Scope { // Scope
                             anchors.topMargin: Appearance.sizes.elevationMargin
                             anchors.bottomMargin: Appearance.sizes.hyprlandGapsOut
                             color:
-                                Appearance.prismMode
-                                    ? "transparent"
-                                    : Appearance.inlayMode
-                                        ? Appearance.inlay.surfaceFill
-                                        : Appearance.colors.colLayer0
+                                  Appearance.colors.colLayer0
                             border.width:
-                                Appearance.prismMode
-                                    ? 0
-                                    : Appearance.inlayMode
-                                        ? Appearance.inlay.borderWidth
-                                        : 1
+                                  1
                             border.color:
-                                Appearance.inlayMode
-                                    ? Appearance.inlay.borderControl
-                                    : Appearance.colors.colLayer0Border
+                                 Appearance.colors.colLayer0Border
                             radius:
-                                Appearance.inlayMode
-                                    ? 0
-                                    : Appearance.prismMode
-                                        ? Appearance.prism.radiusPersistent
-                                        : Appearance.rounding.large
+                                  Appearance.rounding.large
                         }
 
                         RowLayout {

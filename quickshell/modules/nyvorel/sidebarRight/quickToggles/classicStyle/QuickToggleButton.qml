@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
 
@@ -9,41 +10,30 @@ GroupButton {
     baseHeight: 40
     clickedWidth: baseWidth + 20
     toggled: false
-    buttonRadius:
-        Appearance.inlayMode
-            ? 0
-            : (altAction && toggled)
-                ? Appearance?.rounding.normal
-                : Math.min(baseHeight, baseWidth) / 2
-    buttonRadiusPressed: Appearance.inlayMode ? 0 : Appearance?.rounding?.small
+    buttonRadius: 9
+    buttonRadiusPressed: 9
 
-    colBackground: Appearance.inlayMode ? Appearance.inlay.insetFill : "transparent"
-    colBackgroundHover: Appearance.inlayMode ? Appearance.inlay.hoverFill : Appearance.colors.colLayer1Hover
-    colBackgroundActive: Appearance.inlayMode ? Appearance.inlay.pressedFill : Appearance.colors.colLayer1Active
-    colBackgroundToggled: Appearance.inlayMode ? Appearance.inlay.selectedFill : Appearance.colors.colPrimary
-    colBackgroundToggledHover: Appearance.inlayMode ? Appearance.inlay.hoverFill : Appearance.colors.colPrimaryHover
-    colBackgroundToggledActive: Appearance.inlayMode ? Appearance.inlay.pressedFill : Appearance.colors.colPrimaryActive
+    colBackground: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
+    colBackgroundHover: Appearance.colors.colLayer1Hover
+    colBackgroundActive: Appearance.colors.colLayer1Active
+    colBackgroundToggled: ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1, 0.72)
+    colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1Hover, 0.64)
+    colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colLayer1Active, 0.64)
 
     background: Rectangle {
         radius: button.radius
         color: button.color
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : (button.tabbedTo ? 2 : 0)
-        border.color:
-            Appearance.inlayMode
-                ? (button.toggled ? Appearance.inlay.borderFocus : Appearance.inlay.borderControl)
-                : Appearance.colors.colSecondary
+        border.width: button.tabbedTo ? 2 : 1
+        border.color: button.tabbedTo ? Appearance.colors.colSecondary
+            : button.toggled ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.53)
+            : Appearance.colors.colLayer0Border
     }
 
     contentItem: MaterialSymbol {
         anchors.centerIn: parent
         iconSize: 22
         fill: toggled ? 1 : 0
-        color:
-            Appearance.inlayMode
-                ? Appearance.colors.colOnLayer1
-                : toggled
-                    ? Appearance.m3colors.m3onPrimary
-                    : Appearance.colors.colOnLayer1
+        color: toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         text: buttonIcon

@@ -4,6 +4,16 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Live desktop source sync and native distribution
+- Synced the current Quickshell interface, settings, bar, sidebars, multi-display
+  behavior, network operations, and white Nyvorel product-symbol artwork.
+- Removed the unused Project Launcher and obsolete Python backends.
+- Added locked Rust sources and a shared native build path for source installs,
+  source updates, and Arch packages; added an isolated install check for all
+  eight native helpers.
+- Updated portable Hyprland bindings, appearance styling, and CI fixtures for
+  the current two-style interface.
+
 ### Guided first-run onboarding — Phase 8B
 - Added read-only `nyvorel welcome` with text/JSON outcomes, dependency and
   diagnostic summaries, actionable next steps and offline/alternate-HOME support.

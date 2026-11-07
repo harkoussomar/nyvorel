@@ -13,36 +13,59 @@ ColumnLayout {
     readonly property list<var> appPwNodes: isSink ? Audio.outputAppNodes : Audio.inputAppNodes
     readonly property list<var> devices: isSink ? Audio.outputDevices : Audio.inputDevices
     readonly property bool hasApps: appPwNodes.length > 0
-    spacing: 16
+    spacing: 9
 
-    DialogSectionListView {
+    StyledText {
+        text: Translation.tr("Applications")
+        font.pixelSize: Appearance.font.pixelSize.smaller
+        color: Appearance.material.textMuted
+    }
+
+    StyledListView {
+        Layout.fillWidth: true
         Layout.fillHeight: true
-        topMargin: 14
-
-        model: ScriptModel {
-            values: root.appPwNodes
-        }
+        Layout.minimumHeight: 75
+        visible: root.hasApps
+        clip: true
+        spacing: 7
+        animateAppearance: false
+        boundsBehavior: Flickable.StopAtBounds
+        model: ScriptModel { values: root.appPwNodes }
         delegate: VolumeMixerEntry {
-            anchors {
-                left: parent?.left
-                right: parent?.right
-            }
             required property var modelData
             node: modelData
+            width: ListView.view.width
         }
-        PagePlaceholder {
-            icon: "widgets"
-            title: Translation.tr("No applications")
-            shown: !root.hasApps
-            shape: MaterialShape.Shape.Cookie7Sided
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 75
+        visible: !root.hasApps
+        radius: 10
+        color: Appearance.material.nestedFill
+        border.width: 1
+        border.color: Appearance.material.nestedBorder
+        StyledText {
+            anchors.centerIn: parent
+            text: Translation.tr("No applications using this device")
+            color: Appearance.material.textMuted
+            font.pixelSize: Appearance.font.pixelSize.small
         }
+    }
+
+    StyledText {
+        text: root.isSink ? Translation.tr("Output device") : Translation.tr("Input device")
+        font.pixelSize: Appearance.font.pixelSize.smaller
+        color: Appearance.material.textMuted
     }
 
     StyledComboBox {
         id: deviceSelector
-        Layout.fillHeight: false
         Layout.fillWidth: true
-        Layout.bottomMargin: 6
+        Layout.fillHeight: false
+        buttonRadius: 9
         model: root.devices.map(node => Audio.friendlyDeviceName(node))
         currentIndex: root.devices.findIndex(item => {
             if (root.isSink) {
@@ -52,7 +75,6 @@ ColumnLayout {
             }
         })
         onActivated: (index) => {
-            print(index)
             const item = root.devices[index]
             if (root.isSink) {
                 Audio.setDefaultSink(item)
@@ -60,26 +82,5 @@ ColumnLayout {
                 Audio.setDefaultSource(item)
             }
         }
-    }
-
-    component DialogSectionListView: StyledListView {
-        Layout.fillWidth: true
-        Layout.topMargin: -22
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-        topMargin: 12
-        bottomMargin: 12
-        leftMargin: 20
-        rightMargin: 20
-
-        clip: true
-        spacing: 4
-        animateAppearance: false
-    }
-
-    Component {
-        id: listElementComp
-        ListElement {}
     }
 }

@@ -1,33 +1,19 @@
-# Runtime/generated
 __pycache__/
 *.py[cod]
-*.log
-*.pid
-*.sock
-.cache/
-state/
+**/target/
+.migration-backups/
 runtime/
-
-# Local/user configuration
-.env
-.env.*
-*.local
-*.secret
-secrets/
-
-# Editor/temp
-*.swp
-*.tmp
-*~
-.DS_Store
-
-# Historical maintainer artifacts
-*.bak
-*.bak-*
-*.backup
-*.backup-*
-*.orig
-*.old
-*-backups/
-.*-backups/
-.removed-*/
+assets/identity-exploration/
+assets/logo-options/
+quickshell/scripts/system/nyvorel-appearance-studio
+quickshell/scripts/system/nyvorel-arch-remote
+quickshell/scripts/system/nyvorel-backup-recovery
+quickshell/scripts/system/nyvorel-keybinds
+quickshell/scripts/system/nyvorel-network
+quickshell/scripts/system/nyvorel-operations
+quickshell/scripts/system/nyvorel-settings-control
+quickshell/scripts/system/nyvorel-wallpaper-utils
+quickshell/scripts/system/ookla-speedtest
+quickshell/scripts/appearance-studio/nyvorel-appearance-studio
+quickshell/scripts/arch-remote/nyvorel-arch-remote
+quickshell/scripts/backup-recovery/nyvorel-backup-recovery

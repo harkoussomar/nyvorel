@@ -10,18 +10,14 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     radius:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusCard
-                : Appearance.rounding.normal
+          Appearance.rounding.normal
     color:
-        (Appearance.prismMode || Appearance.inlayMode)
+        (false)
             ? "transparent"
             : Appearance.colors.colLayer1
 
     NotificationList {
         anchors.fill: parent
-        anchors.margins: (Appearance.prismMode || Appearance.inlayMode) ? 0 : 5
+        anchors.margins: (false) ? 0 : 5
     }
 }

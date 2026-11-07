@@ -7,6 +7,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Layout-only values. Corner geometry always uses Appearance.radius.*.
     readonly property int wideBreakpoint: 700
@@ -46,30 +48,20 @@ ContentPage {
         readonly property real naturalHeight:
             cardColumn.implicitHeight + root.cardPadding * 2
 
-        // Optional sibling natural height. This keeps paired cards equal
-        // without creating a circular layout binding.
-        property real matchedHeight: 0
-
         default property alias content: contentColumn.data
 
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignTop
-        Layout.preferredHeight: Math.max(card.naturalHeight, card.matchedHeight)
+        Layout.preferredHeight: card.naturalHeight
         implicitHeight: card.naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
         clip: true
 
         ColumnLayout {
@@ -119,7 +111,7 @@ ContentPage {
                         Layout.minimumWidth: 0
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -157,7 +149,7 @@ ContentPage {
             Layout.minimumWidth: 0
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -229,7 +221,7 @@ ContentPage {
                     Layout.minimumWidth: 0
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -360,7 +352,7 @@ ContentPage {
                 color: box.warning
                     ? Appearance.colors.colOnTertiaryContainer
                     : Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: Appearance.font.pixelSize.smaller
                 wrapMode: Text.Wrap
             }
         }
@@ -407,7 +399,7 @@ ContentPage {
                     Layout.minimumWidth: 0
                     text: editor.title
                     color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     font.weight: Font.Medium
                     wrapMode: Text.Wrap
                 }
@@ -536,7 +528,7 @@ ContentPage {
                         Layout.minimumWidth: 0
                         text: sliderSetting.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -545,7 +537,7 @@ ContentPage {
                     text: sliderSetting.valueLabel
                     color: Appearance.colors.colSubtext
                     font.family: Appearance.font.family.numbers
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                 }
             }
 
@@ -584,9 +576,6 @@ ContentPage {
             SettingsCard {
                 id: aiAssistantCard
 
-                matchedHeight: aiRecognitionGrid.columns > 1
-                    ? musicRecognitionCard.naturalHeight
-                    : 0
 
                 title: Translation.tr("AI assistant")
                 subtitle: Translation.tr("Edit the system prompt used by the sidebar AI assistant. Model choice and API keys remain managed by the AI interface.")
@@ -638,7 +627,7 @@ ContentPage {
                                 text: Translation.tr("%1 characters configured")
                                     .arg(Config.options.ai.systemPrompt.length)
                                 color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 wrapMode: Text.Wrap
                             }
                         }
@@ -696,9 +685,6 @@ ContentPage {
             SettingsCard {
                 id: musicRecognitionCard
 
-                matchedHeight: aiRecognitionGrid.columns > 1
-                    ? aiAssistantCard.naturalHeight
-                    : 0
 
                 title: Translation.tr("Music recognition")
                 subtitle: Translation.tr("Tune the on-demand SongRec recognition process used when identifying currently playing audio.")
@@ -747,7 +733,7 @@ ContentPage {
                                     .arg(Config.options.musicRecognition.timeout)
                                     .arg(Config.options.musicRecognition.interval)
                                 color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                             }
                         }
                     }
@@ -1188,7 +1174,7 @@ ContentPage {
                                         Config.options.resources.updateInterval
                                     ))
                                 color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 wrapMode: Text.Wrap
                             }
                         }

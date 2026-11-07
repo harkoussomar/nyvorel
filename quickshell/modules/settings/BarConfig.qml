@@ -7,6 +7,8 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Page-local layout metrics only. Corner geometry always comes from
     // Appearance.radius.* so this page follows the global radius system.
@@ -83,30 +85,20 @@ ContentPage {
         readonly property real naturalHeight:
             cardColumn.implicitHeight + root.cardPadding * 2
 
-        // A sibling's naturalHeight can be supplied to align paired cards
-        // without creating a circular layout dependency.
-        property real matchedHeight: 0
-
         default property alias content: contentColumn.data
 
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignTop
-        Layout.preferredHeight: Math.max(card.naturalHeight, card.matchedHeight)
+        Layout.preferredHeight: card.naturalHeight
         implicitHeight: card.naturalHeight
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer2
-        border.width: 1
+             Appearance.colors.colLayer2
+        border.width: 0
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
 
         ColumnLayout {
             id: cardColumn
@@ -152,7 +144,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: card.subtitle
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -188,7 +180,7 @@ ContentPage {
             Layout.fillWidth: true
             text: parent.subtitle
             color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
         }
     }
@@ -257,7 +249,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: row.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     opacity: row.enabled ? 1 : 0.45
                     wrapMode: Text.Wrap
                 }
@@ -483,7 +475,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: tile.subtitle
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
                 }
             }
@@ -643,9 +635,6 @@ ContentPage {
             SettingsCard {
                 id: indicatorsCard
 
-                matchedHeight: contentGrid.columns > 1
-                    ? trayCard.naturalHeight
-                    : 0
 
                 title: Translation.tr("Indicators & interaction")
                 subtitle: Translation.tr("Control lightweight information and popup behavior in the bar.")
@@ -688,9 +677,6 @@ ContentPage {
             SettingsCard {
                 id: trayCard
 
-                matchedHeight: contentGrid.columns > 1
-                    ? indicatorsCard.naturalHeight
-                    : 0
 
                 title: Translation.tr("System tray")
                 subtitle: Translation.tr("Control how tray applications are grouped and colored.")
@@ -946,25 +932,6 @@ ContentPage {
                 spacing: 8
 
                 FieldLabel {
-                    title: Translation.tr("Number reveal")
-                    subtitle: Translation.tr("Configure the workspace labels shown when number visibility is requested.")
-                }
-
-                ConfigSpinBox {
-                    Layout.fillWidth: true
-                    icon: "touch_long"
-                    text: Translation.tr("Number reveal delay (ms)")
-                    value: Config.options.bar.workspaces.showNumberDelay
-                    from: 0
-                    to: 1000
-                    stepSize: 50
-
-                    onValueChanged: {
-                        Config.options.bar.workspaces.showNumberDelay = value
-                    }
-                }
-
-                FieldLabel {
                     title: Translation.tr("Number style")
                     subtitle: Translation.tr("Choose the preset used to label workspace numbers.")
                 }
@@ -1023,7 +990,7 @@ ContentPage {
                             Layout.fillWidth: true
                             text: Translation.tr("A custom workspace number map is active. Choosing a preset will replace it.")
                             color: Appearance.colors.colOnTertiaryContainer
-                            font.pixelSize: Appearance.font.pixelSize.smallest
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             wrapMode: Text.Wrap
                         }
                     }

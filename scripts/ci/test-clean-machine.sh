@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 IMAGE="${NYVOREL_CLEAN_MACHINE_IMAGE:-archlinux:base}"
@@ -34,6 +35,7 @@ echo "image=$IMAGE"
   "$IMAGE" \
   bash -lc '
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
@@ -49,6 +51,7 @@ chown -R nyvoreltest:nyvoreltest /work/source
 cat >/work/run-as-user.sh <<'"'"'USERTEST'"'"'
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export NYVOREL_SKIP_NATIVE_BUILD=1
 
 export HOME=/home/nyvoreltest
 export USER=nyvoreltest

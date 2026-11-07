@@ -58,8 +58,8 @@ apply_term() {
 }
 
 apply_qt() {
-  sh "$CONFIG_DIR/scripts/kvantum/materialQT.sh"          # generate kvantum theme
-  python "$CONFIG_DIR/scripts/kvantum/changeAdwColors.py" # apply config colors
+  bash "$CONFIG_DIR/scripts/kvantum/materialQT.sh" # generate kvantum theme
+  "$CONFIG_DIR/scripts/system/nyvorel-appearance-studio" __kvantum-config
 }
 
 # Check if terminal theming is enabled in config. Appearance Studio core

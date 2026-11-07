@@ -39,45 +39,30 @@ MouseArea {
     }
 
     // Style-aware lock presentation. Fluid intentionally keeps the original
-    // 0.9 -> 1.0 expressive entrance; Inlay is direct with no scale deformation.
     property real toolbarScale:
         Appearance.fluidMode
             ? 0.9
-            : Appearance.prismMode
-                ? 0.96
-                : 1.0
+            : 1.0
     property real toolbarOpacity: 0
 
     readonly property real islandGap:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? 12
-                : 10
+          10
 
     readonly property real islandBottomMargin:
-        Appearance.prismMode ? 26 : 20
+        20
 
     readonly property color islandFill:
-        Appearance.inlayMode
-            ? "transparent"
-            : Appearance.prismMode
-                ? Appearance.prism.interactiveFill
-                : Appearance.fluidMode
-                    ? Appearance.m3colors.m3surfaceContainer
-                    : Appearance.colors.colLayer0
+          Appearance.fluidMode
+             ? Appearance.m3colors.m3surfaceContainer
+             : Appearance.colors.colLayer0
 
     readonly property real islandRadius:
-        Appearance.inlayMode
-            ? 0
-            : Appearance.prismMode
-                ? Appearance.prism.radiusInteractive
-                : Appearance.fluidMode
-                    ? 28
-                    : Appearance.radius.control
+          Appearance.fluidMode
+             ? 28
+             : Appearance.radius.control
 
     readonly property bool islandShadow:
-        Appearance.fluidMode || Appearance.prismMode
+        Appearance.fluidMode
     Behavior on toolbarScale {
         MotionAnim {
             type: MotionAnim.DefaultSpatial
@@ -152,8 +137,8 @@ MouseArea {
         enableShadow: root.islandShadow
         colBackground: root.islandFill
         radius: root.islandRadius
-        padding: Appearance.inlayMode ? 6 : Appearance.prismMode ? 10 : 8
-        spacing: Appearance.inlayMode ? 2 : Appearance.prismMode ? 6 : 4
+        padding: 8
+        spacing: 4
 
         // Fingerprint
         Loader {
@@ -204,14 +189,13 @@ MouseArea {
                 root.context.resetClearTimer();
             }
             
-            // Fluid/Prism keep the soft clipping language. Inlay is a square
             // embedded field, so no rounded opacity mask is applied.
-            layer.enabled: !Appearance.inlayMode
+            layer.enabled: !false
             layer.effect: OpacityMask {
                 maskSource: Rectangle {
                     width: passwordBox.width - 8
                     height: passwordBox.height
-                    radius: Appearance.inlayMode ? 0 : height / 2
+                    radius: height / 2
                 }
             }
 
@@ -254,11 +238,7 @@ MouseArea {
             id: confirmButton
             implicitWidth: height
             buttonRadius:
-                Appearance.inlayMode
-                    ? 0
-                    : Appearance.prismMode
-                        ? Appearance.prism.radiusControl
-                        : Appearance.rounding.full
+                  Appearance.rounding.full
             toggled: true
             enabled: !root.context.unlockInProgress
             colBackgroundToggled: Appearance.colors.colPrimary
@@ -298,8 +278,8 @@ MouseArea {
         enableShadow: root.islandShadow
         colBackground: root.islandFill
         radius: root.islandRadius
-        padding: Appearance.inlayMode ? 6 : Appearance.prismMode ? 10 : 8
-        spacing: Appearance.inlayMode ? 2 : Appearance.prismMode ? 6 : 4
+        padding: 8
+        spacing: 4
 
         // Username
         IconAndTextPair {
@@ -364,8 +344,8 @@ MouseArea {
         enableShadow: root.islandShadow
         colBackground: root.islandFill
         radius: root.islandRadius
-        padding: Appearance.inlayMode ? 6 : Appearance.prismMode ? 10 : 8
-        spacing: Appearance.inlayMode ? 2 : Appearance.prismMode ? 6 : 4
+        padding: 8
+        spacing: 4
 
         IconAndTextPair {
             visible: Battery.available
@@ -379,19 +359,11 @@ MouseArea {
             onClicked: Session.suspend()
             text: "dark_mode"
             buttonRadius:
-                Appearance.inlayMode
-                    ? 0
-                    : Appearance.prismMode
-                        ? Appearance.prism.radiusControl
-                        : Appearance.rounding.full
+                  Appearance.rounding.full
             colBackgroundHover:
-                Appearance.inlayMode
-                    ? Appearance.inlay.hoverFill
-                    : Appearance.colors.colLayer1Hover
+                 Appearance.colors.colLayer1Hover
             colRipple:
-                Appearance.inlayMode
-                    ? Appearance.inlay.pressedFill
-                    : Appearance.colors.colLayer1Active
+                 Appearance.colors.colLayer1Active
         }
 
         PasswordGuardedIconToolbarButton {
@@ -407,65 +379,18 @@ MouseArea {
         }
     }
 
-    // Inlay turns the three legacy floating islands into one embedded bottom
-    // workstation rail. The toolbars themselves become transparent sections;
-    // this owner supplies the matte substrate, outer frame and separators.
-    Rectangle {
-        id: inlayRail
-        visible: Appearance.inlayMode
-        anchors {
-            left: leftIsland.left
-            right: rightIsland.right
-            top: mainIsland.top
-            bottom: mainIsland.bottom
-        }
-        z: -1
-        color: Appearance.inlay.surfaceFill
-        radius: 0
-        border.width: Appearance.inlay.borderWidth
-        border.color: Appearance.inlay.borderControl
-    }
-
-    Rectangle {
-        visible: Appearance.inlayMode
-        x: mainIsland.x
-        y: mainIsland.y
-        width: Appearance.inlay.borderWidth
-        height: mainIsland.height
-        color: Appearance.inlay.borderSection
-    }
-
-    Rectangle {
-        visible: Appearance.inlayMode
-        x: mainIsland.x + mainIsland.width - Appearance.inlay.borderWidth
-        y: mainIsland.y
-        width: Appearance.inlay.borderWidth
-        height: mainIsland.height
-        color: Appearance.inlay.borderSection
-    }
-
     component PasswordGuardedIconToolbarButton: IconToolbarButton {
         id: guardedBtn
         required property var targetAction
 
         buttonRadius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusControl
-                    : Appearance.rounding.full
+              Appearance.rounding.full
         colBackgroundToggled:
-            Appearance.inlayMode
-                ? Appearance.inlay.selectedFill
-                : Appearance.colors.colSecondaryContainer
+             Appearance.colors.colSecondaryContainer
         colBackgroundToggledHover:
-            Appearance.inlayMode
-                ? Appearance.inlay.hoverFill
-                : Appearance.colors.colSecondaryContainerHover
+             Appearance.colors.colSecondaryContainerHover
         colRippleToggled:
-            Appearance.inlayMode
-                ? Appearance.inlay.pressedFill
-                : Appearance.colors.colSecondaryContainerActive
+             Appearance.colors.colSecondaryContainerActive
 
         toggled: root.context.targetAction === guardedBtn.targetAction
 

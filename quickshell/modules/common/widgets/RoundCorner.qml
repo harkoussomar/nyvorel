@@ -13,6 +13,8 @@ Item {
 
     property int implicitSize: 25
     property color color: "#000000"
+    property color outlineColor: "transparent"
+    property real outlineWidth: 0
 
     implicitWidth: implicitSize
     implicitHeight: implicitSize
@@ -73,6 +75,29 @@ Item {
             PathLine {
                 x: shapePath.startX
                 y: shapePath.startY
+            }
+        }
+
+        // Optional outline follows only the exposed curved edge.
+        ShapePath {
+            strokeWidth: root.outlineWidth
+            strokeColor: root.outlineColor
+            fillColor: "transparent"
+            startX: shapePath.startX
+            startY: shapePath.startY
+            PathAngleArc {
+                moveToStart: false
+                centerX: root.implicitSize - shapePath.startX
+                centerY: root.implicitSize - shapePath.startY
+                radiusX: root.implicitSize
+                radiusY: root.implicitSize
+                startAngle: switch (root.corner) {
+                    case RoundCorner.CornerEnum.TopLeft: return 180;
+                    case RoundCorner.CornerEnum.TopRight: return -90;
+                    case RoundCorner.CornerEnum.BottomLeft: return 90;
+                    case RoundCorner.CornerEnum.BottomRight: return 0;
+                }
+                sweepAngle: 90
             }
         }
     }

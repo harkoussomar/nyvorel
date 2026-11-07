@@ -13,6 +13,52 @@ Singleton {
     property bool crosshairOpen: false
     property bool sidebarLeftOpen: false
     property bool sidebarRightOpen: false
+    property string activeBarPopup: ""
+    property string activeBarPopupScreenName: ""
+    property bool syncingBarPopup: false
+
+    function barPopupScreen(screenName) {
+        return screenName || Hyprland.focusedMonitor?.name || ""
+    }
+    function isBarPopupOpen(id, screenName) {
+        return root.activeBarPopup === id && root.activeBarPopupScreenName === screenName
+    }
+    IpcHandler {
+        target: "networkOperations"
+        function open(): void { root.openBarPopup("network") }
+        function close(): void { root.closeBarPopup("network") }
+        function toggle(): void { root.toggleBarPopup("network") }
+    }
+    function openBarPopup(id, screenName) {
+        const owner = root.barPopupScreen(screenName)
+        if (root.isBarPopupOpen(id, owner)) return
+        root.syncingBarPopup = true
+        root.activeBarPopupScreenName = owner
+        root.activeBarPopup = id
+        root.sidebarLeftOpen = id === "operations"
+        root.sidebarRightOpen = id === "controls"
+        root.syncingBarPopup = false
+    }
+    function closeBarPopup(id, screenName) {
+        if (root.activeBarPopup !== id ||
+            (screenName && root.activeBarPopupScreenName !== screenName)) return
+        root.syncingBarPopup = true
+        root.activeBarPopup = ""
+        root.activeBarPopupScreenName = ""
+        if (id === "operations") root.sidebarLeftOpen = false
+        if (id === "controls") root.sidebarRightOpen = false
+        root.syncingBarPopup = false
+    }
+    function toggleBarPopup(id, screenName) {
+        const owner = root.barPopupScreen(screenName)
+        if (root.isBarPopupOpen(id, owner)) root.closeBarPopup(id, owner)
+        else root.openBarPopup(id, owner)
+    }
+    onSidebarLeftOpenChanged: {
+        if (root.syncingBarPopup) return
+        if (root.sidebarLeftOpen) root.openBarPopup("operations")
+        else root.closeBarPopup("operations")
+    }
     property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
@@ -50,6 +96,10 @@ Singleton {
     property bool workspaceShowNumbers: false
 
     onSidebarRightOpenChanged: {
+        if (!root.syncingBarPopup) {
+            if (root.sidebarRightOpen) root.openBarPopup("controls")
+            else root.closeBarPopup("controls")
+        }
         if (GlobalStates.sidebarRightOpen) {
             Notifications.timeoutAll();
             Notifications.markAllRead();
@@ -77,7 +127,6 @@ Singleton {
         "appearanceStudio",
         "archRemote",
         "backupRecovery",
-        "projects",
         "cheatsheet",
         "overview",
         "session"
@@ -98,7 +147,6 @@ Singleton {
         case "appearanceStudio": return "Appearance Studio"
         case "archRemote": return "Arch Remote"
         case "backupRecovery": return "Backup & Recovery"
-        case "projects": return "Project Launcher"
         case "cheatsheet": return "Cheatsheet"
         case "overview": return "Overview / Search"
         case "session": return "Session"

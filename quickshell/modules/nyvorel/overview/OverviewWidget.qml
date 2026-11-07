@@ -26,9 +26,7 @@ Item {
     property var windowAddresses: HyprlandData.addresses
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
     property real scale: Config.options.overview.scale
-    property color activeBorderColor: Appearance.prismMode
-        ? Appearance.prism.focusBorder
-        : Appearance.colors.colSecondary
+    property color activeBorderColor: Appearance.colors.colSecondary
 
     property real workspaceImplicitWidth: (monitorData?.transform % 2 === 1) ? 
         ((monitor.height - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale) :
@@ -96,43 +94,26 @@ Item {
         return false
     }
 
-    // prism-v2-phase5: overview is a major spatial surface, not a generic card.
     StyledRectangularShadow {
-        visible: !Appearance.prismMode && !Appearance.inlayMode
+        visible: true
         target: overviewBackground
     }
 
-    PrismSurface {
-        visible: Appearance.prismMode
-        anchors.fill: overviewBackground
-        depth: Appearance.prism.depthModal
-        surfaceRadius: Appearance.prism.radiusModal
-        elevated: true
-        borderWidth: 1
-    }
 
     Rectangle { // Background/content authority
         id: overviewBackground
-        property real padding: Appearance.prismMode ? 12 : 10
+        property real padding: 10
         anchors.fill: parent
         anchors.margins: Appearance.sizes.elevationMargin
 
         implicitWidth: workspaceColumnLayout.implicitWidth + padding * 2
         implicitHeight: workspaceColumnLayout.implicitHeight + padding * 2
         radius:
-            Appearance.inlayMode
-                ? 0
-                : Appearance.prismMode
-                    ? Appearance.prism.radiusModal
-                    : root.largeWorkspaceRadius + padding
+              root.largeWorkspaceRadius + padding
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.inlayMode
-                    ? Appearance.inlay.surfaceFill
-                    : Appearance.colors.colBackgroundSurfaceContainer
-        border.width: Appearance.inlayMode ? Appearance.inlay.borderWidth : 0
-        border.color: Appearance.inlayMode ? Appearance.inlay.borderControl : "transparent"
+              Appearance.colors.colBackgroundSurfaceContainer
+        border.width: 0
+        border.color: "transparent"
 
         Column { // Workspaces
             id: workspaceColumnLayout
@@ -228,7 +209,7 @@ Item {
                                 onPressed: {
                                     if (root.draggingTargetWorkspace === -1) {
                                         GlobalStates.overviewOpen = false
-                                        Hyprland.dispatch(`hl.dsp.focus({workspace = "${workspace.workspaceValue}"})`)
+                                        HyprNative.workspace(workspace.workspaceValue)
                                     }
                                 }
                             }
@@ -352,7 +333,7 @@ Item {
                             window.Drag.active = false
                             root.draggingFromWorkspace = -1
                             if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
-                                Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
+                                HyprNative.moveToWorkspace(targetWorkspace, window.windowData?.address)
                                 updateWindowPosition.restart()
                             }
                             else {
@@ -362,7 +343,7 @@ Item {
                                 }
                                 const percentageX = Math.round((window.x - xOffset) / root.workspaceImplicitWidth * 100)
                                 const percentageY = Math.round((window.y - yOffset) / root.workspaceImplicitHeight * 100)
-                                Hyprland.dispatch(`movewindowpixel exact ${percentageX}% ${percentageY}%, address:${window.windowData?.address}`)
+                                HyprNative.moveWindowPercent(percentageX, percentageY, window.windowData?.address)
                             }
                         }
                         onClicked: (event) => {
@@ -370,10 +351,10 @@ Item {
 
                             if (event.button === Qt.LeftButton) {
                                 GlobalStates.overviewOpen = false
-                                Hyprland.dispatch(`focuswindow address:${windowData.address}`)
+                                HyprNative.focusWindow(windowData.address)
                                 event.accepted = true
                             } else if (event.button === Qt.MiddleButton) {
-                                Hyprland.dispatch(`closewindow address:${windowData.address}`)
+                                HyprNative.closeWindow(windowData.address)
                                 event.accepted = true
                             }
                         }

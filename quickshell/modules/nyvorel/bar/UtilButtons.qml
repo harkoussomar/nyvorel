@@ -1,3 +1,4 @@
+import qs.modules.common.functions
 import qs
 import qs.services
 import qs.modules.common
@@ -107,9 +108,9 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 onClicked: event => {
                     if (Appearance.m3colors.darkmode) {
-                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`);
+                        HyprNative.execCommand(`${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`);
                     } else {
-                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`);
+                        HyprNative.execCommand(`${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`);
                     }
                 }
                 MaterialSymbol {

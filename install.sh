@@ -136,6 +136,14 @@ echo "Mode         : $MODE"
 echo "Activate     : $([[ $ACTIVATE -eq 1 ]] && echo yes || echo no)"
 echo
 
+# Build from the pinned Rust sources for real source-clone installs. Tests may
+# opt out when exercising installer transactions rather than native compilation.
+NATIVE_OUTPUT=""
+if [[ "$SOURCE_KIND" == source-clone && "$DRY_RUN" -eq 0 && "${NYVOREL_SKIP_NATIVE_BUILD:-0}" != 1 ]]; then
+  NATIVE_OUTPUT="$ROOT/quickshell/scripts/system"
+  "$ROOT/scripts/build-native.sh" --output "$NATIVE_OUTPUT"
+fi
+
 python3 - \
   "$ROOT" \
   "$TARGET_HOME" \
@@ -144,7 +152,8 @@ python3 - \
   "$ASSUME_YES" \
   "$DRY_RUN" \
   "$SOURCE_KIND" \
-  "$PACKAGE_HELPER_ROOT" <<'PYINSTALL'
+  "$PACKAGE_HELPER_ROOT" \
+  "$NATIVE_OUTPUT" <<'PYINSTALL'
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -166,6 +175,14 @@ assume_yes = sys.argv[5] == "1"
 dry_run = sys.argv[6] == "1"
 source_kind = sys.argv[7]
 package_helper_root = Path(sys.argv[8]).resolve(strict=False)
+native_output = Path(sys.argv[9]) if sys.argv[9] else None
+
+native_names = (
+    "nyvorel-appearance-studio", "nyvorel-arch-remote",
+    "nyvorel-backup-recovery", "nyvorel-keybinds", "nyvorel-network",
+    "nyvorel-operations", "nyvorel-settings-control",
+    "nyvorel-wallpaper-utils",
+)
 
 @dataclass(frozen=True)
 class Item:
@@ -204,11 +221,27 @@ def add_tree(items: list[Item], src_root: Path, dest_root: Path) -> None:
         # must not become runnable files in a new user's desktop.
         if ".before-" in src.name or ".pre-" in src.name:
             continue
+        # Never deploy a maintainer's untracked local build by accident.
+        if src_root == root / "quickshell" and rel_inside.parts[:2] == ("scripts", "system") and src.name in native_names:
+            continue
+        if src_root == root / "quickshell" and rel_inside.as_posix() in {
+            "scripts/appearance-studio/nyvorel-appearance-studio",
+            "scripts/arch-remote/nyvorel-arch-remote",
+            "scripts/backup-recovery/nyvorel-backup-recovery",
+            "scripts/system/ookla-speedtest",
+        }:
+            continue
         items.append(Item(src=src, rel=dest_root / rel_inside))
 
 items: list[Item] = []
 
 add_tree(items, root / "quickshell", Path(".config/quickshell/nyvorel"))
+if native_output is not None:
+    for name in native_names:
+        src = native_output / name
+        if not src.is_file():
+            raise SystemExit(f"native build missing: {src}")
+        items.append(Item(src=src, rel=Path(".config/quickshell/nyvorel/scripts/system") / name))
 add_tree(items, root / "hypr", Path(".config/hypr"))
 add_tree(items, root / "matugen", Path(".config/matugen"))
 
@@ -260,9 +293,9 @@ else:
     package_data = json.loads(package_meta.read_text())
     if package_data.get("schema") != 1 or package_data.get("source_kind") != "package":
         raise SystemExit("invalid Nyvorel package metadata")
-    if package_data.get("source_home_token_occurrences") != 29:
+    if package_data.get("source_home_token_occurrences") != 28:
         raise SystemExit(
-            "package metadata does not preserve the 29-token source contract"
+            "package metadata does not preserve the 28-token source contract"
         )
 
 # Plan safety.
@@ -314,9 +347,9 @@ print(f"@HOME@ template files  : {token_files}")
 print(f"@HOME@ occurrences     : {token_occurrences}")
 print("Safety: replacements are backed up and tracked in an installation manifest.")
 
-if source_kind == "source-clone" and token_occurrences != 29:
+if source_kind == "source-clone" and token_occurrences != 28:
     raise SystemExit(
-        f"portable source contract expects 29 @HOME@ occurrences, found {token_occurrences}"
+        f"portable source contract expects 28 @HOME@ occurrences, found {token_occurrences}"
     )
 
 if dry_run:

@@ -109,11 +109,13 @@ def load_appearance() -> dict:
     raw_style = str(appearance.get("interfaceStyle") or "").strip().lower()
     style = {
         "glass": "fluid",
-        "mica": "inlay",
+        "mica": "fluid",
+        "prism": "fluid",
+        "inlay": "fluid",
         "solid": "default",
         "minimal": "default",
     }.get(raw_style, raw_style)
-    if style not in {"fluid", "prism", "inlay", "default"}:
+    if style not in {"fluid", "default"}:
         style = "default"
 
     enabled = transparency.get("enable") is True
@@ -132,8 +134,6 @@ def load_appearance() -> dict:
     return {
         "style": style,
         "fluid": style == "fluid",
-        "prism": style == "prism",
-        "inlay": style == "inlay",
         "default": style == "default",
         "transparent": enabled,
         "background_transparency": max(0.0, min(1.0, bg_t)),
@@ -156,16 +156,6 @@ def opacity_model(app: dict) -> dict[str, int]:
             "tabbar": 55,
             "menubar": 60,
             "menu": 94,
-        }
-
-    if style == "prism":
-        return {
-            "view": 84,
-            "sidebar": 82,
-            "toolbar": 86,
-            "tabbar": 84,
-            "menubar": 86,
-            "menu": 96,
         }
 
     return {
@@ -359,13 +349,9 @@ def patch_darkly(text: str, app: dict, opacity: dict[str, int]) -> str:
     style = app["style"]
 
     common = {
-        "CornerRadius": (
-            1 if style == "inlay"
-            else app["radius_window"] if style in {"fluid", "prism"}
-            else 9
-        ),
-        "ScrollBarTransient": style in {"fluid", "prism"},
-        "ScrollBarTransientAlwaysShowSlim": style in {"fluid", "prism"},
+        "CornerRadius": app["radius_window"] if style == "fluid" else 9,
+        "ScrollBarTransient": style == "fluid",
+        "ScrollBarTransientAlwaysShowSlim": style == "fluid",
     }
 
     settings = {
@@ -377,12 +363,12 @@ def patch_darkly(text: str, app: dict, opacity: dict[str, int]) -> str:
         "MenuOpacity": opacity["menu"],
         "DisableDolphinUrlNavigatorBackground": True,
         "TransparentDolphinView": False,
-        "SidePanelDrawFrame": style in {"prism", "inlay"},
-        "DockWidgetDrawFrame": style in {"prism", "inlay"},
-        "ToolBarDrawSeparator": style in {"prism", "inlay"},
-        "FullOutline": style in {"prism", "inlay"},
+        "SidePanelDrawFrame": style == "default",
+        "DockWidgetDrawFrame": style == "default",
+        "ToolBarDrawSeparator": style == "default",
+        "FullOutline": style == "default",
         "NoOutline": False,
-        "WidgetDrawShadow": style in {"prism", "default"},
+        "WidgetDrawShadow": style == "default",
         "WidgetToolBarShadow": False,
     }
 

@@ -22,9 +22,15 @@ ApplicationWindow {
     id: root
 
     function reopen(): void {
+        closeAnimation.stop()
+        openAnimation.stop()
         root.allowImmediateClose = false
         root.closing = false
+        frameSurface.opacity = 1
+        frameSurface.scale = 1
+        frameTranslate.y = 0
         root.show()
+        root.fitInitialSizeToScreen()
         root.raise()
         root.requestActivate()
         frameFocus.forceActiveFocus()
@@ -52,17 +58,9 @@ ApplicationWindow {
     property int previousPage: 0
     property bool showNextTime: false
 
-    property bool navigationCollapsedByUser: false
-    readonly property bool navigationCanExpand: width >= 880
-    readonly property bool navigationExpanded:
-        navigationCanExpand && !navigationCollapsedByUser
-    readonly property real navigationExpandedWidth:
-        width >= 1040 ? 166 : 150
-    readonly property real navigationCollapsedWidth: 58
+    readonly property bool navigationExpanded: width >= 880
     readonly property real navigationWidth:
-        navigationExpanded
-            ? navigationExpandedWidth
-            : navigationCollapsedWidth
+        navigationExpanded ? 180 : 58
 
     readonly property real preferredScreenMargin: 64
     readonly property real preferredWindowWidth: 1100
@@ -532,21 +530,6 @@ ApplicationWindow {
         })
     }
 
-    // Keep the existing Hyprland decoration workaround. The QML shell owns
-    // its visible semantic modal radius and outline.
-    Timer {
-        id: settingsDecorationFixTimer
-        interval: 80
-        repeat: false
-        running: true
-
-        onTriggered: Quickshell.execDetached([
-            "bash",
-            "-lc",
-            "~/.local/libexec/nyvorel-settings-modal-decoration-fix-v3"
-        ])
-    }
-
     // -------------------------------------------------------------------------
     // Presentation lifecycle
     // -------------------------------------------------------------------------
@@ -624,7 +607,11 @@ ApplicationWindow {
 
             onFinished: {
                 root.allowImmediateClose = true
-                root.close()
+                // Quickshell's CLI terminates this dedicated Settings
+                // instance without deleting QML objects inside a handler.
+                Quickshell.execDetached([
+                    "qs", "-p", Quickshell.shellPath("settings.qml"), "kill"
+                ])
             }
         }
 
@@ -636,12 +623,10 @@ ApplicationWindow {
             radius: Appearance.radius.modal
             antialiasing: true
             color: Appearance.colors.colLayer0Base
-
             border.width: 1
-            border.color:
-                Appearance.fluidMode
-                    ? Appearance.colors.fluidBorderStrong
-                    : Appearance.colors.colLayer0Border
+            border.color: Appearance.fluidMode
+                ? Appearance.colors.fluidBorderStrong
+                : Appearance.colors.colLayer0Border
 
             // fluid-refinement-v1.2
             Behavior on radius {
@@ -828,41 +813,18 @@ ApplicationWindow {
                 Item {
                     id: titleBar
 
-                    visible: Config.options?.windows.showTitlebar
                     Layout.fillWidth: true
                     Layout.fillHeight: false
-                    implicitHeight:
-                        Math.max(
-                            40,
-                            titleText.implicitHeight,
-                            closeButton.implicitHeight
-                        )
-
-                    // Header title tracks the actual content pane rather than
-                    // the whole window, so it remains optically centered when
-                    // the sidebar is expanded.
-                    Item {
-                        id: headerContentRegion
-
-                        x: navRailWrapper.width + bodyRow.spacing
-                        width: Math.max(0, parent.width - x)
-                        height: parent.height
-                    }
+                    implicitHeight: 44
 
                     StyledText {
                         id: titleText
+                        visible: Config.options?.windows.showTitlebar
 
                         anchors {
-                            left:
-                                Config.options.windows.centerTitle
-                                    ? undefined
-                                    : headerContentRegion.left
-                            horizontalCenter:
-                                Config.options.windows.centerTitle
-                                    ? headerContentRegion.horizontalCenter
-                                    : undefined
+                            left: parent.left
                             verticalCenter: parent.verticalCenter
-                            leftMargin: 14
+                            leftMargin: 8
                         }
 
                         color: Appearance.colors.colOnLayer0
@@ -950,7 +912,7 @@ ApplicationWindow {
 
                     Rectangle {
                         anchors {
-                            left: headerContentRegion.left
+                            left: parent.left
                             right: parent.right
                             bottom: parent.bottom
                         }
@@ -971,20 +933,6 @@ ApplicationWindow {
                 // Fixed sidebar + scroll-owning page
                 // -------------------------------------------------------------
 
-                SettingsPageTabs {
-                    id: settingsPageTabs
-
-                    Layout.fillWidth: true
-                    Layout.leftMargin:
-                        navRailWrapper.width + bodyRow.spacing
-
-                    pages: root.pages
-                    currentPage: root.currentPage
-
-                    onPageRequested:
-                        index => root.switchToPage(index)
-                }
-
                 RowLayout {
                     id: bodyRow
 
@@ -996,75 +944,26 @@ ApplicationWindow {
                         id: navRailWrapper
 
                         Layout.fillHeight: true
-                        Layout.preferredWidth: 58
-                        Layout.minimumWidth: 58
-                        Layout.maximumWidth: 58
+                        Layout.preferredWidth: root.navigationWidth
+                        Layout.minimumWidth: root.navigationWidth
+                        Layout.maximumWidth: root.navigationWidth
 
-                        favoriteCount:
-                            settingsControlSurface.favoriteCount
-                        historyCount:
-                            settingsControlSurface.historyCount
-                        canUndo:
-                            settingsControlSurface.canUndo
-                        diagnosticsOk:
-                            settingsControlSurface.diagnosticsOk
-                        diagnosticsWarning:
-                            settingsControlSurface.diagnosticsWarning
+                        pages: root.pages
+                        currentPage: root.currentPage
+                        expanded: root.navigationExpanded
 
                         onSearchRequested:
                             settingsControlSurface.open("search")
-
-                        onFavoritesRequested:
-                            settingsControlSurface.open("favorites")
-
-                        onRecentRequested:
-                            settingsControlSurface.open("recent")
-
-                        onContextRequested:
-                            settingsControlSurface.open("context")
-
-                        onAppearanceRequested: {
-                            Quickshell.execDetached([
-                                "qs",
-                                "-c",
-                                "ii",
-                                "ipc",
-                                "call",
-                                "appearanceStudio",
-                                "open"
-                            ])
-                            root.requestClose()
-                        }
-
-                        onUndoRequested:
-                            settingsControlSurface.undoLast()
-
-                        onDiagnosticsRequested:
-                            settingsControlSurface.open("diagnostics")
-
-                        onConfigRequested: {
-                            Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", `${Directories.config}/nyvorel/config.json`])
-                        }
+                        onPageRequested:
+                            index => root.switchToPage(index)
                     }
 
-                    Rectangle {
+                    Item {
                         id: contentPane
 
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-
-                        color: Appearance.colors.colLayer1
-                        radius: Appearance.radius.card
-                        border.width: 1
-                        border.color:
-                            Appearance.colors.colLayer0Border
                         clip: true
-
-                        Behavior on radius {
-                            MotionAnim {
-                                type: MotionAnim.DefaultEffects
-                            }
-                        }
 
                         Rectangle {
                             id: searchTargetHighlight
@@ -1254,8 +1153,7 @@ ApplicationWindow {
             pages: root.pages
             currentPage: root.currentPage
 
-            helperPath:
-                `${Directories.config}/quickshell/nyvorel/scripts/settings-control/settings_control.py`
+            helperPath: Quickshell.shellPath("scripts/system/nyvorel-settings-control")
 
             onNavigateRequested: (pageIndex, label) => {
                 root.pendingSearchLabel = label
@@ -1264,6 +1162,7 @@ ApplicationWindow {
                 searchTargetTimer.restart()
             }
         }
+
 
 }
 }

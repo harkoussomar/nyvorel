@@ -9,6 +9,7 @@ RippleButton {
     property string day: ""
     property int dayState: 0
     property bool selected: false
+    property bool marked: false
     property string accessibleName: day
 
     readonly property bool isToday: dayState === 1
@@ -53,30 +54,36 @@ RippleButton {
 
     onClicked: button.dateClicked()
 
-    contentItem: StyledText {
-        anchors.fill: parent
-
-        text: button.day
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        font.weight:
-            button.isToday || button.selected
-                ? Font.DemiBold
-                : Font.Normal
-
-        color:
-            button.isToday
+    contentItem: Item {
+        StyledText {
+            anchors.fill: parent
+            text: button.day
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            font.weight: button.isToday || button.selected
+                ? Font.DemiBold : Font.Normal
+            color: button.isToday
                 ? Appearance.colors.colOnPrimary
                 : button.selected
                     ? Appearance.colors.colOnSecondaryContainer
                     : button.isOutsideMonth
                         ? Appearance.colors.colOutlineVariant
                         : Appearance.colors.colOnLayer1
-
-        Behavior on color {
-            animation:
-                Appearance.animation.elementMoveFast
+            Behavior on color {
+                animation: Appearance.animation.elementMoveFast
                     .colorAnimation.createObject(this)
+            }
+        }
+        Rectangle {
+            visible: button.marked
+            width: 4
+            height: 4
+            radius: 2
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 2
+            color: button.isToday ? Appearance.colors.colOnPrimary
+                : Appearance.colors.colPrimary
         }
     }
 }

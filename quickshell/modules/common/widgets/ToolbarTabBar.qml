@@ -25,9 +25,6 @@ Item {
     implicitWidth: contentItem.implicitWidth
     implicitHeight: 40
 
-    readonly property bool inlayMode:
-        Appearance.inlayMode
-
     property Component delegate: ToolbarTabButton {
         required property int index
         required property var modelData
@@ -43,7 +40,7 @@ Item {
         id: contentItem
         z: 1
         anchors.centerIn: parent
-        spacing: root.inlayMode ? 6 : 4
+        spacing: 4
 
         Repeater {
             model: root.tabButtonList
@@ -54,7 +51,7 @@ Item {
     Rectangle {
         id: activeIndicator
         z: 0
-        visible: !root.inlayMode
+        visible: true
         color: Appearance.colors.colSecondaryContainer
         implicitWidth: contentItem.children[root.currentIndex]?.implicitWidth ?? 0
         implicitHeight: contentItem.children[root.currentIndex]?.implicitHeight ?? 0

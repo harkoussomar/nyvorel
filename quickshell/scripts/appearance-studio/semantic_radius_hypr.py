@@ -25,25 +25,24 @@ def persist_rounding(path: Path, value: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text() if path.exists() else ""
 
-    # Prefer the existing exact `rounding = N` setting. Do not match
-    # rounding_power or any other similarly named option.
-    pat = re.compile(r"(?m)^(?P<indent>\s*)rounding\s*=\s*[^#\n]+(?P<comment>\s*(?:#.*)?)$")
-    match = pat.search(text)
-    if match:
-        indent = match.group("indent")
-        comment = match.group("comment") or ""
-        text = text[:match.start()] + f"{indent}rounding = {value}{comment}" + text[match.end():]
+    begin = "-- >>> Appearance Studio: window radius >>>"
+    end = "-- <<< Appearance Studio: window radius <<<"
+    block = f"{begin}\nhl.config({{decoration = {{rounding = {int(value)}}}}})\n{end}\n"
+    managed = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.S)
+    if managed.search(text):
+        text = managed.sub(block, text, count=1)
     else:
-        begin = "# >>> appearance-studio-window-radius >>>"
-        end = "# <<< appearance-studio-window-radius <<<"
-        block = f"{begin}\ndecoration {{\n    rounding = {value}\n}}\n{end}\n"
-        managed = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.S)
-        if managed.search(text):
-            text = managed.sub(block, text, count=1)
+        material_markers = (
+            "-- >>> appearance-studio-glass-runtime-v2 >>>",
+            "-- >>> nyvorel-fluid-interface-v1 >>>",
+        )
+        positions = [text.find(marker) for marker in material_markers]
+        positions = [position for position in positions if position >= 0]
+        if positions:
+            position = min(positions)
+            text = text[:position].rstrip("\n") + "\n\n" + block + "\n\n" + text[position:]
         else:
-            if text and not text.endswith("\n"):
-                text += "\n"
-            text += "\n" + block
+            text = text.rstrip("\n") + "\n\n" + block
 
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text)
@@ -56,27 +55,14 @@ def main() -> int:
 
     value = clamp(sys.argv[2])
     subprocess.run(
-        ["hyprctl", "keyword", "decoration:rounding", str(value)],
+        ["hyprctl", "repl", f"hl.config({{decoration = {{rounding = {int(value)}}}}})"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
     )
 
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    native = (config_home / "hypr/hyprland.lua").is_file()
-    runtime = config_home / "hypr/custom" / ("appearance-runtime.lua" if native else "appearance-runtime.conf")
-    if native:
-        # Keep the persistent value in a Lua file loaded by Nyvorel's entrypoint.
-        text = runtime.read_text() if runtime.exists() else ""
-        begin = "-- >>> Appearance Studio: window radius >>>"
-        end = "-- <<< Appearance Studio: window radius <<<"
-        block = f'{begin}\nhl.config({{["decoration"] = {{["rounding"] = {value}}}}})\n{end}'
-        managed = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.S)
-        text = managed.sub("", text).rstrip()
-        runtime.parent.mkdir(parents=True, exist_ok=True)
-        runtime.write_text((text + "\n\n" if text else "") + block + "\n")
-    else:
-        persist_rounding(runtime, value)
+    persist_rounding(config_home / "hypr/custom/appearance-runtime.lua", value)
     return 0
 
 

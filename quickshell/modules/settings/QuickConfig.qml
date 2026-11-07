@@ -11,6 +11,8 @@ import qs.modules.common.functions
 ContentPage {
     id: root
     forceWidth: true
+    maxContentWidth: 960
+    horizontalPadding: width < 760 ? 16 : 24
 
     // Local layout metrics. Corner geometry intentionally comes only from the
     // global semantic radius system: Appearance.radius.*.
@@ -238,17 +240,13 @@ ContentPage {
             // Wallpaper is the main visual anchor of the page.
             Rectangle {
                 Layout.fillWidth: true
-                Layout.minimumWidth: 280
+                Layout.minimumWidth: 0
                 implicitHeight: root.wallpaperPreviewHeight
 
                 radius:
-                    Appearance.prismMode
-                        ? Appearance.prism.radiusPersistent
-                        : Appearance.radius.card
+                     Appearance.radius.card
                 color:
-                    Appearance.prismMode
-                        ? "transparent"
-                        : Appearance.colors.colLayer2
+                     Appearance.colors.colLayer2
                 border.width: 1
                 border.color: Appearance.colors.colLayer0Border
 
@@ -315,7 +313,7 @@ ContentPage {
                         StyledText {
                             id: currentWallpaperLabel
                             text: Translation.tr("Current wallpaper")
-                            font.pixelSize: Appearance.font.pixelSize.smallest
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             color: Appearance.colors.colOnLayer1
                         }
                     }
@@ -324,7 +322,7 @@ ContentPage {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.minimumWidth: 260
+                Layout.minimumWidth: 0
                 spacing: 12
 
                 ColumnLayout {
@@ -342,7 +340,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Choose the interface brightness without changing the wallpaper.")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -456,7 +454,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: Translation.tr("Choose how the interface derives colors from your wallpaper.")
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
                 }
             }
@@ -561,13 +559,9 @@ ContentPage {
             implicitHeight: transparencyRow.implicitHeight + root.cardPadding * 2
 
             radius:
-                Appearance.prismMode
-                    ? Appearance.prism.radiusPersistent
-                    : Appearance.radius.card
+                 Appearance.radius.card
             color:
-                Appearance.prismMode
-                    ? "transparent"
-                    : Appearance.colors.colLayer2
+                 Appearance.colors.colLayer2
             border.width: 1
             border.color: Appearance.colors.colLayer0Border
 
@@ -599,7 +593,7 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Let the wallpaper subtly show through shell surfaces.")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
                 }
@@ -638,13 +632,9 @@ ContentPage {
                 implicitHeight: barCardColumn.implicitHeight + root.cardPadding * 2
 
                 radius:
-                    Appearance.prismMode
-                        ? Appearance.prism.radiusPersistent
-                        : Appearance.radius.card
+                     Appearance.radius.card
                 color:
-                    Appearance.prismMode
-                        ? "transparent"
-                        : Appearance.colors.colLayer2
+                     Appearance.colors.colLayer2
                 border.width: 1
                 border.color: Appearance.colors.colLayer0Border
 
@@ -677,22 +667,25 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Choose where the main bar sits and how it is shaped.")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
 
                     StyledText {
                         text: Translation.tr("Position")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         font.weight: Font.DemiBold
                     }
 
-                    Flow {
+                    GridLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        columns: width >= 460 ? 4 : 2
+                        columnSpacing: 8
+                        rowSpacing: 8
 
                         QuickChoiceButton {
+                            Layout.fillWidth: true
                             compact: true
                             label: Translation.tr("Top")
                             iconName: "arrow_upward"
@@ -701,6 +694,7 @@ ContentPage {
                         }
 
                         QuickChoiceButton {
+                            Layout.fillWidth: true
                             compact: true
                             label: Translation.tr("Left")
                             iconName: "arrow_back"
@@ -709,6 +703,7 @@ ContentPage {
                         }
 
                         QuickChoiceButton {
+                            Layout.fillWidth: true
                             compact: true
                             label: Translation.tr("Bottom")
                             iconName: "arrow_downward"
@@ -717,6 +712,7 @@ ContentPage {
                         }
 
                         QuickChoiceButton {
+                            Layout.fillWidth: true
                             compact: true
                             label: Translation.tr("Right")
                             iconName: "arrow_forward"
@@ -729,7 +725,7 @@ ContentPage {
                         Layout.topMargin: 2
                         text: Translation.tr("Style")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         font.weight: Font.DemiBold
                     }
 
@@ -773,13 +769,9 @@ ContentPage {
                 implicitHeight: screenCardColumn.implicitHeight + root.cardPadding * 2
 
                 radius:
-                    Appearance.prismMode
-                        ? Appearance.prism.radiusPersistent
-                        : Appearance.radius.card
+                     Appearance.radius.card
                 color:
-                    Appearance.prismMode
-                        ? "transparent"
-                        : Appearance.colors.colLayer2
+                     Appearance.colors.colLayer2
                 border.width: 1
                 border.color: Appearance.colors.colLayer0Border
 
@@ -812,14 +804,14 @@ ContentPage {
                         Layout.fillWidth: true
                         text: Translation.tr("Control when simulated rounded screen corners are visible.")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.Wrap
                     }
 
                     StyledText {
                         text: Translation.tr("Corner treatment")
                         color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         font.weight: Font.DemiBold
                     }
 
@@ -865,18 +857,12 @@ ContentPage {
         implicitHeight: advancedRow.implicitHeight + root.cardPadding * 2
 
         radius:
-            Appearance.prismMode
-                ? Appearance.prism.radiusPersistent
-                : Appearance.radius.card
+             Appearance.radius.card
         color:
-            Appearance.prismMode
-                ? "transparent"
-                : Appearance.colors.colLayer1
+             Appearance.colors.colLayer1
         border.width: 1
         border.color:
-            Appearance.prismMode
-                ? Appearance.prism.borderSubtle
-                : Appearance.colors.colLayer0Border
+             Appearance.colors.colLayer0Border
 
         RowLayout {
             id: advancedRow
@@ -896,7 +882,7 @@ ContentPage {
                 spacing: 2
 
                 StyledText {
-                    text: Translation.tr("Advanced settings")
+                    text: Translation.tr("Configuration file")
                     color: Appearance.colors.colOnLayer1
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
@@ -904,9 +890,9 @@ ContentPage {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: Translation.tr("Quick settings shows the controls you are most likely to change. Everything else remains available in config.json.")
+                    text: Translation.tr("Browse the other tabs for more controls. Edit config.json for options not yet available in Settings.")
                     color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
                 }
             }

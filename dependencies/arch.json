@@ -587,7 +587,7 @@
       "feature": "Open URLs/files from shell modules and keybindings.",
       "evidence": [
         "hypr/custom/keybinds.conf",
-        "quickshell/scripts/operations-center/operations.py"
+        "rust/operations-center/src/main.rs"
       ]
     },
     {

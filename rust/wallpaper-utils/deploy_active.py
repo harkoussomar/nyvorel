@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Atomically install or roll back the active one-shot wallpaper utilities.
+
+This is deployment tooling only; the active UI invokes Rust, not this script.
+Wallpaper files, user settings, and thumbnail caches are never modified here.
+"""
+
+import argparse
+from datetime import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+CRATE = Path(__file__).resolve().parent
+ACTIVE = Path.home() / ".config/quickshell/nyvorel"
+BACKUPS = ROOT / ".migration-backups"
+FILES = {
+    "find-regions-venv.sh": (
+        ROOT / "quickshell/scripts/images/find-regions-venv.sh",
+        ACTIVE / "scripts/images/find-regions-venv.sh",
+        "find_regions.py",
+    ),
+    "least-busy-region-venv.sh": (
+        ROOT / "quickshell/scripts/images/least-busy-region-venv.sh",
+        ACTIVE / "scripts/images/least-busy-region-venv.sh",
+        "least_busy_region.py",
+    ),
+    "thumbgen-venv.sh": (
+        ROOT / "quickshell/scripts/thumbnails/thumbgen-venv.sh",
+        ACTIVE / "scripts/thumbnails/thumbgen-venv.sh",
+        "thumbgen.py",
+    ),
+    "nyvorel-wallpaper-utils": (
+        CRATE / "target/release/nyvorel-wallpaper-utils",
+        ACTIVE / "scripts/system/nyvorel-wallpaper-utils",
+        None,
+    ),
+    "Wallpapers.qml": (
+        ROOT / "quickshell/services/Wallpapers.qml",
+        ACTIVE / "services/Wallpapers.qml",
+        "thumbgenScriptPath",
+    ),
+}
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def atomic_copy(source, destination, mode=0o755):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".wallpaper-utils-", dir=destination.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(source.read_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(name, mode)
+        os.replace(name, destination)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def verify():
+    for label, (source, target, _) in FILES.items():
+        if not source.is_file() or not target.is_file() or digest(source) != digest(target):
+            raise RuntimeError(f"Active {label} differs from the tested project file")
+        if target.suffix != ".qml" and not os.access(target, os.X_OK):
+            raise RuntimeError(f"Active {label} is not executable")
+    print("Active wallpaper utility binary and entry points match the project build")
+
+
+def restore(snapshot, check_installed):
+    manifest = json.loads((snapshot / "manifest.json").read_text())
+    for label, (_, target, _) in FILES.items():
+        record = manifest["files"][label]
+        if check_installed and (not target.is_file() or digest(target) != record["installed_sha256"]):
+            raise RuntimeError(f"Active {label} changed after installation; refusing rollback")
+    for label, (_, target, _) in FILES.items():
+        record = manifest["files"][label]
+        if record["existed"]:
+            backup = snapshot / label
+            if digest(backup) != record["previous_sha256"]:
+                raise RuntimeError(f"Rollback copy is damaged: {label}")
+            atomic_copy(backup, target, record["mode"])
+        else:
+            target.unlink(missing_ok=True)
+
+
+def install():
+    for label, (source, target, legacy_marker) in FILES.items():
+        if not source.is_file():
+            raise RuntimeError(f"Build output or project launcher missing: {label}")
+        if legacy_marker and not target.is_file():
+            raise RuntimeError(f"Active launcher missing: {target}")
+        if legacy_marker and digest(source) != digest(target) and legacy_marker not in target.read_text():
+            raise RuntimeError(f"Active {label} is neither legacy nor this Rust launcher")
+    snapshot = BACKUPS / ("wallpaper-utils-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    snapshot.mkdir(parents=True, exist_ok=False)
+    manifest = {"files": {}}
+    for label, (source, target, _) in FILES.items():
+        existed = target.is_file()
+        if existed:
+            atomic_copy(target, snapshot / label, target.stat().st_mode & 0o777)
+        manifest["files"][label] = {
+            "path": str(target),
+            "existed": existed,
+            "mode": target.stat().st_mode & 0o777 if existed else 0o755,
+            "previous_sha256": digest(target) if existed else None,
+            "installed_sha256": digest(source),
+        }
+    (snapshot / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    rollback = snapshot / "rollback.sh"
+    rollback.write_text(
+        "#!/bin/sh\nexec python3 " + shlex.quote(str(Path(__file__).resolve()))
+        + " rollback " + shlex.quote(str(snapshot)) + "\n"
+    )
+    rollback.chmod(0o755)
+    try:
+        for label, (source, target, _) in FILES.items():
+            mode = manifest["files"][label]["mode"] if target.suffix == ".qml" else 0o755
+            atomic_copy(source, target, mode)
+        verify()
+    except Exception:
+        restore(snapshot, check_installed=False)
+        raise
+    print(f"Installed. Rollback: {rollback}")
+
+
+def refresh(snapshot):
+    """Refresh tested files while retaining the original rollback snapshot."""
+    manifest_path = snapshot / "manifest.json"
+    original_manifest = manifest_path.read_bytes()
+    manifest = json.loads(original_manifest)
+    changed = []
+    for label, (source, target, _) in FILES.items():
+        record = manifest["files"][label]
+        if record["path"] != str(target) or not target.is_file():
+            raise RuntimeError(f"Snapshot does not describe active {label}")
+        if digest(target) != record["installed_sha256"]:
+            raise RuntimeError(f"Active {label} changed after installation; refusing refresh")
+        if not source.is_file():
+            raise RuntimeError(f"Project source missing: {label}")
+        if digest(source) != digest(target):
+            changed.append(label)
+    if not changed:
+        verify()
+        print("Active wallpaper utilities already match the project build")
+        return
+    with tempfile.TemporaryDirectory(prefix=".wallpaper-refresh-", dir=snapshot) as temporary:
+        temporary = Path(temporary)
+        try:
+            for label in changed:
+                source, target, _ = FILES[label]
+                atomic_copy(target, temporary / label, target.stat().st_mode & 0o777)
+                atomic_copy(source, target, target.stat().st_mode & 0o777)
+                manifest["files"][label]["installed_sha256"] = digest(source)
+            verify()
+            staged_manifest = temporary / "manifest.json"
+            staged_manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+            os.replace(staged_manifest, manifest_path)
+        except Exception:
+            for label in changed:
+                backup = temporary / label
+                if backup.is_file():
+                    _, target, _ = FILES[label]
+                    atomic_copy(backup, target, backup.stat().st_mode & 0o777)
+            manifest_path.write_bytes(original_manifest)
+            raise
+    print(f"Refreshed {', '.join(changed)}; original rollback retained: {snapshot / 'rollback.sh'}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("action", choices=("install", "verify", "refresh", "rollback"))
+    parser.add_argument("snapshot", nargs="?")
+    args = parser.parse_args()
+    if args.action == "install":
+        install()
+    elif args.action == "verify":
+        verify()
+    elif args.action == "refresh":
+        if not args.snapshot:
+            parser.error("refresh needs a snapshot path")
+        refresh(Path(args.snapshot))
+    else:
+        if not args.snapshot:
+            parser.error("rollback needs a snapshot path")
+        restore(Path(args.snapshot), check_installed=True)
+        print("Wallpaper utility entry points restored; user data preserved")
+
+
+if __name__ == "__main__":
+    main()

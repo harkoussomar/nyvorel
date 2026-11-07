@@ -248,8 +248,8 @@ print(count)
 PY
 )"
 
-[[ "$TOKEN_COUNT" == "29" ]] \
-  || die "portable source contract expects 29 @HOME@ occurrences, found $TOKEN_COUNT"
+[[ "$TOKEN_COUNT" == "28" ]] \
+  || die "portable source contract expects 28 @HOME@ occurrences, found $TOKEN_COUNT"
 
 if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
   [[ "${GITHUB_REF_NAME:-}" == "v$VERSION_VALUE" ]] \

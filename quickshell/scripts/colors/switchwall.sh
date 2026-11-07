@@ -11,20 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/nyvorel/config.json"
 MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
-COLOR_VENV="${NYVOREL_VIRTUAL_ENV:-$STATE_DIR/.venv}"
-case "$COLOR_VENV" in
-    '~') COLOR_VENV="$HOME" ;;
-    '~/'*) COLOR_VENV="$HOME/${COLOR_VENV#\~/}" ;;
-esac
-COLOR_PYTHON="$COLOR_VENV/bin/python"
-
-color_python() {
-    if [[ ! -x "$COLOR_PYTHON" ]]; then
-        echo "Nyvorel color Python environment is missing: $COLOR_PYTHON" >&2
-        return 1
-    fi
-    "$COLOR_PYTHON" "$@"
-}
+APPEARANCE_BINARY="$CONFIG_DIR/scripts/system/nyvorel-appearance-studio"
 
 handle_kde_material_you_colors() {
     # Check if Qt app theming is enabled in config
@@ -328,21 +315,14 @@ switch() {
         [[ "$term_fg_boost" != "null" && -n "$term_fg_boost" ]] && generate_colors_material_args+=(--term_fg_boost "$term_fg_boost")
     fi
 
-    if [[ "${NYVOREL_APPEARANCE_STUDIO_MANAGED:-0}" == "1" ]]; then
-        # Managed transactions must surface failures so the controller can
-        # restore its snapshot instead of committing a half-generated theme.
-        matugen "${matugen_args[@]}" || return 1
-        color_python "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \
-            > "$STATE_DIR"/user/generated/material_colors.scss \
-            || return 1
-        "$SCRIPT_DIR"/applycolor.sh \
-            || return 1
-    else
-        matugen "${matugen_args[@]}" || return 1
-        color_python "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \
-            > "$STATE_DIR"/user/generated/material_colors.scss || return 1
-        "$SCRIPT_DIR"/applycolor.sh || return 1
+    matugen "${matugen_args[@]}" || return 1
+    if [[ ! -x "$APPEARANCE_BINARY" ]]; then
+        echo "Appearance Studio Rust backend is missing: $APPEARANCE_BINARY" >&2
+        return 1
     fi
+    "$APPEARANCE_BINARY" __material-scss "${generate_colors_material_args[@]}" \
+        > "$STATE_DIR"/user/generated/material_colors.scss || return 1
+    "$SCRIPT_DIR"/applycolor.sh || return 1
 
     # Pass screen width, height, and wallpaper path to post_process
     max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"
@@ -371,7 +351,7 @@ main() {
 
     detect_scheme_type_from_image() {
         local img="$1"
-        color_python "$SCRIPT_DIR/scheme_for_image.py" "$img" 2>/dev/null | tr -d '\n'
+        "$APPEARANCE_BINARY" __scheme-for-image "$img" 2>/dev/null | tr -d '\n'
     }
 
     while [[ $# -gt 0 ]]; do

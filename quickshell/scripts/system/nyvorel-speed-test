@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Stream Ookla Speedtest CLI progress in the event format used by Nyvorel."""
+
+import json
+import os
+from pathlib import Path
+import signal
+import shutil
+import subprocess
+import sys
+
+BINARY = shutil.which("speedtest") or str(Path(__file__).with_name("ookla-speedtest"))
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "nyvorel"
+TERMS_MARKER = STATE_DIR / "ookla-speedtest-terms-accepted"
+PROCESS = None
+
+
+def emit(kind, **values):
+    print(json.dumps({"kind": kind, **values}, separators=(",", ":")), flush=True)
+
+
+def stop(_signal, _frame):
+    if PROCESS is not None and PROCESS.poll() is None:
+        PROCESS.terminate()
+    raise SystemExit(0)
+
+
+def mbps(item):
+    return round(float(item.get("bandwidth", 0)) * 8 / 1_000_000, 1)
+
+
+def handle(event, state):
+    kind = event.get("type")
+    if kind == "ping":
+        latency = event.get("ping", {}).get("latency", 0)
+        state["latency"] = latency
+        emit("latency", latency_ms=latency)
+    elif kind in ("download", "upload"):
+        if state["phase"] != kind:
+            if kind == "upload" and state["phase"] == "download":
+                emit("phase_result", phase="download", mbps=state["download"])
+            state["phase"] = kind
+            emit("phase", phase=kind, progress=0, mbps=0)
+        data = event.get(kind, {})
+        rate = mbps(data)
+        emit("sample", phase=kind, progress=max(0, min(1, float(data.get("progress", event.get("progress", 0))))), mbps=rate)
+        state[kind] = rate
+    elif kind == "result":
+        download = mbps(event.get("download", {}))
+        upload = mbps(event.get("upload", {}))
+        latency = event.get("ping", {}).get("latency", state["latency"])
+        server = event.get("server", {})
+        name = server.get("name", "Speedtest server")
+        location = server.get("location", "")
+        emit("result", latency_ms=round(float(latency), 1), download_mbps=download,
+             upload_mbps=upload, transferred_mb=round((event.get("download", {}).get("bytes", 0) +
+             event.get("upload", {}).get("bytes", 0)) / 1_000_000, 1),
+             provider="Ookla", server=f"{name} · {location}" if location else name)
+        state["complete"] = True
+
+
+def run():
+    global PROCESS
+    if not Path(BINARY).is_file():
+        emit("error", message="Install the Ookla speedtest command to run this test")
+        return 1
+    accept = "--accept-terms" in sys.argv[1:]
+    if accept:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        TERMS_MARKER.touch()
+    command = [BINARY, "--format=json", "--progress=yes", "--progress-update-interval=250"]
+    if TERMS_MARKER.exists():
+        command += ["--accept-license", "--accept-gdpr"]
+    emit("phase", phase="latency", progress=0, mbps=0)
+    PROCESS = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, errors="replace", bufsize=1)
+    state = {"phase": "latency", "latency": 0, "download": 0, "upload": 0, "complete": False}
+    diagnostics = []
+    try:
+        for line in PROCESS.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                diagnostics.append(line)
+                diagnostics = diagnostics[-8:]
+                continue
+            if isinstance(event, dict):
+                handle(event, state)
+        code = PROCESS.wait()
+    finally:
+        PROCESS = None
+    if state["complete"] and code == 0:
+        return 0
+    message = " ".join(diagnostics).strip()
+    if "accept-license" in message or "accept the message" in message:
+        emit("license_required")
+    else:
+        emit("error", message=message[-240:] if message else "Speedtest did not complete")
+    return 1
+
+
+signal.signal(signal.SIGTERM, stop)
+
+if __name__ == "__main__":
+    raise SystemExit(run())
