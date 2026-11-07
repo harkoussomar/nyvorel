@@ -87,6 +87,7 @@ TEST_HOME="$(getent passwd aurtest | cut -d: -f6)"
 
 SOURCE_HEAD="$(git -c safe.directory=/src -C /src rev-parse HEAD)"
 git -c safe.directory=/src clone --bare /src /work/upstream.git >/dev/null 2>&1
+git --git-dir=/work/upstream.git update-ref refs/heads/main "$SOURCE_HEAD"
 git --git-dir=/work/upstream.git symbolic-ref HEAD refs/heads/main
 [[ "$(git --git-dir=/work/upstream.git rev-parse refs/heads/main)" == "$SOURCE_HEAD" ]]
 

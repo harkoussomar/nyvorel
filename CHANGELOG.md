@@ -4,9 +4,11 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-11-07
+## [0.1.2] - 2026-11-07
 
 ### Highlights
+- Supersedes the unpublished `v0.1.1` tag after its tagged CI found two test-harness issues; the package itself built successfully.
+- Corrected tagged AUR test checkout and removed a flaky archive-check pipe from the clean Arch regression.
 - Brought the public source up to date with the active Nyvorel shell while keeping
   local paths, generated binaries, user wallpapers, and third-party executables
   out of the redistributable release.

@@ -22,7 +22,7 @@
 [**Explore**](#the-nyvorel-experience) ·
 [**Architecture**](#how-it-fits-together) ·
 [**Documentation**](#documentation) ·
-[**Release v0.1.1**](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.1)
+[**Release v0.1.2**](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.2)
 
 </div>
 
@@ -58,7 +58,7 @@ Nyvorel began as a derivative of
 Impulse and has since been extensively redesigned with its own identity,
 modules, services, UX, lifecycle model, and tooling.
 
-> **Current stable release:** [`v0.1.1`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.1)
+> **Current stable release:** [`v0.1.2`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.2)
 
 ## At a glance
 
@@ -69,7 +69,7 @@ modules, services, UX, lifecycle model, and tooling.
 | **Desktop shell** | Quickshell |
 | **Service lifecycle** | systemd user services |
 | **Automation / tooling** | Rust + Bash + Python |
-| **Current release** | `v0.1.1` |
+| **Current release** | `v0.1.2` |
 | **License** | GPL-3.0 |
 | **Install model** | Manifest-backed, backup-first, recoverable |
 
@@ -163,7 +163,7 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 
 Phase 7C prepares a validated `nyvorel-git` development package recipe
 under [`packaging/aur/nyvorel-git`](packaging/aur/nyvorel-git).
-It is **not submitted to AUR** and does not replace the stable `v0.1.1`
+It is **not submitted to AUR** and does not replace the stable `v0.1.2`
 source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
 
 ## Quick start
@@ -172,7 +172,7 @@ source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
 
 The current release can configure a **minimal Arch Linux**
 installation with working internet and sudo; Hyprland and Quickshell do not
-need to be preinstalled. This workflow is included in `v0.1.1`.
+need to be preinstalled. This workflow is included in `v0.1.2`.
 
 The versioned dependency contract covers diagnostic groups; `setup.sh` is the
 complete minimal-Arch package plan for the desktop:
@@ -264,7 +264,7 @@ nyvorel welcome               # additionally check your current Hyprland session
 The guide distinguishes required dependencies from optional features, highlights
 Doctor findings with suggested fixes, and never installs packages, enables
 services or changes configuration. Use `nyvorel welcome --json` for automation.
-This guided first-run feature is included in `v0.1.1`.
+This guided first-run feature is included in `v0.1.2`.
 
 Package-installed users run the same command; package materialization must still
 be confirmed explicitly with `nyvorel install --dry-run` / `--yes`.
@@ -457,7 +457,7 @@ Maintainers can validate a prepared semantic-version release candidate without
 publishing anything:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.1 --require-clean
+scripts/release/preflight.sh --version 0.1.3 --require-clean
 ```
 
 See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage preflight.
@@ -467,7 +467,7 @@ See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage prefligh
 Maintainers should plan a release before allowing any mutation:
 
 ```sh
-scripts/release/publish.sh --version 0.1.1
+scripts/release/publish.sh --version 0.1.3
 ```
 
 Actual publication requires `--publish --yes`. The publisher verifies exact
@@ -509,7 +509,7 @@ package-owned `/usr` payload, package-aware user materialization, explicit
 source-clone migration, package sync, and pristine-Arch package lifecycle
 regression are now part of the repository.
 
-The package is not published to AUR yet; `v0.1.1` is available as a source
+The package is not published to AUR yet; `v0.1.2` is available as a source
 release.
 
 Next focus areas include:

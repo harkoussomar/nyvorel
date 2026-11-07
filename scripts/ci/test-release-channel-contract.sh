@@ -177,7 +177,7 @@ scripts/release/publish.sh --help | grep -q -- '--yes'
 
 grep -qF '**Stable is the user-default remote update channel.**' RELEASES.md \
   || die "RELEASES.md stable default missing"
-grep -q 'scripts/release/publish.sh --version 0.1.2 --publish --yes' RELEASES.md \
+grep -q 'scripts/release/publish.sh --version 0.1.3 --publish --yes' RELEASES.md \
   || die "RELEASES.md explicit publication command missing"
 grep -q 'GitHub Releases' RELEASES.md \
   || die "RELEASES.md dynamic stable authority missing"

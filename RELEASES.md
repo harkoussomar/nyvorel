@@ -15,9 +15,9 @@ A stable Nyvorel version is identified by one immutable semantic-version tag
 and one non-draft, non-prerelease GitHub Release:
 
 ```text
-VERSION 0.1.1
-tag     v0.1.1
-release Nyvorel v0.1.1
+VERSION 0.1.2
+tag     v0.1.2
+release Nyvorel v0.1.2
 ```
 
 For stable updates:
@@ -36,6 +36,10 @@ stable" value.
 
 `v0.1.0` remains recorded as an immutable historical release anchor and is
 never moved, recreated, or retargeted.
+
+`v0.1.1` is an unpublished candidate tag. Its tagged CI found test-harness
+failures, so no GitHub Release was created. The tag remains immutable;
+`v0.1.2` supersedes that candidate.
 
 ## Development
 
@@ -106,14 +110,14 @@ Before creating a new `v0.1.x` tag, prepare the candidate VERSION and exact
 CHANGELOG release heading, then run:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.2 --require-clean
+scripts/release/preflight.sh --version 0.1.3 --require-clean
 ```
 
 After creating the intended tag locally, require that it peels to the exact
 candidate HEAD:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.2 --require-clean --require-tag
+scripts/release/preflight.sh --version 0.1.3 --require-clean --require-tag
 ```
 
 Preflight is read-only. It never creates a tag, pushes, or publishes a GitHub
@@ -126,13 +130,13 @@ Publication is maintainer-triggered and never automatic.
 First inspect the prepared candidate without mutation:
 
 ```sh
-scripts/release/publish.sh --version 0.1.2
+scripts/release/publish.sh --version 0.1.3
 ```
 
 Actual publication requires both explicit confirmation flags:
 
 ```sh
-scripts/release/publish.sh --version 0.1.2 --publish --yes
+scripts/release/publish.sh --version 0.1.3 --publish --yes
 ```
 
 The publisher requires a clean `main` checkout whose HEAD exactly matches

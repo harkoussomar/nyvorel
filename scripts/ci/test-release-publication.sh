@@ -13,13 +13,13 @@ git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
   | tar -C "$ROOT" --null -T - -cf - \
   | tar -C "$C" -xf -; rm -rf "$C/.git"
 find "$C" -type d -name __pycache__ -prune -exec rm -rf {} +
-printf '0.1.2\n' >"$C/VERSION"
+printf '0.1.3\n' >"$C/VERSION"
 
 python3 - "$C/CHANGELOG.md" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); t=p.read_text(); m="## [Unreleased]\n"
-r="## [Unreleased]\n\n## [0.1.2] - 2026-10-07\n\nSynthetic publication fixture.\n"
+r="## [Unreleased]\n\n## [0.1.3] - 2026-10-07\n\nSynthetic publication fixture.\n"
 assert t.count(m)==1
 p.write_text(t.replace(m,r,1))
 PY
@@ -28,13 +28,13 @@ git -C "$C" init -b main >/dev/null
 git -C "$C" config user.name "Nyvorel CI"
 git -C "$C" config user.email "ci@nyvorel.invalid"
 git -C "$C" add -A
-git -C "$C" commit -m "fixture: v0.1.2" >/dev/null
+git -C "$C" commit -m "fixture: v0.1.3" >/dev/null
 git init --bare "$O" >/dev/null
 git -C "$C" remote add origin "$O"
 git -C "$C" push -u origin main >/dev/null
 
 export FAKE_HEAD="$(git -C "$C" rev-parse HEAD)"
-export FAKE_TAG="v0.1.2"
+export FAKE_TAG="v0.1.3"
 export FAKE_STATE="$S"
 export NYVOREL_GH_BIN="$B/gh"
 export NYVOREL_GITHUB_REPOSITORY="harkoussomar/nyvorel"
@@ -84,31 +84,31 @@ chmod +x "$B/gh"
 P="$C/scripts/release/publish.sh"
 
 echo "== Plan is zero-mutation =="
-"$P" --version 0.1.2 >"$TMP/plan.log"
+"$P" --version 0.1.3 >"$TMP/plan.log"
 grep -q 'PLAN: PASS' "$TMP/plan.log"
 grep -q 'Mutation=NONE' "$TMP/plan.log"
-[[ -z "$(git -C "$C" tag --list v0.1.2)" ]] || die "plan created local tag"
-[[ -z "$(git ls-remote --tags "$O" refs/tags/v0.1.2)" ]] || die "plan pushed tag"
+[[ -z "$(git -C "$C" tag --list v0.1.3)" ]] || die "plan created local tag"
+[[ -z "$(git ls-remote --tags "$O" refs/tags/v0.1.3)" ]] || die "plan pushed tag"
 [[ ! -e "$S/release.json" ]] || die "plan created release"
 
 echo "== Publication needs --yes =="
 set +e
-"$P" --version 0.1.2 --publish >/dev/null 2>"$TMP/no-yes.err"
+"$P" --version 0.1.3 --publish >/dev/null 2>"$TMP/no-yes.err"
 rc=$?
 set -e
 [[ "$rc" == 2 ]] || die "--publish without --yes should exit 2"
 
 echo "== Explicit publish =="
-"$P" --version 0.1.2 --publish --yes >"$TMP/publish.log"
+"$P" --version 0.1.3 --publish --yes >"$TMP/publish.log"
 grep -q 'PUBLISH: PASS' "$TMP/publish.log"
-local_commit="$(git -C "$C" rev-parse 'v0.1.2^{commit}')"
-remote_commit="$(git ls-remote --tags "$O" 'refs/tags/v0.1.2^{}' | awk '{print $1}')"
+local_commit="$(git -C "$C" rev-parse 'v0.1.3^{commit}')"
+remote_commit="$(git ls-remote --tags "$O" 'refs/tags/v0.1.3^{}' | awk '{print $1}')"
 [[ "$local_commit" == "$FAKE_HEAD" ]] || die "local tag wrong"
 [[ "$remote_commit" == "$FAKE_HEAD" ]] || die "remote tag wrong"
 [[ -s "$S/release.json" ]] || die "release not created"
 
 echo "== Rerun is idempotent =="
-"$P" --version 0.1.2 --publish --yes >"$TMP/rerun.log"
+"$P" --version 0.1.3 --publish --yes >"$TMP/rerun.log"
 grep -q 'PUBLISH: ALREADY COMPLETE' "$TMP/rerun.log"
 [[ "$(wc -l <"$S/create.log")" == 1 ]] || die "release created more than once"
 
@@ -119,12 +119,12 @@ git -C "$C" commit -m "fixture: newer commit" >/dev/null
 git -C "$C" push origin main >/dev/null
 export FAKE_HEAD="$(git -C "$C" rev-parse HEAD)"
 set +e
-"$P" --version 0.1.2 --publish --yes >/dev/null 2>"$TMP/move.err"
+"$P" --version 0.1.3 --publish --yes >/dev/null 2>"$TMP/move.err"
 rc=$?
 set -e
 [[ "$rc" == 1 ]] || die "tag movement should fail"
 grep -q 'tags are immutable' "$TMP/move.err"
-[[ "$(git ls-remote --tags "$O" 'refs/tags/v0.1.2^{}' | awk '{print $1}')" == "$local_commit" ]] \
+[[ "$(git ls-remote --tags "$O" 'refs/tags/v0.1.3^{}' | awk '{print $1}')" == "$local_commit" ]] \
   || die "remote tag moved"
 
 echo "PASS  publication plan, explicit confirmation, CI gates, idempotence and immutable tags"

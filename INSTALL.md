@@ -4,7 +4,7 @@ The complete setup workflow in this release targets an installed
 minimal Arch Linux system with working internet, a normal user account, and
 working `sudo`. It installs desktop packages; it does not partition disks or
 install Arch itself. This workflow has been validated on a fresh Arch VM but
-is included in `v0.1.1`. The dependency policy is in
+is included in `v0.1.2`. The dependency policy is in
 [`DEPENDENCIES.md`](DEPENDENCIES.md).
 
 ## From minimal Arch to the desktop
@@ -19,7 +19,7 @@ cd nyvorel
 ```
 
 These commands follow the current source branch. To install the immutable
-`v0.1.1` release instead, check out that tag after cloning.
+`v0.1.2` release instead, check out that tag after cloning.
 Use a terminal with a PTY; SSH users can connect with `ssh -t`. The package
 transaction is interactive even with `--yes` so you can review pacman's full
 system upgrade and package selection:
@@ -234,7 +234,7 @@ The installer accepts strict semantic `MAJOR.MINOR.PATCH` versions rather than
 being tied to `0.1.0`. Maintainers can test a prepared release candidate with:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.1 --require-clean
+scripts/release/preflight.sh --version 0.1.3 --require-clean
 ```
 
 This is validation only; it does not create tags, push, or publish releases.
