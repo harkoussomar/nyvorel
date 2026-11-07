@@ -59,8 +59,8 @@ RippleButton {
     Item {
         id: distroIcon
         anchors.centerIn: parent
-        width: Config.options.bar.topLeftIcon === "nyvorel" ? 24 : 20
-        height: Config.options.bar.topLeftIcon === "nyvorel" ? 24 : 20
+        width: Config.options.bar.topLeftIcon === "nyvorel" ? 26 : 20
+        height: Config.options.bar.topLeftIcon === "nyvorel" ? 26 : 20
 
         Loader {
             anchors.fill: parent
@@ -72,7 +72,9 @@ RippleButton {
                         ? "assets/icons/nyvorel.svg"
                         : "assets/icons/nyvorel-app.svg"
                 )
-                backer.sourceSize: Qt.size(256, 256)
+                backer.sourceSize: Qt.size(104, 104)
+                backer.smooth: true
+                mipmap: true
             }
         }
 
