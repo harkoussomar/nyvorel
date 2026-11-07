@@ -13,6 +13,9 @@ trap 'rm -rf "$TMP"' EXIT
 
 HOME_SANDBOX="$TMP/home"
 mkdir -p "$HOME_SANDBOX"
+export XDG_CONFIG_HOME="$HOME_SANDBOX/.config"
+export XDG_DATA_HOME="$HOME_SANDBOX/.local/share"
+export XDG_STATE_HOME="$HOME_SANDBOX/.local/state"
 
 ./install.sh \
   --target-home "$HOME_SANDBOX" \
@@ -125,6 +128,9 @@ if [[ "$DEPENDENCY_OK_CODE" != 0 ]]; then
 import json
 import sys
 data = json.load(open(sys.argv[1]))
+for item in data.get("checks", []):
+    if item.get("status") == "FAIL":
+        print(f"Failed check {item['id']}: {item.get('detail', '')}", file=sys.stderr)
 for item in data.get("dependencies", {}).get("required", {}).get("missing", []):
     print(f"Missing fixture for {item['id']}: {item['missing_commands']}", file=sys.stderr)
 PYDEPS
