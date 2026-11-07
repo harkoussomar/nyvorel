@@ -63,7 +63,9 @@ RippleButton {
         height: Config.options.bar.topLeftIcon === "nyvorel" ? 26 : 20
 
         Loader {
-            anchors.fill: parent
+            anchors.centerIn: parent
+            width: 22
+            height: 22
             active: Config.options.bar.topLeftIcon === "nyvorel"
             sourceComponent: IconImage {
                 anchors.fill: parent
@@ -72,7 +74,7 @@ RippleButton {
                         ? "assets/icons/nyvorel.svg"
                         : "assets/icons/nyvorel-app.svg"
                 )
-                backer.sourceSize: Qt.size(104, 104)
+                backer.sourceSize: Qt.size(88, 88)
                 backer.smooth: true
                 mipmap: true
             }
