@@ -67,17 +67,25 @@ echo "package=$PKG"
 echo "== Audit archive filesystem ownership =="
 bsdtar -tf "$PKG" > /work/package-files.txt
 
-grep -q "^usr/bin/nyvorel$" /work/package-files.txt
-grep -q "^usr/lib/nyvorel/bin/nyvorel-doctor$" /work/package-files.txt
-grep -q "^usr/share/nyvorel/quickshell/shell.qml$" /work/package-files.txt
-grep -q "^usr/lib/systemd/user/nyvorel-quickshell.service$" /work/package-files.txt
-grep -q "^usr/lib/nyvorel/bin/nyvorel-activate$" /work/package-files.txt
-grep -q "^usr/lib/nyvorel/bin/nyvorel-first-run$" /work/package-files.txt
+require_package_path() {
+  if ! grep -qxF "$1" /work/package-files.txt; then
+    printf 'ERROR: package archive missing %s\n' "$1" >&2
+    exit 1
+  fi
+}
+require_package_path usr/bin/nyvorel
+require_package_path usr/lib/nyvorel/bin/nyvorel-doctor
+require_package_path usr/share/nyvorel/quickshell/shell.qml
+require_package_path usr/lib/systemd/user/nyvorel-quickshell.service
+require_package_path usr/lib/nyvorel/bin/nyvorel-activate
+require_package_path usr/lib/nyvorel/bin/nyvorel-first-run
 bsdtar -xOf "$PKG" usr/share/nyvorel/hypr/hyprland/execs.conf > /work/package-execs.conf
-grep -q "exec-once = /usr/bin/nyvorel activate --session" /work/package-execs.conf
+grep -q "exec-once = /usr/bin/nyvorel activate --session" /work/package-execs.conf \
+  || { echo 'ERROR: packaged execs.conf lacks activation command' >&2; exit 1; }
 bsdtar -xOf "$PKG" usr/share/nyvorel/hypr/hyprland.lua > /work/package-hyprland.lua
-grep -qF 'local super_scroll = "/usr/lib/nyvorel/bin/nyvorel-super-scroll"' /work/package-hyprland.lua
-grep -q "^usr/share/icons/hicolor/scalable/apps/nyvorel.svg$" /work/package-files.txt
+grep -qF 'local super_scroll = "/usr/lib/nyvorel/bin/nyvorel-super-scroll"' /work/package-hyprland.lua \
+  || { echo 'ERROR: packaged hyprland.lua lacks super-scroll helper path' >&2; exit 1; }
+require_package_path usr/share/icons/hicolor/scalable/apps/nyvorel.svg
 
 if grep -Eq "^(home|root|usr/local)/" /work/package-files.txt; then
   grep -E "^(home|root|usr/local)/" /work/package-files.txt >&2
