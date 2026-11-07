@@ -4,9 +4,20 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-07
+
+### Highlights
+- Brought the public source up to date with the active Nyvorel shell while keeping
+  local paths, generated binaries, user wallpapers, and third-party executables
+  out of the redistributable release.
+- Added the user's transparent moon identity across the shell and project, with
+  theme-aware Settings and README variants.
+- Completed the native Rust helper distribution path, improved multi-display
+  behavior and networking controls, and added guided setup and recovery flows.
+
 ### Live desktop source sync and native distribution
 - Synced the current Quickshell interface, settings, bar, sidebars, multi-display
-  behavior, network operations, and white Nyvorel product-symbol artwork.
+  behavior, network operations, and moon artwork.
 - Removed the unused Project Launcher and obsolete Python backends.
 - Added locked Rust sources and a shared native build path for source installs,
   source updates, and Arch packages; added an isolated install check for all

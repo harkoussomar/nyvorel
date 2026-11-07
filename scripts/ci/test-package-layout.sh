@@ -64,7 +64,8 @@ assert data["aur_publication"]=="not-in-7B"
 PY
 
 grep -q "^pkgname=nyvorel$" PKGBUILD
-grep -q "^pkgver=0.1.0.dev$" PKGBUILD
+[[ "$(sed -n 's/^pkgver=//p' PKGBUILD)" == "$(tr -d '[:space:]' < VERSION)" ]] \
+  || die "PKGBUILD pkgver does not match VERSION"
 grep -q "^install=nyvorel.install$" PKGBUILD
 grep -qF '/usr/bin/nyvorel' PKGBUILD
 grep -qF '/usr/lib/nyvorel' PKGBUILD

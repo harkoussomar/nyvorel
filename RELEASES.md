@@ -106,14 +106,14 @@ Before creating a new `v0.1.x` tag, prepare the candidate VERSION and exact
 CHANGELOG release heading, then run:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.1 --require-clean
+scripts/release/preflight.sh --version 0.1.2 --require-clean
 ```
 
 After creating the intended tag locally, require that it peels to the exact
 candidate HEAD:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.1 --require-clean --require-tag
+scripts/release/preflight.sh --version 0.1.2 --require-clean --require-tag
 ```
 
 Preflight is read-only. It never creates a tag, pushes, or publishes a GitHub
@@ -126,13 +126,13 @@ Publication is maintainer-triggered and never automatic.
 First inspect the prepared candidate without mutation:
 
 ```sh
-scripts/release/publish.sh --version 0.1.1
+scripts/release/publish.sh --version 0.1.2
 ```
 
 Actual publication requires both explicit confirmation flags:
 
 ```sh
-scripts/release/publish.sh --version 0.1.1 --publish --yes
+scripts/release/publish.sh --version 0.1.2 --publish --yes
 ```
 
 The publisher requires a clean `main` checkout whose HEAD exactly matches

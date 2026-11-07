@@ -52,6 +52,7 @@ git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
   | tar -C "$BUILDER" -xf -
 rm -rf "$BUILDER/.git"
 find "$BUILDER" -type d -name __pycache__ -prune -exec rm -rf {} +
+printf '0.1.0\n' >"$BUILDER/VERSION"
 
 git -C "$BUILDER" init -b main >/dev/null
 git -C "$BUILDER" config user.name "Nyvorel Phase 6D"

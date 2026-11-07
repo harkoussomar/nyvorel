@@ -1,9 +1,7 @@
 # Nyvorel Arch Packaging Contract
 
-Phase 7A locks the ownership boundary for future Arch packaging.
-
-This document is an architecture contract, not a statement that Nyvorel
-already ships a `PKGBUILD`. Package implementation begins in Phase 7B.
+Phase 7A defined the ownership boundary for Arch packaging. Phase 7B added
+the source-tree `PKGBUILD` and package lifecycle implementation.
 
 The machine-readable source of truth is:
 
@@ -256,9 +254,9 @@ packaging/package-layout.json
 packaging/nyvorel-package-install
 ```
 
-The package is currently a **development source-tree package candidate**. It is
-real and installable with `makepkg`/`pacman`, but Phase 7B does not publish it
-to AUR and does not create a new stable Nyvorel release.
+The source tree includes a package recipe that can be built locally with
+`makepkg` and installed with `pacman`. It is not published to AUR; the GitHub
+source release does not publish an Arch package.
 
 ### Package user flow
 

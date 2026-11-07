@@ -1,11 +1,11 @@
 # Installing and recovering Nyvorel
 
-The complete setup workflow in this development checkout targets an installed
+The complete setup workflow in this release targets an installed
 minimal Arch Linux system with working internet, a normal user account, and
 working `sudo`. It installs desktop packages; it does not partition disks or
 install Arch itself. This workflow has been validated on a fresh Arch VM but
-is not in the immutable `v0.1.0` release. The dependency
-policy is in [`DEPENDENCIES.md`](DEPENDENCIES.md).
+is included in `v0.1.1`. The dependency policy is in
+[`DEPENDENCIES.md`](DEPENDENCIES.md).
 
 ## From minimal Arch to the desktop
 
@@ -18,8 +18,8 @@ cd nyvorel
 ./setup.sh --plan
 ```
 
-These commands follow the development branch; they are not available from the
-immutable `v0.1.0` tag.
+These commands follow the current source branch. To install the immutable
+`v0.1.1` release instead, check out that tag after cloning.
 Use a terminal with a PTY; SSH users can connect with `ssh -t`. The package
 transaction is interactive even with `--yes` so you can review pacman's full
 system upgrade and package selection:

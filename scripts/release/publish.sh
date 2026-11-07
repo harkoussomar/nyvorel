@@ -137,9 +137,6 @@ rows=[r for r in json.loads(raw)
 for r in rows:
     if r.get("headBranch")==tag:
         print(r["databaseId"]); raise SystemExit
-if rows:
-    rows.sort(key=lambda r:int(r["databaseId"]), reverse=True)
-    print(rows[0]["databaseId"])
 PY
 }
 

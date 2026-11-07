@@ -1,8 +1,7 @@
 # Maintainer: Nyvorel <https://github.com/harkoussomar/nyvorel>
-# Phase 7B source-tree package. AUR/release-source publication is intentionally
-# deferred until a future release phase.
+# Source-tree package. AUR publication is handled separately.
 pkgname=nyvorel
-pkgver=0.1.0.dev
+pkgver=0.1.1
 pkgrel=1
 pkgdesc='Nyvorel Hyprland + Quickshell desktop environment'
 arch=('x86_64')
