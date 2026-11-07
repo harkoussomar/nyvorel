@@ -1,8 +1,38 @@
+# Runtime/generated
 __pycache__/
 *.py[cod]
+*.log
+*.pid
+*.sock
+.cache/
+state/
 **/target/
 .migration-backups/
 runtime/
+
+# Local/user configuration
+.env
+.env.*
+*.local
+*.secret
+secrets/
+
+# Editor/temp and historical backups
+*.swp
+*.tmp
+*~
+.DS_Store
+*.bak
+*.bak-*
+*.backup
+*.backup-*
+*.orig
+*.old
+*-backups/
+.*-backups/
+.removed-*/
+
+# Local design explorations and compiled native helpers
 assets/identity-exploration/
 assets/logo-options/
 quickshell/scripts/system/nyvorel-appearance-studio
