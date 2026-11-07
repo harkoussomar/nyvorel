@@ -75,6 +75,8 @@ CONTRACT="$HOME_SANDBOX/.local/share/nyvorel/dependencies/arch.json"
 
 FAKE_BIN="$TMP/dependency-path"
 mkdir -p "$FAKE_BIN"
+mkdir -p "$TMP/python-fixtures/PIL"
+: > "$TMP/python-fixtures/PIL/__init__.py"
 
 REAL_PYTHON="$(command -v python3)"
 ln -s "$REAL_PYTHON" "$FAKE_BIN/python3"
@@ -116,7 +118,7 @@ printf 'synthetic template\n' > "$HOME_SANDBOX/.config/matugen/template.txt"
 ln -s /bin/true "$HOME_SANDBOX/.local/state/quickshell/.venv/bin/python"
 
 set +e
-PATH="$FAKE_BIN" "$DOCTOR" \
+PYTHONPATH="$TMP/python-fixtures" PATH="$FAKE_BIN" "$DOCTOR" \
   --home "$HOME_SANDBOX" \
   --no-session \
   --dependencies \
@@ -158,7 +160,7 @@ PYDEPS
 rm -f "$FAKE_BIN/hyprctl"
 
 set +e
-PATH="$FAKE_BIN" "$DOCTOR" \
+PYTHONPATH="$TMP/python-fixtures" PATH="$FAKE_BIN" "$DOCTOR" \
   --home "$HOME_SANDBOX" \
   --no-session \
   --dependencies \
