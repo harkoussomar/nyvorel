@@ -271,7 +271,7 @@ Singleton {
                 property int cornerStyle: 0 // 0: Hug | 1: Float | 2: Plain rectangle
                 property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle == 1 (Float)
                 property bool borderless: false // true for no grouping of items
-                property string topLeftIcon: "nyvorel" // "nyvorel" shows the name; "distro" or an icon name shows an icon
+                property string topLeftIcon: "nyvorel" // "nyvorel" shows the logo; "distro" or an icon name shows an icon
                 property bool showBackground: true
                 property bool verbose: true
                 property bool vertical: false

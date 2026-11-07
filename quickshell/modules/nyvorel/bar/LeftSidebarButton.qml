@@ -15,7 +15,7 @@ RippleButton {
     property bool animeEnabled: Config.options.policies.weeb !== 0
     visible: true
 
-    property real buttonPadding: Config.options.bar.topLeftIcon === "nyvorel" ? 6 : 5
+    property real buttonPadding: 5
     implicitWidth: distroIcon.width + buttonPadding * 2
     implicitHeight: distroIcon.height + buttonPadding * 2
     // Axiom / Fluid: compact precision hover surface.
@@ -59,31 +59,21 @@ RippleButton {
     Item {
         id: distroIcon
         anchors.centerIn: parent
-        width: Config.options.bar.topLeftIcon === "nyvorel"
-            ? brandName.implicitWidth : 20
+        width: Config.options.bar.topLeftIcon === "nyvorel" ? 24 : 20
         height: Config.options.bar.topLeftIcon === "nyvorel" ? 24 : 20
 
-        StyledText {
-            id: brandName
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            visible: Config.options.bar.topLeftIcon === "nyvorel"
-            text: "Nyvorel"
-            color: Appearance.colors.colOnLayer0
-            font.pixelSize: 14
-            font.weight: Font.Bold
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 1.2
-        }
-
-        Rectangle {
-            visible: brandName.visible
-            anchors.left: brandName.left
-            anchors.bottom: parent.bottom
-            width: 23
-            height: 2
-            radius: 1
-            color: Appearance.colors.colPrimary
+        Loader {
+            anchors.fill: parent
+            active: Config.options.bar.topLeftIcon === "nyvorel"
+            sourceComponent: IconImage {
+                anchors.fill: parent
+                source: "file://" + Quickshell.shellPath(
+                    Appearance.m3colors.darkmode
+                        ? "assets/icons/nyvorel.svg"
+                        : "assets/icons/nyvorel-app.svg"
+                )
+                backer.sourceSize: Qt.size(256, 256)
+            }
         }
 
         Loader {

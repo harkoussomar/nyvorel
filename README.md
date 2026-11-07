@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/nyvorel.svg" alt="Nyvorel moon logo" width="128" />
+
 # Nyvorel Shell
 
 ### A cohesive Hyprland + Quickshell desktop environment for Arch Linux.

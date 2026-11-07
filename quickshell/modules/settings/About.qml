@@ -384,64 +384,76 @@ ContentPage {
 
             spacing: 14
 
-            ColumnLayout {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 3
+                spacing: 16
 
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    text: root.projectName
-                    color: Appearance.colors.colOnLayer2
-                    font.pixelSize: Appearance.font.pixelSize.title + 2
-                    font.weight: Font.Bold
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 1.5
-                    wrapMode: Text.Wrap
+                IconImage {
+                    Layout.alignment: Qt.AlignTop
+                    implicitSize: 72
+                    source: "file://" + Quickshell.shellPath("assets/icons/nyvorel-app.svg")
+                    backer.sourceSize: Qt.size(288, 288)
                 }
 
-                StyledText {
+                ColumnLayout {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
-                    text: Translation.tr("A Quickshell desktop shell and dotfiles experience for Hyprland.")
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    wrapMode: Text.Wrap
-                }
+                    spacing: 3
 
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    Rectangle {
-                        implicitWidth: qsBadgeText.implicitWidth + 18
-                        implicitHeight: 28
-                        radius: Appearance.radius.control
-                        color: Appearance.colors.colPrimaryContainer
-
-                        StyledText {
-                            id: qsBadgeText
-                            anchors.centerIn: parent
-                            text: Translation.tr("Quickshell")
-                            color: Appearance.colors.colOnPrimaryContainer
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            font.weight: Font.DemiBold
-                        }
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        text: root.projectName
+                        color: Appearance.colors.colOnLayer2
+                        font.pixelSize: Appearance.font.pixelSize.title + 2
+                        font.weight: Font.Bold
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: 1.5
+                        wrapMode: Text.Wrap
                     }
 
-                    Rectangle {
-                        implicitWidth: hyprBadgeText.implicitWidth + 18
-                        implicitHeight: 28
-                        radius: Appearance.radius.control
-                        color: Appearance.colors.colLayer1
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        text: Translation.tr("A Quickshell desktop shell and dotfiles experience for Hyprland.")
+                        color: Appearance.colors.colSubtext
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        wrapMode: Text.Wrap
+                    }
 
-                        StyledText {
-                            id: hyprBadgeText
-                            anchors.centerIn: parent
-                            text: Translation.tr("Hyprland")
-                            color: Appearance.colors.colOnLayer1
-                            font.pixelSize: Appearance.font.pixelSize.smaller
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            implicitWidth: qsBadgeText.implicitWidth + 18
+                            implicitHeight: 28
+                            radius: Appearance.radius.control
+                            color: Appearance.colors.colPrimaryContainer
+
+                            StyledText {
+                                id: qsBadgeText
+                                anchors.centerIn: parent
+                                text: Translation.tr("Quickshell")
+                                color: Appearance.colors.colOnPrimaryContainer
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.weight: Font.DemiBold
+                            }
+                        }
+
+                        Rectangle {
+                            implicitWidth: hyprBadgeText.implicitWidth + 18
+                            implicitHeight: 28
+                            radius: Appearance.radius.control
+                            color: Appearance.colors.colLayer1
+
+                            StyledText {
+                                id: hyprBadgeText
+                                anchors.centerIn: parent
+                                text: Translation.tr("Hyprland")
+                                color: Appearance.colors.colOnLayer1
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
                         }
                     }
                 }
