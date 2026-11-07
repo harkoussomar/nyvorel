@@ -112,11 +112,24 @@ printf '[templates.fixture]\ninput_path = "template.txt"\n' > "$HOME_SANDBOX/.co
 printf 'synthetic template\n' > "$HOME_SANDBOX/.config/matugen/template.txt"
 ln -s /bin/true "$HOME_SANDBOX/.local/state/quickshell/.venv/bin/python"
 
+set +e
 PATH="$FAKE_BIN" "$DOCTOR" \
   --home "$HOME_SANDBOX" \
   --no-session \
   --dependencies \
   --json >"$TMP/dependencies-ok.json"
+DEPENDENCY_OK_CODE=$?
+set -e
+if [[ "$DEPENDENCY_OK_CODE" != 0 ]]; then
+  python3 - "$TMP/dependencies-ok.json" <<'PYDEPS'
+import json
+import sys
+data = json.load(open(sys.argv[1]))
+for item in data.get("dependencies", {}).get("required", {}).get("missing", []):
+    print(f"Missing fixture for {item['id']}: {item['missing_commands']}", file=sys.stderr)
+PYDEPS
+  die "required dependency fixture failed with exit $DEPENDENCY_OK_CODE"
+fi
 
 python3 - "$TMP/dependencies-ok.json" <<'PYDEPS'
 from pathlib import Path

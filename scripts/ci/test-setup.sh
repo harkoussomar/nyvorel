@@ -19,6 +19,9 @@ MOCK
 chmod +x "$tmp/bin/pacman" "$tmp/bin/sudo"
 
 export HOME="$tmp/user-profile"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
 export PATH="$tmp/bin:$PATH"
 export NYVOREL_SETUP_OS_RELEASE="$tmp/os-release"
 export NYVOREL_TEST_PACMAN_LOG="$tmp/pacman.log"

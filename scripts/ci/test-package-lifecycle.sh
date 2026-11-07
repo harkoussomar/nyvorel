@@ -50,7 +50,7 @@ MIG_HOME="$(getent passwd migratetest | cut -d: -f6)"
 [[ -n "$BUILDER_HOME" && -n "$TEST_HOME" && -n "$MIG_HOME" ]]
 
 install -d -o builder -g builder /work/source
-git -C /src ls-files -z | tar -C /src --null -T - -cf - | tar -C /work/source -xf -
+git -c safe.directory=/src -C /src ls-files -z | tar -C /src --null -T - -cf - | tar -C /work/source -xf -
 chown -R builder:builder /work/source
 
 echo "== Build real package with makepkg =="
@@ -219,7 +219,7 @@ runuser -u builder -- env \
 # The v2 build directory is cloned from v1, so it may contain both archives.
 # Select pkgrel=2 unambiguously; never reinstall a copied pkgrel=1 archive.
 mapfile -t PKG2_MATCHES < <(
-  find /work/source-v2 -maxdepth 1 -type f     -name "nyvorel-*-2-any.pkg.tar.zst" -print | sort
+  find /work/source-v2 -maxdepth 1 -type f     -name "nyvorel-*-2-x86_64.pkg.tar.zst" -print | sort
 )
 [[ "${#PKG2_MATCHES[@]}" -eq 1 ]] || {
   printf "ERROR: expected exactly one pkgrel=2 archive; found %s\\n" "${#PKG2_MATCHES[@]}" >&2
