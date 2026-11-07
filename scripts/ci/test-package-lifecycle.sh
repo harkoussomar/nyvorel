@@ -27,10 +27,10 @@ echo "== Nyvorel Phase 7B pristine Arch package lifecycle =="
 echo "runtime=$RUNTIME"
 echo "image=$IMAGE"
 
-"$RUNTIME" run --rm \
+"$RUNTIME" run --rm -i \
   -v "$ROOT:/src:ro" \
   "$IMAGE" \
-  bash -lc '
+  bash -s <<'ARCH'
 set -Eeuo pipefail
 export NYVOREL_SKIP_NATIVE_BUILD=1
 export LANG=C.UTF-8
@@ -381,6 +381,6 @@ runuser -u migratetest -- env HOME=$MIG_HOME \
 [[ ! -e $MIG_HOME/.local/state/nyvorel/current-install ]]
 
 echo "PASS  makepkg, pacman install/upgrade/remove/reinstall, package sync, explicit migration and recovery"
-'
+ARCH
 
 echo "PASS  pristine Arch package lifecycle"
