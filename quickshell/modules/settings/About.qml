@@ -391,8 +391,14 @@ ContentPage {
                 IconImage {
                     Layout.alignment: Qt.AlignTop
                     implicitSize: 72
-                    source: "file://" + Quickshell.shellPath("assets/icons/nyvorel-app.svg")
+                    source: "file://" + Quickshell.shellPath(
+                        Appearance.m3colors.darkmode
+                            ? "assets/icons/nyvorel.svg"
+                            : "assets/icons/nyvorel-dark.svg"
+                    )
                     backer.sourceSize: Qt.size(288, 288)
+                    backer.smooth: true
+                    mipmap: true
                 }
 
                 ColumnLayout {

@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="./assets/nyvorel.svg" alt="Nyvorel moon logo" width="128" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/nyvorel-mark.svg" />
+  <img src="./assets/nyvorel-mark-dark.svg" alt="Nyvorel moon logo" width="192" />
+</picture>
 
 # Nyvorel Shell
 
