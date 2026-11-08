@@ -1,7 +1,7 @@
 # Maintainer: Nyvorel <https://github.com/harkoussomar/nyvorel>
 # Source-tree package. AUR publication is handled separately.
 pkgname=nyvorel
-pkgver=0.1.4
+pkgver=0.1.5
 pkgrel=1
 pkgdesc='Nyvorel Hyprland + Quickshell desktop environment'
 arch=('x86_64')

@@ -19,7 +19,7 @@ use std::{
 
 const MAX_INPUT_PIXELS: u64 = 80_000_000;
 
-fn open(path: &Path) -> Result<DynamicImage, String> {
+pub(crate) fn open(path: &Path) -> Result<DynamicImage, String> {
     if !path.is_file() {
         return Err(format!("Image does not exist: {}", path.display()));
     }
@@ -75,7 +75,7 @@ fn converted_preview(path: &Path) -> Result<DynamicImage, String> {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|error| format!("Could not start image converter: {error}"))?;
+            .map_err(|error| format!("This image format needs ImageMagick: {error}"))?;
         let deadline = Instant::now() + Duration::from_secs(25);
         loop {
             match child.try_wait() {

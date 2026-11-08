@@ -3,9 +3,10 @@
 
 from pathlib import Path
 import json
+import shutil
 import tempfile
 
-from native_flow import fixture, invoke
+from native_flow import PROJECT, fixture, invoke
 
 
 def main():
@@ -30,7 +31,20 @@ def main():
         config = json.loads((root / "home/.config/nyvorel/config.json").read_text())
         assert config["appearance"]["interfaceStyle"] == "fluid"
         assert config["appearance"]["transparency"]["backgroundTransparency"] == 0.4
-    print("PASS package-owned Appearance Studio runtime helpers")
+        # Fresh Arch installs do not include the optional ImageMagick package.
+        # The packaged backend must still apply a regular PNG wallpaper.
+        matugen = shutil.which("matugen")
+        if matugen is None:
+            raise RuntimeError("matugen is required for the package runtime test")
+        (root / "bin/matugen").symlink_to(matugen)
+        no_magick_env = dict(env, PATH=str(root / "bin"))
+        wallpaper = PROJECT / "quickshell/assets/images/default_wallpaper.png"
+        applied = invoke("rust", ["apply", "--source", "wallpaper",
+                                  "--wallpaper", str(wallpaper), "--mode", "dark",
+                                  "--scheme", "auto"], no_magick_env)
+        assert applied["ok"] is True
+        assert applied["active"]["source"] == "wallpaper"
+    print("PASS package-owned Appearance Studio helpers and wallpaper apply without ImageMagick")
 
 
 if __name__ == "__main__":

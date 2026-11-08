@@ -1,5 +1,10 @@
 //! Pure perceptual scoring for wallpaper-derived appearance candidates.
 
+use image::imageops::FilterType;
+use material_colors::{
+    color::Argb,
+    quantize::{Quantizer, QuantizerCelebi},
+};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::env;
@@ -152,6 +157,32 @@ fn histogram(path: &Path) -> Result<String, String> {
     String::from_utf8(output.stdout).map_err(|error| error.to_string())
 }
 
+// The common wallpaper formats are decoded by the native image engine. Keep
+// ImageMagick as a fallback for formats that engine cannot read, rather than
+// requiring it for every wallpaper-derived theme on a fresh installation.
+fn native_histogram(path: &Path) -> Result<Vec<(String, u64)>, String> {
+    let image = crate::color_image::open(path)?;
+    let sampled = image.resize(192, 192, FilterType::Triangle).to_rgb8();
+    let pixels: Vec<Argb> = sampled
+        .pixels()
+        .map(|pixel| Argb::new(255, pixel[0], pixel[1], pixel[2]))
+        .collect();
+    if pixels.is_empty() {
+        return Err("Wallpaper contains no pixels".into());
+    }
+    let quantized = QuantizerCelebi::quantize(&pixels, 32);
+    Ok(quantized
+        .color_to_count
+        .into_iter()
+        .map(|(color, count)| {
+            (
+                format!("#{:02x}{:02x}{:02x}", color.red, color.green, color.blue),
+                u64::from(count),
+            )
+        })
+        .collect())
+}
+
 struct HistogramRow {
     color: String,
     count: u64,
@@ -164,16 +195,33 @@ pub fn profile(path: &Path) -> Result<Value, String> {
     if !path.is_file() {
         return Err(format!("Wallpaper not found: {}", path.display()));
     }
-    let output = histogram(path)?;
-    let pattern = Regex::new(r"(?m)^\s*(\d+):.*?#([0-9A-Fa-f]{6})(?:[0-9A-Fa-f]{2})?\b")
-        .map_err(|error| error.to_string())?;
+    let samples = match histogram(path) {
+        Ok(output) => {
+            let pattern = Regex::new(r"(?m)^\s*(\d+):.*?#([0-9A-Fa-f]{6})(?:[0-9A-Fa-f]{2})?\b")
+                .map_err(|error| error.to_string())?;
+            pattern
+                .captures_iter(&output)
+                .map(|capture| {
+                    (
+                        format!("#{}", capture[2].to_lowercase()),
+                        capture[1].parse::<u64>(),
+                    )
+                })
+                .map(|(color, count)| {
+                    count
+                        .map(|count| (color, count))
+                        .map_err(|error| error.to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+        Err(error) if error == "ImageMagick magick/convert is unavailable" => {
+            native_histogram(path)?
+        }
+        Err(error) => return Err(error),
+    };
     let mut rows = Vec::new();
     let mut total = 0_u64;
-    for capture in pattern.captures_iter(&output) {
-        let count = capture[1]
-            .parse::<u64>()
-            .map_err(|error| error.to_string())?;
-        let color = format!("#{}", capture[2].to_lowercase());
+    for (color, count) in samples {
         let lab = oklab(&color)?;
         let luminance = luminance(&color)?;
         total += count;
@@ -525,4 +573,36 @@ pub fn matrix(
     });
     let _ = crate::atomic_json_write(&cache, &result);
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::native_histogram;
+
+    #[test]
+    fn png_wallpaper_profiles_without_imagemagick() {
+        let image = image::RgbImage::from_fn(16, 16, |x, _| {
+            if x < 8 {
+                image::Rgb([220, 120, 48])
+            } else {
+                image::Rgb([25, 42, 62])
+            }
+        });
+        let path = std::env::temp_dir().join(format!(
+            "nyvorel-native-profile-{}-{}.png",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        image.save(&path).expect("write test wallpaper");
+        let rows = native_histogram(&path).expect("profile PNG without a converter");
+        let _ = std::fs::remove_file(&path);
+        assert!(!rows.is_empty());
+        assert!(rows.len() <= 32);
+        assert!(rows
+            .iter()
+            .all(|(color, count)| color.len() == 7 && *count > 0));
+    }
 }

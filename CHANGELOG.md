@@ -4,6 +4,16 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-08
+
+### Appearance Studio on minimal Arch
+- Fixed wallpaper theme application when ImageMagick is absent by profiling
+  common image formats directly in the native Rust backend.
+- Kept ImageMagick optional for formats that need an external decoder and made
+  that requirement explicit when such an image is selected.
+- Kept Apply errors visible in Appearance Studio until the next action, so a
+  failed theme change reports its actual cause.
+
 ## [0.1.4] - 2026-11-08
 
 ### Fresh Arch session appearance

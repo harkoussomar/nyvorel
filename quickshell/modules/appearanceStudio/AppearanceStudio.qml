@@ -133,6 +133,7 @@ Scope {
     property int previewSeconds: 0
     property string toastText: ""
     property bool actionFailed: false
+    property string lastActionError: ""
 
     // Presentation lifecycle only. The layer stays mapped until the exit
     // animation finishes, matching the native Settings window character.
@@ -649,6 +650,7 @@ Scope {
         }
         root.toastText = preview ? (update ? "Updating preview…" : "Building preview…") : "Applying appearance…"
         root.actionFailed = false
+        root.lastActionError = ""
         actionProc.actionKind = preview ? (update ? "preview-update" : "preview") : "apply"
         actionProc.resultText = ""
         actionProc.exec(root.buildApplyCommand(preview))
@@ -657,6 +659,7 @@ Scope {
     function runAction(command, kind) {
         if (actionProc.running) return
         root.actionFailed = false
+        root.lastActionError = ""
         actionProc.actionKind = kind
         actionProc.resultText = ""
         actionProc.exec(command)
@@ -1212,7 +1215,8 @@ Timer {
 
             if (exitCode !== 0 || result.ok === false) {
                 root.actionFailed = true
-                root.toastText = result.error ?? "Appearance action failed"
+                root.lastActionError = result.error ?? "Appearance action failed"
+                root.toastText = root.lastActionError
                 toastTimer.restart()
                 if (actionProc.actionKind === "preview-update")
                     root.keepAfterPreviewUpdate = false
@@ -1230,6 +1234,7 @@ Timer {
             // Reload the live adapter before refreshing derived appearance
             // values so profile and fine-tune changes affect the shell now.
             Config.reload()
+            root.lastActionError = ""
             Appearance.touchSemanticRadius()
             MaterialThemeLoader.reapplyTheme()
 
@@ -6900,6 +6905,8 @@ Region {
                             Layout.fillWidth: true
                             text: root.toastText.length > 0
                                 ? root.toastText
+                                : root.actionFailed && root.lastActionError.length > 0
+                                    ? root.lastActionError
                                 : `${root.prettySource(root.selectedSource)} · ${root.prettyScheme(root.selectedScheme)} · ${root.prettyMode(root.selectedMode)}`
                             color: root.actionFailed ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
                             font.pixelSize: Appearance.font.pixelSize.smaller
@@ -6951,7 +6958,7 @@ Region {
                                 delay: 450
 
                                 text: root.actionFailed
-                                    ? "The latest change could not be applied."
+                                    ? root.lastActionError
                                     : "Changes are applied automatically."
                             }
                         }

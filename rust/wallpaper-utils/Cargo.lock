@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.47"
+version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b"
 dependencies = [
@@ -490,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "num-iter"
-version = "0.1.46"
+version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b"
 dependencies = [
@@ -521,7 +521,7 @@ dependencies = [
 
 [[package]]
 name = "nyvorel-wallpaper-utils"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "clap",
  "image",
