@@ -1055,22 +1055,18 @@ fn runtime_modes(cfg: &Value, catalog: &Value) -> (bool, bool) {
 }
 
 fn sync_runtime_best_effort(cfg: &Value, catalog: &Value) {
-    let home = match env::var_os("HOME") {
-        Some(home) => PathBuf::from(home),
-        None => return,
-    };
     let (glass, fluid) = runtime_modes(cfg, catalog);
-    for (path, mode) in [
+    for (helper, mode) in [
         (
-            home.join(".local/bin/nyvorel-glass-runtime"),
+            "nyvorel-glass-runtime",
             if glass { "glass" } else { "default" },
         ),
         (
-            home.join(".local/bin/nyvorel-fluid-runtime"),
+            "nyvorel-fluid-runtime",
             if fluid { "fluid" } else { "default" },
         ),
     ] {
-        if path.is_file() {
+        if let Ok(path) = engine::runtime_helper(helper) {
             let mut command = Command::new(&path);
             command.arg(mode);
             let _ = run_bounded(command, Duration::from_secs(20));

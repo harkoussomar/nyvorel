@@ -19,7 +19,7 @@ cd nyvorel
 ```
 
 These commands follow the current source branch. To install the immutable
-`v0.1.3` release instead, check out that tag after cloning.
+`v0.1.4` release instead, check out that tag after cloning.
 Use a terminal with a PTY; SSH users can connect with `ssh -t`. The package
 transaction is interactive even with `--yes` so you can review pacman's full
 system upgrade and package selection:
@@ -234,7 +234,7 @@ The installer accepts strict semantic `MAJOR.MINOR.PATCH` versions rather than
 being tied to `0.1.0`. Maintainers can test a prepared release candidate with:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.4 --require-clean
+scripts/release/preflight.sh --version 0.1.5 --require-clean
 ```
 
 This is validation only; it does not create tags, push, or publish releases.

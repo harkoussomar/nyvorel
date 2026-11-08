@@ -1014,7 +1014,7 @@ def _normalize_hex(value: Any) -> str | None:
     return "#" + match.group(1).lower()
 
 
-def _palette_candidate(value: Any) -> dict[str, str]:
+def _palette_candidate(value: Any, mode: str = "dark") -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
     out: dict[str, str] = {}
@@ -1023,6 +1023,8 @@ def _palette_candidate(value: Any) -> dict[str, str]:
         role = _snake_role(str(key))
         if role not in role_set:
             continue
+        if isinstance(raw, dict):
+            raw = (raw.get(mode) or raw.get("default") or {}).get("color")
         color = _normalize_hex(raw)
         if color:
             out[role] = color
@@ -1035,7 +1037,7 @@ def _extract_matugen_palette(data: Any, mode: str) -> dict[str, str]:
 
     def walk(value: Any, key_hint: str = "") -> None:
         if isinstance(value, dict):
-            candidate = _palette_candidate(value)
+            candidate = _palette_candidate(value, mode)
             if candidate:
                 # Prefer mode-specific objects when Matugen includes both light/dark.
                 if key_hint.lower() == mode:
@@ -1090,7 +1092,7 @@ def _matugen_palette(seed: str, scheme: str, mode: str) -> dict[str, str]:
         config_home = Path(temp)
         config_dir = config_home / "matugen"
         config_dir.mkdir(parents=True, exist_ok=True)
-        (config_dir / "config.toml").write_text("[config]\nversion_check = false\n")
+        (config_dir / "config.toml").write_text("[config]\nversion_check = false\n[templates]\n")
         env = os.environ.copy()
         env["XDG_CONFIG_HOME"] = str(config_home)
         proc = subprocess.run(

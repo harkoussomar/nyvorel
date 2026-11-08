@@ -58,6 +58,28 @@ fi
 }
 command -v systemctl >/dev/null 2>&1 || { echo 'systemctl is missing.' >&2; exit 1; }
 
+# First-run stores the Fluid preference before a compositor exists. Apply its
+# matching layer rules when the session starts, including after package updates
+# that preserved an existing user config.
+config_file="$config_home/nyvorel/config.json"
+if [[ -f "$config_file" ]]; then
+  if [[ "${NYVOREL_PACKAGE_MODE:-0}" == 1 ]]; then
+    helper_dir="${NYVOREL_PACKAGE_HELPER_ROOT:-/usr/lib/nyvorel/bin}"
+  else
+    helper_dir="$home/.local/bin"
+  fi
+  [[ -x "$helper_dir/nyvorel-glass-runtime" && -x "$helper_dir/nyvorel-fluid-runtime" ]] || {
+    echo "Appearance runtime helpers are missing in $helper_dir." >&2
+    exit 1
+  }
+  glass_mode=default
+  fluid_mode=default
+  [[ "$(jq -r '.appearance.transparency.enable // false' "$config_file")" == true ]] && glass_mode=glass
+  [[ "$(jq -r '.appearance.interfaceStyle // ""' "$config_file")" == fluid ]] && fluid_mode=fluid
+  "$helper_dir/nyvorel-glass-runtime" "$glass_mode" >/dev/null
+  "$helper_dir/nyvorel-fluid-runtime" "$fluid_mode" >/dev/null
+fi
+
 systemctl --user import-environment \
   DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
 systemctl --user daemon-reload

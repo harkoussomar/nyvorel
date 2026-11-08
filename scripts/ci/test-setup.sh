@@ -110,4 +110,27 @@ if grep -q 'hyprpolkitagent.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"; then
 fi
 grep -q 'nyvorel-operations-monitor.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"
 grep -q 'start nyvorel-quickshell.service' "$NYVOREL_TEST_SYSTEMCTL_LOG"
+mkdir -p "$HOME/.config/nyvorel"
+printf '%s\n' '{"appearance":{"interfaceStyle":"fluid","transparency":{"enable":true}}}' \
+  > "$HOME/.config/nyvorel/config.json"
+for helper in nyvorel-glass-runtime nyvorel-fluid-runtime; do
+  cat > "$HOME/.local/bin/$helper" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s %s\n' "$(basename "$0")" "$1" >> "${NYVOREL_TEST_APPEARANCE_LOG:?}"
+MOCK
+  chmod +x "$HOME/.local/bin/$helper"
+done
+export NYVOREL_TEST_APPEARANCE_LOG="$tmp/appearance.log"
+WAYLAND_DISPLAY=wayland-test HYPRLAND_INSTANCE_SIGNATURE=hyprland-test \
+  "$root/bin/nyvorel-activate" --session > "$tmp/activate-fluid.log"
+grep -qx 'nyvorel-glass-runtime glass' "$NYVOREL_TEST_APPEARANCE_LOG"
+grep -qx 'nyvorel-fluid-runtime fluid' "$NYVOREL_TEST_APPEARANCE_LOG"
+mkdir -p "$tmp/package-helpers"
+cp "$HOME/.local/bin/nyvorel-glass-runtime" "$HOME/.local/bin/nyvorel-fluid-runtime" "$tmp/package-helpers/"
+: > "$NYVOREL_TEST_APPEARANCE_LOG"
+NYVOREL_PACKAGE_MODE=1 NYVOREL_PACKAGE_HELPER_ROOT="$tmp/package-helpers" \
+  WAYLAND_DISPLAY=wayland-test HYPRLAND_INSTANCE_SIGNATURE=hyprland-test \
+  "$root/bin/nyvorel-activate" --session > "$tmp/activate-package-fluid.log"
+grep -qx 'nyvorel-glass-runtime glass' "$NYVOREL_TEST_APPEARANCE_LOG"
+grep -qx 'nyvorel-fluid-runtime fluid' "$NYVOREL_TEST_APPEARANCE_LOG"
 echo 'PASS setup plan/consent/live guard/existing-install refusal and session activation'

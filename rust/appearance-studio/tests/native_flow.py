@@ -30,6 +30,7 @@ def fixture(root):
     fake_bin = root / "bin"
     for path in (generated, nyvorel, scripts, appearance_scripts, fake_bin, home / ".local/bin"):
         path.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(PROJECT / "matugen", config / "matugen")
     shutil.copy2(PROJECT / "quickshell/scripts/appearance-studio/wallpaper_profile.py", appearance_scripts / "wallpaper_profile.py")
     shutil.copy2(PROJECT / "quickshell/scripts/appearance-studio/palette_probe.py", appearance_scripts / "palette_probe.py")
     wallpaper = root.parent / "wallpaper.ppm"
@@ -78,6 +79,7 @@ def fixture(root):
                XDG_CACHE_HOME=str(cache), XDG_CURRENT_DESKTOP="test",
                NYVOREL_APPEARANCE_TEST_NO_WATCHDOG="1",
                NYVOREL_APPEARANCE_SMART_SEEDS="1",
+               NYVOREL_VIRTUAL_ENV=str(REAL_HOME / ".local/state/quickshell/.venv"),
                NYVOREL_TEST_FRAME=str(wallpaper),
                NYVOREL_TEST_MPVLOG=str(root / "mpvpaper.log"),
                PATH=str(fake_bin) + os.pathsep + os.environ["PATH"])

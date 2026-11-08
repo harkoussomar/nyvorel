@@ -113,9 +113,9 @@ Singleton {
 
             property JsonObject appearance: JsonObject {
                 // Interface identity is separate from visual fine-tuning.
-                property string interfaceStyle: "" // default, fluid, floating, solid, minimal
-                property bool extraBackgroundTint: true
-                property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+                property string interfaceStyle: "fluid" // default, fluid, floating, solid, minimal
+                property bool extraBackgroundTint: false
+                property int fakeScreenRounding: 1 // 0: None | 1: Always | 2: When not fullscreen
 
                 // phase3d-motion-preferences-v1
                 // Global semantic-motion preferences. These are independent
@@ -130,14 +130,14 @@ Singleton {
                 // while shell surfaces consume these role-based values.
                 property JsonObject geometry: JsonObject {
                     property JsonObject radius: JsonObject {
-                        property int global: 17
+                        property int global: 8
                         property JsonObject window: JsonObject { property bool followGlobal: false; property int value: 8 }
                         property JsonObject bar: JsonObject { property bool followGlobal: false; property int value: 8 }
-                        property JsonObject modal: JsonObject { property bool followGlobal: false; property int value: 23 }
-                        property JsonObject sidebar: JsonObject { property bool followGlobal: false; property int value: 23 }
-                        property JsonObject popup: JsonObject { property bool followGlobal: true; property int value: 17 }
-                        property JsonObject card: JsonObject { property bool followGlobal: true; property int value: 17 }
-                        property JsonObject control: JsonObject { property bool followGlobal: false; property int value: 12 }
+                        property JsonObject modal: JsonObject { property bool followGlobal: false; property int value: 10 }
+                        property JsonObject sidebar: JsonObject { property bool followGlobal: false; property int value: 10 }
+                        property JsonObject popup: JsonObject { property bool followGlobal: false; property int value: 8 }
+                        property JsonObject card: JsonObject { property bool followGlobal: false; property int value: 6 }
+                        property JsonObject control: JsonObject { property bool followGlobal: false; property int value: 4 }
                         property JsonObject screen: JsonObject { property bool followGlobal: false; property int value: 8 }
                     }
                 }
@@ -151,14 +151,14 @@ Singleton {
                     property string expressive: "Space Grotesk"
                 }
                 property JsonObject transparency: JsonObject {
-                    property bool enable: false
-                    property bool automatic: true
-                    property real backgroundTransparency: 0.11
-                    property real contentTransparency: 0.57
+                    property bool enable: true
+                    property bool automatic: false
+                    property real backgroundTransparency: 0.4
+                    property real contentTransparency: 0.8
                 }
                 property JsonObject wallpaperTheming: JsonObject {
                     property bool enableAppsAndShell: true
-                    property bool enableQtApps: true
+                    property bool enableQtApps: false
                     property bool enableTerminal: true
                     property JsonObject terminalGenerationProps: JsonObject {
                         property real harmony: 0.6
@@ -168,7 +168,7 @@ Singleton {
                     }
                 }
                 property JsonObject palette: JsonObject {
-                    property string type: "auto" // Allowed: auto, scheme-content, scheme-expressive, scheme-fidelity, scheme-fruit-salad, scheme-monochrome, scheme-neutral, scheme-rainbow, scheme-tonal-spot
+                    property string type: "scheme-tonal-spot" // Allowed: auto, scheme-content, scheme-expressive, scheme-fidelity, scheme-fruit-salad, scheme-monochrome, scheme-neutral, scheme-rainbow, scheme-tonal-spot
                     property string accentColor: ""
                 }
             }

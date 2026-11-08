@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='nyvorel-runtime-') as temp:
   print('PASS source-owned Matugen templates and all eight outputs',flush=True)
   s=m._load_state();s['targets']={k:k=='shell' for k in ['shell','hyprland','hyprlock','gtk','fuzzel','qt','terminal','editors']};m._save_state(s)
   with patch.object(m,'_launch_preview_watchdog'):
-   for profile in ['default','inlay','prism','fluid']:
+   for profile in ['default','floating','fluid']:
     for mode in ['dark','light']:
      r=m.apply_theme(source='preset',preset='midnight',mode=mode,scheme='auto',ui_snapshot=m.UI_PROFILES[profile]['patch'])
      assert r['ok'] and m.COLORS_JSON.is_file() and m.MATERIAL_SCSS.stat().st_size>100

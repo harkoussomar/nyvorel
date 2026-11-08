@@ -4,6 +4,20 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-08
+
+### Fresh Arch session appearance
+- Matched the working shell's Fluid defaults, including its transparency,
+  corner geometry, and wallpaper color treatment.
+- Applied Glass and Fluid compositor rules when a new session starts, so the
+  navbar and attached panels share the intended blurred surface immediately.
+- Matched the working shell's popup motion and material rules in the shipped
+  Hyprland Lua and legacy configurations.
+- Fixed Appearance Studio Apply on Arch packages by resolving package-owned
+  runtime helpers, while preserving the source-install helper path and rollback.
+- Added isolated package-helper and session-activation checks, and refreshed
+  palette parsing for current Matugen output.
+
 ## [0.1.3] - 2026-11-08
 
 ### Session and bar defaults

@@ -46,11 +46,9 @@ def main() -> int:
     new = replace_block(old, BLOCK if mode == "fluid" else "")
     if new != old:
         RULES.write_text(new, encoding="utf-8")
-
-    if TERMINAL_SYNC.is_file():
-        quiet([str(TERMINAL_SYNC)])
-
-    quiet(["hyprctl", "reload"])
+        if TERMINAL_SYNC.is_file():
+            quiet([str(TERMINAL_SYNC)])
+        quiet(["hyprctl", "reload"])
     print(f"fluid-runtime-v1: mode={mode}")
     return 0
 

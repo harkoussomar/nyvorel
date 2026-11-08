@@ -381,6 +381,25 @@ fn runtime_mode(cfg: &Value, catalog: &Value) -> (bool, bool) {
     )
 }
 
+pub(crate) fn runtime_helper(name: &str) -> Result<PathBuf, String> {
+    let user_path = home()?.join(".local/bin").join(name);
+    if user_path.is_file() {
+        return Ok(user_path);
+    }
+    let package_root = env::var_os("NYVOREL_PACKAGE_HELPER_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/usr/lib/nyvorel/bin"));
+    let package_path = package_root.join(name);
+    if package_path.is_file() {
+        return Ok(package_path);
+    }
+    Err(format!(
+        "Missing runtime helper {name}; checked {} and {}",
+        user_path.display(),
+        package_path.display()
+    ))
+}
+
 fn sync_runtime(cfg: &Value, catalog: &Value) -> Result<(), String> {
     let (glass, fluid) = runtime_mode(cfg, catalog);
     for (helper, mode) in [
@@ -393,10 +412,7 @@ fn sync_runtime(cfg: &Value, catalog: &Value) -> Result<(), String> {
             if fluid { "fluid" } else { "default" },
         ),
     ] {
-        let path = home()?.join(".local/bin").join(helper);
-        if !path.is_file() {
-            return Err(format!("Missing runtime helper: {}", path.display()));
-        }
+        let path = runtime_helper(helper)?;
         let mut command = Command::new(path);
         command.arg(mode);
         run_command(command, Duration::from_secs(20))?;

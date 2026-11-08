@@ -1013,6 +1013,11 @@ hl.window_rule({["size"] = "(monitor_w*.45) (monitor_h*.45)", ["match"] = {["cla
 -- hyprland.conf:121
 hl.window_rule({["center"] = true, ["match"] = {["class"] = "^(pavucontrol-qt)$"}, ["name"] = "nyvorel-69"})
 -- Personal native overrides are user-owned and evaluated after project defaults.
+-- Popup geometry is animated by Quickshell; keep the attached Fluid material
+-- continuous with the navbar instead of applying Hyprland's generic slide.
+hl.layer_rule({["no_anim"] = true, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-origin-no-slide"})
+hl.layer_rule({["xray"] = true, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-bar-material-xray"})
+hl.layer_rule({["ignore_alpha"] = 0.57, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-bar-material-alpha"})
 load_optional(nyvorel_config_root .. "/custom/user.lua")
 end)
 hl.on("hyprland.start", function()
