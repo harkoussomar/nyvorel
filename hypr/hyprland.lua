@@ -142,7 +142,7 @@ hl.config({["decoration"] = {["shadow"] = {["range"] = 50}}})
 -- hyprland/general.conf:75
 hl.config({["decoration"] = {["shadow"] = {["offset"] = {0, 4}}}})
 -- hyprland/general.conf:76
-hl.config({["decoration"] = {["shadow"] = {["render_power"] = 10}}})
+hl.config({["decoration"] = {["shadow"] = {["render_power"] = 4}}})
 -- hyprland/general.conf:77
 hl.config({["decoration"] = {["shadow"] = {["color"] = "rgba(00000027)"}}})
 -- hyprland/general.conf:81

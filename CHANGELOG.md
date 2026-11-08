@@ -4,6 +4,19 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-08
+
+### Session and bar defaults
+- Fixed the Hyprland session error by reducing the shipped shadow render power
+  to the supported maximum of 4 in both Lua and legacy configuration.
+- Matched the working Nyvorel bar's floating layout and initial workspace
+  display: five workspaces with numbers instead of dots.
+- Hid screen snip, the on-screen keyboard toggle, and the light/dark toggle by
+  default while keeping each available in Settings > Bar. Existing saved bar
+  choices remain untouched on upgrade.
+- Kept the network entry icon consistent across physical Wi-Fi and virtual
+  Ethernet bars; the network panel continues to show the actual connection.
+
 ## [0.1.2] - 2026-11-07
 
 ### Highlights

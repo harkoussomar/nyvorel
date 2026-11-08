@@ -53,10 +53,18 @@ fi
 # path (package installs do not populate ~/.local/bin).
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 root = Path(sys.argv[1])
 lua = (root / "hypr/hyprland.lua").read_text()
+legacy = (root / "hypr/hyprland/general.conf").read_text()
+# Hyprland accepts shadow render_power in [1, 4]. Both shipped session
+# formats must stay inside that range so first login has no config error.
+lua_power = re.findall(r'\["render_power"\]\s*=\s*(\d+)', lua)
+legacy_power = re.findall(r'^\s*render_power\s*=\s*(\d+)\s*$', legacy, re.M)
+assert len(lua_power) == len(legacy_power) == 1
+assert lua_power == legacy_power and 1 <= int(lua_power[0]) <= 4
 required = {
     '"SUPER+ALT + T"': "quickshell:appearanceStudioToggle",
     '"SUPER + Y"': "quickshell:archRemoteToggle",

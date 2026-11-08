@@ -268,8 +268,8 @@ Singleton {
                     }
                 }
                 property bool bottom: false // Instead of top
-                property int cornerStyle: 0 // 0: Hug | 1: Float | 2: Plain rectangle
-                property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle == 1 (Float)
+                property int cornerStyle: 1 // 0: Hug | 1: Float | 2: Plain rectangle
+                property bool floatStyleShadow: false // Show shadow behind bar when cornerStyle == 1 (Float)
                 property bool borderless: false // true for no grouping of items
                 property string topLeftIcon: "nyvorel" // "nyvorel" shows the logo; "distro" or an icon name shows an icon
                 property bool showBackground: true
@@ -289,22 +289,22 @@ Singleton {
                 
                 property list<string> screenList: [] // List of names, like "eDP-1", find out with 'hyprctl monitors' command
                 property JsonObject utilButtons: JsonObject {
-                    property bool showScreenSnip: true
+                    property bool showScreenSnip: false
                     property bool showColorPicker: false
                     property bool showMicToggle: false
-                    property bool showKeyboardToggle: true
-                    property bool showDarkModeToggle: true
+                    property bool showKeyboardToggle: false
+                    property bool showDarkModeToggle: false
                     property bool showKeepAwakeToggle: false
                     property bool showNightLightToggle: false
                     property bool showScreenRecord: false
                 }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true
-                    property int shown: 10
+                    property int shown: 5
                     property bool showAppIcons: true
-                    property bool alwaysShowNumbers: false
-                    property int showNumberDelay: 300 // milliseconds
-                    property list<string> numberMap: ["1", "2"] // Characters to show instead of numbers on workspace indicator
+                    property bool alwaysShowNumbers: true
+                    property int showNumberDelay: 350 // milliseconds
+                    property list<string> numberMap: [] // Empty uses the actual workspace IDs
                     property bool useNerdFont: false
                 }
                 property JsonObject weather: JsonObject {

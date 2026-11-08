@@ -22,7 +22,7 @@
 [**Explore**](#the-nyvorel-experience) ·
 [**Architecture**](#how-it-fits-together) ·
 [**Documentation**](#documentation) ·
-[**Release v0.1.2**](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.2)
+[**Release v0.1.3**](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.3)
 
 </div>
 
@@ -58,7 +58,7 @@ Nyvorel began as a derivative of
 Impulse and has since been extensively redesigned with its own identity,
 modules, services, UX, lifecycle model, and tooling.
 
-> **Current stable release:** [`v0.1.2`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.2)
+> **Current stable release:** [`v0.1.3`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.3)
 
 ## At a glance
 
@@ -69,7 +69,7 @@ modules, services, UX, lifecycle model, and tooling.
 | **Desktop shell** | Quickshell |
 | **Service lifecycle** | systemd user services |
 | **Automation / tooling** | Rust + Bash + Python |
-| **Current release** | `v0.1.2` |
+| **Current release** | `v0.1.3` |
 | **License** | GPL-3.0 |
 | **Install model** | Manifest-backed, backup-first, recoverable |
 
@@ -163,7 +163,7 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 
 Phase 7C prepares a validated `nyvorel-git` development package recipe
 under [`packaging/aur/nyvorel-git`](packaging/aur/nyvorel-git).
-It is **not submitted to AUR** and does not replace the stable `v0.1.2`
+It is **not submitted to AUR** and does not replace the stable `v0.1.3`
 source-clone instructions below. Details: [PACKAGING.md](PACKAGING.md).
 
 ## Quick start
@@ -457,7 +457,7 @@ Maintainers can validate a prepared semantic-version release candidate without
 publishing anything:
 
 ```sh
-scripts/release/preflight.sh --version 0.1.3 --require-clean
+scripts/release/preflight.sh --version 0.1.4 --require-clean
 ```
 
 See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage preflight.
@@ -467,7 +467,7 @@ See [`RELEASES.md`](./RELEASES.md) for release invariants and tag-stage prefligh
 Maintainers should plan a release before allowing any mutation:
 
 ```sh
-scripts/release/publish.sh --version 0.1.3
+scripts/release/publish.sh --version 0.1.4
 ```
 
 Actual publication requires `--publish --yes`. The publisher verifies exact
@@ -509,7 +509,7 @@ package-owned `/usr` payload, package-aware user materialization, explicit
 source-clone migration, package sync, and pristine-Arch package lifecycle
 regression are now part of the repository.
 
-The package is not published to AUR yet; `v0.1.2` is available as a source
+The package is not published to AUR yet; `v0.1.3` is available as a source
 release.
 
 Next focus areas include:

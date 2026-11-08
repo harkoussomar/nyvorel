@@ -282,7 +282,7 @@ Item { // Bar content region
                 onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    text: Network.materialSymbol
+                    text: Network.barSymbol
                     iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                     color: networkButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
                 }

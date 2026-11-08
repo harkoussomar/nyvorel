@@ -54,6 +54,10 @@ Singleton {
                         ? "signal_wifi_off"
                         : "signal_wifi_bad"
 
+    // Keep the navbar's connected-network mark consistent on virtual Ethernet.
+    // The network panel still uses materialSymbol to show the actual link type.
+    readonly property string barSymbol: root.ethernet ? "signal_wifi_4_bar" : root.materialSymbol
+
     // Control
     function enableWifi(enabled = true): void {
         const cmd = enabled ? "on" : "off";

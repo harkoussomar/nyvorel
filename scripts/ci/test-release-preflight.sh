@@ -14,15 +14,15 @@ git -C "$ROOT" ls-files --cached --others --exclude-standard -z \
 rm -rf "$CANDIDATE/.git"
 find "$CANDIDATE" -type d -name __pycache__ -prune -exec rm -rf {} +
 
-echo "== Build synthetic v0.1.3 release candidate =="
-printf '0.1.3\n' >"$CANDIDATE/VERSION"
+echo "== Build synthetic v0.1.4 release candidate =="
+printf '0.1.4\n' >"$CANDIDATE/VERSION"
 python3 - "$CANDIDATE/CHANGELOG.md" <<'PY'
 from pathlib import Path
 import sys
 p = Path(sys.argv[1])
 text = p.read_text()
 marker = "## [Unreleased]\n"
-release = "## [Unreleased]\n\n## [0.1.3] - 2026-10-07\n\nSynthetic release-preflight fixture.\n"
+release = "## [Unreleased]\n\n## [0.1.4] - 2026-10-07\n\nSynthetic release-preflight fixture.\n"
 if text.count(marker) != 1:
     raise SystemExit("fixture changelog marker mismatch")
 p.write_text(text.replace(marker, release, 1))
@@ -32,22 +32,22 @@ git -C "$CANDIDATE" init -b main >/dev/null
 git -C "$CANDIDATE" config user.name "Nyvorel Release CI"
 git -C "$CANDIDATE" config user.email "release-ci@nyvorel.invalid"
 git -C "$CANDIDATE" add -A
-git -C "$CANDIDATE" commit -m "fixture: v0.1.3 candidate" >/dev/null
+git -C "$CANDIDATE" commit -m "fixture: v0.1.4 candidate" >/dev/null
 
 echo "== Future semantic VERSION is accepted by installer =="
-"$CANDIDATE/install.sh" --target-home "$TMP/home-v013" --dry-run --no-activate >"$TMP/install-v013.log"
-grep -q 'Version      : 0.1.3' "$TMP/install-v013.log"
-grep -q 'DRY RUN — no files changed.' "$TMP/install-v013.log"
+"$CANDIDATE/install.sh" --target-home "$TMP/home-v014" --dry-run --no-activate >"$TMP/install-v014.log"
+grep -q 'Version      : 0.1.4' "$TMP/install-v014.log"
+grep -q 'DRY RUN — no files changed.' "$TMP/install-v014.log"
 
 echo "== Candidate preflight passes before tag creation =="
-"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.3 --tag v0.1.3 --require-clean --json >"$TMP/preflight.json"
+"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.4 --tag v0.1.4 --require-clean --json >"$TMP/preflight.json"
 python3 - "$TMP/preflight.json" <<'PY'
 from pathlib import Path
 import json, sys
 data = json.loads(Path(sys.argv[1]).read_text())
 assert data["schema"] == 1
-assert data["version"] == "0.1.3"
-assert data["tag"] == "v0.1.3"
+assert data["version"] == "0.1.4"
+assert data["tag"] == "v0.1.4"
 assert data["mutation_performed"] is False
 assert data["publish_performed"] is False
 assert data["worktree_dirty"] is False
@@ -56,13 +56,13 @@ assert data["checks"]["tag_points_to_head"] is None
 PY
 
 echo "== Annotated release tag can be required and must peel to HEAD =="
-git -C "$CANDIDATE" tag -a v0.1.3 -m "fixture release v0.1.3"
-"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.3 --require-clean --require-tag --json >"$TMP/tagged.json"
+git -C "$CANDIDATE" tag -a v0.1.4 -m "fixture release v0.1.4"
+"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.4 --require-clean --require-tag --json >"$TMP/tagged.json"
 python3 - "$TMP/tagged.json" <<'PY'
 from pathlib import Path
 import json, sys
 data = json.loads(Path(sys.argv[1]).read_text())
-assert data["tag"] == "v0.1.3"
+assert data["tag"] == "v0.1.4"
 assert data["tag_commit"] == data["head_commit"]
 assert data["checks"]["tag_points_to_head"] is True
 assert data["publish_performed"] is False
@@ -70,18 +70,18 @@ PY
 
 echo "== Mismatched expected version is refused =="
 set +e
-"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.4 >"$TMP/version.out" 2>"$TMP/version.err"
+"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --version 0.1.5 >"$TMP/version.out" 2>"$TMP/version.err"
 VERSION_RC=$?
 set -e
 [[ "$VERSION_RC" == "1" ]] || die "version mismatch should fail"
-grep -q 'does not match expected 0.1.4' "$TMP/version.err"
+grep -q 'does not match expected 0.1.5' "$TMP/version.err"
 
 echo "== Missing changelog release heading is refused =="
 BROKEN="$TMP/broken"
 cp -a "$CANDIDATE" "$BROKEN"
-sed -i 's/^## \[0\.1\.3\] - 2026-10-07$/## [0.1.4] - 2026-10-07/' "$BROKEN/CHANGELOG.md"
+sed -i 's/^## \[0\.1\.4\] - 2026-10-07$/## [0.1.5] - 2026-10-07/' "$BROKEN/CHANGELOG.md"
 set +e
-"$BROKEN/scripts/release/preflight.sh" --source "$BROKEN" --version 0.1.3 >"$TMP/changelog.out" 2>"$TMP/changelog.err"
+"$BROKEN/scripts/release/preflight.sh" --source "$BROKEN" --version 0.1.4 >"$TMP/changelog.out" 2>"$TMP/changelog.err"
 CHANGELOG_RC=$?
 set -e
 [[ "$CHANGELOG_RC" == "1" ]] || die "missing release heading should fail"
@@ -89,10 +89,10 @@ grep -q 'CHANGELOG.md lacks exact release heading' "$TMP/changelog.err"
 
 echo "== Tag/version mismatch is refused =="
 set +e
-"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --tag v0.1.4 >"$TMP/tag.out" 2>"$TMP/tag.err"
+"$CANDIDATE/scripts/release/preflight.sh" --source "$CANDIDATE" --tag v0.1.5 >"$TMP/tag.out" 2>"$TMP/tag.err"
 TAG_RC=$?
 set -e
 [[ "$TAG_RC" == "1" ]] || die "tag/version mismatch should fail"
-grep -q 'does not match VERSION v0.1.3' "$TMP/tag.err"
+grep -q 'does not match VERSION v0.1.4' "$TMP/tag.err"
 
 echo "PASS  generic installer VERSION + deterministic non-publishing release preflight"
