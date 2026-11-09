@@ -99,8 +99,6 @@ Scope { // Scope
                 GlobalStates.closeExclusiveSurface("cheatsheet", false)
             }
             exclusiveZone: 0
-            implicitWidth: cheatsheetBackground.width + Appearance.sizes.elevationMargin * 2
-            implicitHeight: cheatsheetBackground.height + Appearance.sizes.elevationMargin * 2
             // glass-system-v2.3b-shape
             Region {
                 id: glassCheatsheetVisibleMask
@@ -193,7 +191,10 @@ Scope { // Scope
                     )
 
                 implicitHeight:
-                    cheatsheetColumnLayout.implicitHeight + padding * 2
+                    Math.min(
+                        cheatsheetColumnLayout.implicitHeight + padding * 2,
+                        cheatsheetRoot.height - 48
+                    )
 
                 Keys.onPressed: event => { // Esc to close
                     if (event.key === Qt.Key_Escape) {
@@ -312,8 +313,12 @@ Scope { // Scope
                             Persistent.states.cheatsheet.tabIndex = currentIndex;
                         }
 
-                        implicitWidth: Math.max.apply(null, contentChildren.map(child => child.implicitWidth || 0))
-                        implicitHeight: Math.max.apply(null, contentChildren.map(child => child.implicitHeight || 0))
+                        implicitWidth: currentIndex === 0
+                            ? keybindsPage.implicitWidth
+                            : elementsPage.implicitWidth
+                        implicitHeight: currentIndex === 0
+                            ? keybindsPage.implicitHeight
+                            : elementsPage.implicitHeight
 
                         clip: true
                         layer.enabled: true
@@ -325,8 +330,8 @@ Scope { // Scope
                             }
                         }
 
-                        CheatsheetKeybinds {}
-                        CheatsheetPeriodicTable {}
+                        CheatsheetKeybinds { id: keybindsPage }
+                        CheatsheetPeriodicTable { id: elementsPage }
                     }
                 }
             }

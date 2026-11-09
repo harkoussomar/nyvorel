@@ -321,7 +321,7 @@ Item {
                 || !Config.options.sidebar.cornerOpen.valueScroll
                 || Config.options.sidebar.cornerOpen.bottom
                     !== Config.options.bar.bottom
-                || !root.brightnessMonitor
+                || !root.brightnessMonitor?.ready
             ) {
                 return
             }
@@ -341,7 +341,7 @@ Item {
                 || !Config.options.sidebar.cornerOpen.valueScroll
                 || Config.options.sidebar.cornerOpen.bottom
                     !== Config.options.bar.bottom
-                || !root.brightnessMonitor
+                || !root.brightnessMonitor?.ready
             ) {
                 return
             }

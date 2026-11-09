@@ -114,7 +114,7 @@ Singleton {
             );
 
 
-        if (!monitor) {
+        if (!monitor?.ready) {
             return;
         }
 
@@ -143,7 +143,7 @@ Singleton {
             );
 
 
-        if (!monitor) {
+        if (!monitor?.ready) {
             return;
         }
 
@@ -192,10 +192,11 @@ Singleton {
         id: ddcProc
 
 
+        // The base installation can run without DDC support. Always start a
+        // process so onExited initializes the internal display as well.
         command: [
-            "ddcutil",
-            "detect",
-            "--brief"
+            "sh", "-c",
+            "if command -v ddcutil >/dev/null 2>&1; then exec ddcutil detect --brief; fi"
         ]
 
 
@@ -288,6 +289,11 @@ Singleton {
 
 
         property bool isDdc
+
+        // brightnessctl controls the built-in backlight, not an arbitrary
+        // HDMI/DP output. External displays require a detected DDC bus.
+        readonly property bool canUseBacklight:
+            /^(eDP|LVDS|DSI)/i.test(monitor.screen?.name ?? "")
 
         property string busNum
 
@@ -419,6 +425,11 @@ Singleton {
 
             monitor.busNum =
                 match?.busNum ?? "";
+
+            if (!monitor.isDdc && !monitor.canUseBacklight) {
+                root.initializeMonitor(monitorIndex + 1);
+                return;
+            }
 
 
             initProc.command =
@@ -616,6 +627,9 @@ Singleton {
         function setBrightness(
             value: real
         ): void {
+            if (!monitor.ready) {
+                return;
+            }
             if (
                 isNaN(value)
                 || value === undefined

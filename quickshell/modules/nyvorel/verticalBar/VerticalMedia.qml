@@ -6,6 +6,7 @@ import qs.modules.common.functions
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Services.Mpris
 
 import qs.modules.nyvorel.bar as Bar
@@ -42,6 +43,8 @@ MouseArea {
         } else if (event.button === Qt.ForwardButton || event.button === Qt.RightButton) {
             activePlayer.next();
         } else if (event.button === Qt.LeftButton) {
+            if (!GlobalStates.mediaControlsOpen)
+                GlobalStates.mediaControlsScreenName = root.QsWindow?.window?.screen?.name ?? ""
             GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
         }
     }

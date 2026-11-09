@@ -60,6 +60,7 @@ Singleton {
         else root.closeBarPopup("operations")
     }
     property bool mediaControlsOpen: false
+    property string mediaControlsScreenName: ""
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool oskOpen: false

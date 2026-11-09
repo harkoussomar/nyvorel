@@ -12,6 +12,10 @@ import Quickshell.Hyprland
 
 Scope {
     id: root
+    property string targetScreenName: Hyprland.focusedMonitor?.name ?? ""
+    readonly property var targetScreen:
+        Quickshell.screens.find(screen => screen.name === root.targetScreenName)
+        ?? Quickshell.screens[0] ?? null
 
     property Component regionComponent: Component {
         Region {}
@@ -22,6 +26,7 @@ Scope {
         active: GlobalStates.overlayOpen || OverlayContext.hasPinnedWidgets
         sourceComponent: PanelWindow {
             id: overlayWindow
+            screen: root.targetScreen
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:overlay"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -56,6 +61,8 @@ Scope {
             Connections {
                 target: GlobalStates
                 function onOverlayOpenChanged() {
+                    if (GlobalStates.overlayOpen)
+                        root.targetScreenName = Hyprland.focusedMonitor?.name ?? ""
                     delayedGrabTimer.restart();
                 }
             }

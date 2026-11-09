@@ -29,6 +29,7 @@ Scope {
 
     onOsdLogicalOpenChanged: {
         if (root.osdLogicalOpen) {
+            root.focusedScreenName = Hyprland.focusedMonitor?.name ?? ""
             osdExitTimer.stop()
             root.osdMapped = true
             root.osdClosing = false
@@ -46,6 +47,7 @@ Scope {
 
     Component.onCompleted: {
         if (root.osdLogicalOpen) {
+            root.focusedScreenName = Hyprland.focusedMonitor?.name ?? ""
             root.osdMapped = true
             Qt.callLater(() => {
                 if (root.osdLogicalOpen)
@@ -72,12 +74,10 @@ Scope {
 
     property string protectionMessage: ""
 
-    property var focusedScreen:
-        Quickshell.screens.find(
-            screen =>
-                screen.name
-                === Hyprland.focusedMonitor?.name
-        ) ?? Quickshell.screens[0] ?? null
+    property string focusedScreenName: Hyprland.focusedMonitor?.name ?? ""
+    readonly property var focusedScreen:
+        Quickshell.screens.find(screen => screen.name === root.focusedScreenName)
+        ?? Quickshell.screens[0] ?? null
 
     property string currentIndicator:
         "volume"
@@ -95,6 +95,7 @@ Scope {
 
 
     function triggerOsd(): void {
+        root.focusedScreenName = Hyprland.focusedMonitor?.name ?? ""
         GlobalStates.osdVolumeOpen = true
         osdTimeout.restart()
     }
@@ -180,16 +181,6 @@ Scope {
 
                 color: "transparent"
                 screen: root.focusedScreen
-
-
-                Connections {
-                    target: root
-
-                    function onFocusedScreenChanged(): void {
-                        osdRoot.screen =
-                            root.focusedScreen
-                    }
-                }
 
 
                 // This small surface needs no compositor visible mask. A mask

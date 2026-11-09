@@ -6,6 +6,7 @@ import qs.modules.common.functions
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Services.Mpris
 
 Item {
@@ -70,6 +71,8 @@ Item {
             ) {
                 root.activePlayer.next()
             } else if (event.button === Qt.LeftButton) {
+                if (!GlobalStates.mediaControlsOpen)
+                    GlobalStates.mediaControlsScreenName = root.QsWindow?.window?.screen?.name ?? ""
                 GlobalStates.mediaControlsOpen =
                     !GlobalStates.mediaControlsOpen
             }

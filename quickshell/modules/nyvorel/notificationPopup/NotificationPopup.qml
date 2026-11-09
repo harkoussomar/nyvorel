@@ -17,6 +17,12 @@ Scope {
     readonly property bool toastLogicalVisible:
         Notifications.popupList.length > 0
         && !GlobalStates.screenLocked
+    property string targetScreenName: Hyprland.focusedMonitor?.name ?? ""
+
+    onToastLogicalVisibleChanged: {
+        if (toastLogicalVisible)
+            targetScreenName = Hyprland.focusedMonitor?.name ?? ""
+    }
 
 
     PanelWindow {
@@ -32,11 +38,18 @@ Scope {
             Quickshell.screens.find(
                 (screen) =>
                     screen.name
-                    === Hyprland
-                        .focusedMonitor
-                        ?.name
+                    === notificationPopup.targetScreenName
             )
+            ?? Quickshell.screens[0]
             ?? null
+
+        readonly property bool barOnThisScreen:
+            GlobalStates.barOpen
+            && !GlobalStates.screenLocked
+            && (
+                Config.options.bar.screenList.length === 0
+                || Config.options.bar.screenList.includes(root.screen?.name)
+            )
 
 
         // glass-system-v2.3b-shape
@@ -73,6 +86,13 @@ Scope {
 
             bottom:
                 true
+        }
+
+        margins {
+            top: root.barOnThisScreen && !Config.options.bar.vertical && !Config.options.bar.bottom
+                ? Appearance.sizes.barHeight + 8 : 0
+            right: root.barOnThisScreen && Config.options.bar.vertical && Config.options.bar.bottom
+                ? Appearance.sizes.verticalBarWidth + 8 : 0
         }
 
 

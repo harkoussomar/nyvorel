@@ -637,20 +637,19 @@ Item {
         repeat: false
         onTriggered: {
             if (!root.globallyBusy)
-                root.refresh(true, true)
+                root.refresh(false, true)
         }
     }
 
     Timer {
-        // Full Restic/SMART/Timeshift collection is intentionally not run every
-        // minute. The last verified state paints instantly; expensive domains
-        // refresh in the background every five minutes while the modal exists.
+        // Read cached state while the modal is open. Starting the privileged
+        // collector here would request Polkit authorization on every open.
         interval: 300000
         repeat: true
         running: true
         onTriggered: {
             if (!root.globallyBusy)
-                root.refresh(true, true)
+                root.refresh(false, true)
         }
     }
     Timer {

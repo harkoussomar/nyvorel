@@ -86,7 +86,7 @@ core=(
   kitty fish firefox dolphin plasma-integration hyprlock qt6-multimedia-ffmpeg
   pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
-  matugen jq bc xdg-utils xdg-user-dirs
+  matugen jq bc xdg-utils xdg-user-dirs brightnessctl cava
 )
 recommended_packages=(zed kate ark btop imagemagick ffmpeg playerctl hypridle)
 ocr_packages=(tesseract tesseract-data-eng)

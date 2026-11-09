@@ -1424,6 +1424,7 @@ Item {
             MaterialSymbol {
                 text: row.item.status === "pass" ? "check_circle"
                     : row.item.status === "fail" ? "error"
+                    : row.item.status === "not-configured" ? "settings"
                     : row.item.status === "external-unverified" ? "public_off"
                     : row.item.status === "untested" ? "radio_button_unchecked" : "warning"
                 iconSize: 18
@@ -1443,7 +1444,8 @@ Item {
                 }
                 StyledText {
                     Layout.fillWidth: true
-                    text: row.item.status === "pass" ? (row.item.detected || "Verified")
+                    text: row.item.status === "not-configured" ? "Available when configured"
+                        : row.item.status === "pass" ? (row.item.detected || "Verified")
                         : row.item.status === "external-unverified" ? "Outside local verification scope"
                         : `Detected: ${row.item.detected || "unknown"}`
                     color: row.item.status === "fail" ? Appearance.colors.colOnErrorContainer : Appearance.colors.colSubtext
@@ -1453,7 +1455,8 @@ Item {
             }
             Pill {
                 visible: row.item.status !== "pass"
-                label: row.item.status === "external-unverified" ? "External"
+                label: row.item.status === "not-configured" ? "Not configured"
+                    : row.item.status === "external-unverified" ? "External"
                     : row.item.status === "unknown" || row.item.status === "untested" ? "Not verified" : root.cap(row.item.status)
                 state: row.item.status === "fail" ? "danger" : "neutral"
                 compact: true

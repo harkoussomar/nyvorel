@@ -68,7 +68,8 @@ def _palette(draw_data: DrawData):
     outline = _rgb(theme.get("inactive_border_color"), draw_data.inactive_fg)
     changed_bg = _rgb(theme.get("selection_background"), draw_data.active_bg)
     style = theme.get("ii_interface_style", "default")
-    if style not in {"fluid", "prism", "inlay", "default"}:
+    style = {"prism": "fluid", "inlay": "fluid", "mica": "fluid"}.get(style, style)
+    if style not in {"fluid", "default"}:
         style = "default"
     return {
         "style": style,
@@ -161,19 +162,11 @@ def _draw(
 
 
 def _separator_text(style: str) -> str:
-    if style == "fluid":
-        return " │ "
-    if style == "prism":
-        return "  "
-    if style == "inlay":
-        return "│"
-    return " · "
+    return " │ " if style == "fluid" else " · "
 
 
 def _separator(screen: Screen, colors) -> None:
-    style = colors["style"]
-    bg = colors["surface"] if style == "inlay" else colors["bg"]
-    _draw(screen, _separator_text(style), colors["outline"], bg)
+    _draw(screen, _separator_text(colors["style"]), colors["outline"], colors["bg"])
 
 
 def _draw_active_fluid(screen: Screen, ctx: Dict[str, str], colors, columns: int) -> None:
@@ -227,48 +220,10 @@ def _draw_active_default(screen: Screen, ctx: Dict[str, str], colors, columns: i
             _draw(screen, f" +{changes}", colors["accent"], colors["bg"], bold=True)
 
 
-def _draw_active_prism(screen: Screen, ctx: Dict[str, str], colors, columns: int) -> None:
-    narrow = columns < 92
-    project = _clip(_project_label(ctx), 18 if narrow else 25)
-    _draw(screen, f" 󰉋 {project} ", colors["primary"], colors["surface"], bold=True)
-    branch = ctx.get("branch", "")
-    if branch:
-        _separator(screen, colors)
-        _draw(screen, f" 󰘬 {_clip(branch, 21 if narrow else 32)} ", colors["primary"], colors["surface"])
-        changes = _num(ctx.get("changes", "0"))
-        if changes:
-            _draw(screen, "  ", colors["muted"], colors["bg"])
-            _draw(screen, f" ● {changes} ", colors["accent"], colors["changed_bg"])
-        elif not narrow:
-            _draw(screen, "  ", colors["muted"], colors["bg"])
-            _draw(screen, " ✓ ", colors["muted"], colors["surface"])
-
-
-def _draw_active_inlay(screen: Screen, ctx: Dict[str, str], colors, columns: int) -> None:
-    narrow = columns < 92
-    project = _clip(_project_label(ctx), 18 if narrow else 24)
-    _draw(screen, f" 󰉋 {project} ", colors["primary"], colors["surface"], bold=True)
-    branch = ctx.get("branch", "")
-    if branch:
-        _separator(screen, colors)
-        _draw(screen, f" 󰘬 {_clip(branch, 20 if narrow else 30)} ", colors["fg"], colors["surface"])
-        changes = _num(ctx.get("changes", "0"))
-        if changes:
-            _separator(screen, colors)
-            _draw(screen, f" ! {changes} ", colors["accent"], colors["changed_bg"], bold=True)
-        elif not narrow:
-            _separator(screen, colors)
-            _draw(screen, " ✓ ", colors["muted"], colors["surface"])
-
-
 def _draw_active(screen: Screen, ctx: Dict[str, str], colors, columns: int) -> None:
     style = colors["style"]
     if style == "fluid":
         _draw_active_fluid(screen, ctx, colors, columns)
-    elif style == "prism":
-        _draw_active_prism(screen, ctx, colors, columns)
-    elif style == "inlay":
-        _draw_active_inlay(screen, ctx, colors, columns)
     else:
         _draw_active_default(screen, ctx, colors, columns)
 
@@ -292,7 +247,7 @@ def _draw_right(screen: Screen, cells, colors) -> None:
     for i, (kind, text) in enumerate(cells):
         if i:
             _separator(screen, colors)
-        bg = colors["surface"] if style in {"prism", "inlay"} else colors["bg"]
+        bg = colors["bg"]
         if kind == "runtime":
             _draw(screen, text, colors["primary"], bg, bold=True)
         else:
@@ -343,14 +298,7 @@ def draw_tab(
     else:
         label = _clip(_project_label(ctx), 18)
         style = colors["style"]
-        if style == "fluid":
-            _draw(screen, f" {index}:{label} ", colors["muted"], colors["bg"])
-        elif style == "prism":
-            _draw(screen, f" {index}·{label} ", colors["muted"], colors["surface"])
-        elif style == "inlay":
-            _draw(screen, f" {index} {label} ", colors["muted"], colors["surface"])
-        else:
-            _draw(screen, f" {index}:{label} ", colors["muted"], colors["bg"])
+        _draw(screen, f" {index}:{label} ", colors["muted"], colors["bg"])
 
     left_end = screen.cursor.x
 

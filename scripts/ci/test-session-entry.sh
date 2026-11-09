@@ -76,6 +76,7 @@ assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' in lua
 assert 'hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true})' in lua
 assert 'hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true})' in lua
 assert 'hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
+assert 'hl.bind("SUPER + backslash", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
 assert 'local super_scroll = "~/.local/bin/nyvorel-super-scroll"' in lua
 helper = (root / "bin/nyvorel-super-scroll").read_text()
 assert 'hyprctl dispatch \'hl.dsp.global("quickshell:searchToggle")\'' in helper

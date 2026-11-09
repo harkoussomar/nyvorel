@@ -205,7 +205,7 @@ Scope {
                             const monitor =
                                 cornerPanelWindow.brightnessMonitor
 
-                            if (!monitor)
+                            if (!monitor?.ready)
                                 return
 
                             monitor.setBrightness(
@@ -250,7 +250,7 @@ Scope {
                             const monitor =
                                 cornerPanelWindow.brightnessMonitor
 
-                            if (!monitor)
+                            if (!monitor?.ready)
                                 return
 
                             monitor.setBrightness(

@@ -553,6 +553,7 @@ hl.bind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"), {["descript
 -- hyprland/keybinds.conf:18
 hl.bind("SUPER + Slash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
 hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
+hl.bind("SUPER + backslash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
 -- hyprland/keybinds.conf:19
 hl.bind("SUPER + K", hl.dsp.global("quickshell:oskToggle"), {["description"] = "Toggle on-screen keyboard"})
 -- hyprland/keybinds.conf:20

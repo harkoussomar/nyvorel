@@ -14,10 +14,10 @@ import Quickshell.Hyprland
 Scope {
     id: root
 
-    property var focusedScreen:
-        Quickshell.screens.find(
-            s => s.name === Hyprland.focusedMonitor?.name
-        )
+    property string focusedScreenName: Hyprland.focusedMonitor?.name ?? ""
+    readonly property var focusedScreen:
+        Quickshell.screens.find(s => s.name === root.focusedScreenName)
+        ?? Quickshell.screens[0] ?? null
 
     // phase2e-session-presentation-v1
     // Separate requested state from mapped state so exit motion can finish.
@@ -27,6 +27,7 @@ Scope {
 
     function openSessionPresentation() {
         sessionCloseTimer.stop()
+        root.focusedScreenName = Hyprland.focusedMonitor?.name ?? ""
         root.sessionMapped = true
         root.sessionClosing = false
 
@@ -94,6 +95,7 @@ Scope {
         sourceComponent: PanelWindow { // Session menu
             id: sessionRoot
             visible: sessionLoader.active
+            screen: root.focusedScreen
 
             property string subtitle
 

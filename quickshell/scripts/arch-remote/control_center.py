@@ -2578,15 +2578,29 @@ def snapshot_deployment_integrity_posture() -> dict:
     return deployment_integrity_posture()
 
 
+def optional_remote_statuses(services: dict, tailscale: dict, wayvnc_security: dict) -> tuple[str, str]:
+    tailscale_not_configured = (not tailscale.get("available")
+                                and not services["tailscaled"].get("loaded")
+                                and not tailscale.get("connected"))
+    wayvnc_not_configured = (not services["wayvnc"].get("loaded")
+                             and wayvnc_security.get("config_mode") == "missing")
+    tailscale_status = "not-configured" if tailscale_not_configured else "pass" if tailscale["connected"] else "fail"
+    wayvnc_status = "not-configured" if wayvnc_not_configured else "pass" if wayvnc_security.get("ok") else "fail"
+    return tailscale_status, wayvnc_status
+
+
 def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, wayvnc_security: dict,
                    hardening: dict | None = None, integrity: dict | None = None) -> list[dict]:
     ssh = slow["ssh"]
+    tailscale_status, wayvnc_status = optional_remote_statuses(services, tailscale, wayvnc_security)
+    remote_services_configured = any(services[name].get("loaded") for name in
+                                     ("tailscaled", "lan_share", "wayvnc"))
     checks = [
         check("sshd-active", "SSH", "critical", "pass" if services["sshd"]["running"] else "fail",
               "SSH recovery service is running", "active", services["sshd"]["active_state"],
               "systemd", "SSH is the primary recovery path.", "Inspect sshd before changing authentication.",
               privilege="root", evidence_sources=["systemd"]),
-        check("tailscale-active", "Tailscale", "critical", "pass" if tailscale["connected"] else "fail",
+        check("tailscale-active", "Tailscale", "critical", tailscale_status,
               "Tailscale is connected", "Running", tailscale["backend_state"], "tailscale status --json",
               "The tailnet provides private remote reachability.", "Inspect tailscaled and authentication state.",
               privilege="root", evidence_sources=["systemd", "tailscale status --json"]),
@@ -2601,7 +2615,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
         and configured.get("allow_users", "").split() == [USER]
     )
     checks.append(check(
-        "ssh-configured-policy", "SSH", "warning", "pass" if configured_ok else "warn",
+        "ssh-configured-policy", "SSH", "warning", "not-configured" if ssh.get("dropin_exists") is False else "pass" if configured_ok else "warn",
         "SSH hardening is configured", "root off · password off · pubkey on · intended user only",
         "matches configured policy" if configured_ok else "configured values differ",
         str(SSH_DROPIN), "This proves the configuration file intent, not the running daemon's effective state.",
@@ -2688,7 +2702,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
               "WayVNC remains on-demand", "disabled", services["wayvnc"]["enabled_state"], "systemd user unit state",
               "Remote desktop is intentionally not a boot service.", "Disable boot enablement if it was enabled unintentionally.",
               repair_available=True, privilege="user", evidence_sources=["systemd --user"]),
-        check("vnc-auth", "Remote desktop", "critical", "pass" if wayvnc_security.get("ok") else "fail",
+        check("vnc-auth", "Remote desktop", "critical", wayvnc_status,
               "WayVNC requires independent encrypted authentication",
               "VeNCrypt/TLS + dedicated password + dynamic Tailscale bind",
               wayvnc_security.get("reason", "unverified"),
@@ -2696,7 +2710,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
               "Tailnet binding is transport isolation; WayVNC authentication is a separate authorization layer.",
               "Repair the Arch Remote WayVNC security profile before starting remote desktop.",
               evidence_sources=[str(WAYVNC_CONFIG), str(WAYVNC_LAUNCHER), str(WAYVNC_SECURITY_DROPIN)]),
-        check("linger", "Services", "warning", "pass" if slow["linger"]["enabled"] else "warn",
+        check("linger", "Services", "warning", "not-configured" if not remote_services_configured else "pass" if slow["linger"]["enabled"] else "warn",
               "User linger is enabled", "yes", slow["linger"]["value"], slow["linger"]["source"],
               "Linger keeps user services manageable outside an interactive login.",
               "Enable linger intentionally if remote user services require it.", privilege="root", evidence_sources=["loginctl"]),
@@ -2705,12 +2719,14 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
     hardening = hardening if hardening is not None else snapshot_user_service_hardening_posture()
     for service_name in ("lan-share", "wayvnc-remote"):
         service_hardening = hardening["services"][service_name]
+        sandbox_status = ("not-configured" if not services["lan_share" if service_name == "lan-share" else "wayvnc"].get("loaded")
+                          else "pass" if service_hardening["ok"] else "warn")
         checks.append(check(
             f"{service_name}-sandbox", "Services", "warning",
-            "pass" if service_hardening["ok"] else "warn",
+            sandbox_status,
             f"{service_name} runs with the Arch Remote sandbox profile",
             HARDENING_REVISION,
-            "verified" if service_hardening["ok"] else "; ".join(service_hardening["missing"]) or "missing",
+            "verified" if sandbox_status == "pass" else "; ".join(service_hardening["missing"]) or "missing",
             service_hardening["path"],
             "The service remains able to use its intended user files/network while unnecessary kernel and privilege surfaces are restricted.",
             "Restore the package-owned hardening drop-in before using the service.",
@@ -2719,7 +2735,7 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
 
     integrity = integrity if integrity is not None else deployment_integrity_posture()
     checks.append(check(
-        "deployment-integrity", "Integrity", "warning", "pass" if integrity["ok"] else "warn",
+        "deployment-integrity", "Integrity", "warning", "not-configured" if not remote_services_configured and integrity.get("revision") == "missing" else "pass" if integrity["ok"] else "warn",
         "Arch Remote package-owned files match the installed manifest",
         "all managed hashes and modes match",
         integrity["reason"],
@@ -2732,6 +2748,9 @@ def security_audit(services: dict, tailscale: dict, exposure: dict, slow: dict, 
 
 
 def health_summary(checks: list[dict], tailscale: dict) -> dict:
+    unconfigured = all(any(item["id"] == check_id and item["status"] == "not-configured"
+                           for item in checks)
+                       for check_id in ("tailscale-active", "vnc-auth", "ssh-configured-policy"))
     critical = [item for item in checks if item["status"] == "fail" and item["severity"] == "critical"]
     warnings = [item for item in checks if item["status"] in {"warn", "fail"} and item["severity"] != "critical"]
     local_unverified = [item for item in checks if item["verification_scope"] == "local" and item["status"] in {"unknown", "untested"}]
@@ -2748,6 +2767,10 @@ def health_summary(checks: list[dict], tailscale: dict) -> dict:
         status = "degraded"
         label = "Degraded"
         summary = f"{len(warnings)} warning" + ("s" if len(warnings) != 1 else "") + " · 0 critical"
+    elif unconfigured:
+        status = "not-configured"
+        label = "Not configured"
+        summary = "Arch Remote features have not been set up on this machine"
     elif local_unverified:
         status = "operational"
         label = "Operational"
@@ -2815,10 +2838,9 @@ def snapshot_security_audit(services: dict, tailscale: dict, exposure: dict, slo
                 anchors = {row["id"]: row for row in checks}
                 valid = valid and anchors["sshd-active"]["status"] == (
                     "pass" if services["sshd"]["running"] else "fail")
-                valid = valid and anchors["tailscale-active"]["status"] == (
-                    "pass" if tailscale["connected"] else "fail")
-                valid = valid and anchors["vnc-auth"]["status"] == (
-                    "pass" if wayvnc_security["ok"] else "fail")
+                tailscale_status, wayvnc_status = optional_remote_statuses(services, tailscale, wayvnc_security)
+                valid = valid and anchors["tailscale-active"]["status"] == tailscale_status
+                valid = valid and anchors["vnc-auth"]["status"] == wayvnc_status
                 valid = valid and anchors["deployment-integrity"]["status"] == (
                     "pass" if integrity["ok"] else "warn")
                 if valid:
@@ -3340,8 +3362,8 @@ def snapshot_live_derive(checked: float, generation: int, raw_services: dict, ta
                      and type(checks) is list and 15 <= len(checks) <= 25
                      and len(anchors) == len(checks) and state["health"] == health_summary(checks, tailscale)
                      and anchors["sshd-active"]["status"] == ("pass" if raw_services["sshd"]["running"] else "fail")
-                     and anchors["tailscale-active"]["status"] == ("pass" if tailscale["connected"] else "fail")
-                     and anchors["vnc-auth"]["status"] == ("pass" if wayvnc_security["ok"] else "fail")
+                     and (anchors["tailscale-active"]["status"], anchors["vnc-auth"]["status"]) ==
+                         optional_remote_statuses(raw_services, tailscale, wayvnc_security)
                      and anchors["deployment-integrity"]["status"] ==
                          ("pass" if deployment_integrity["ok"] else "warn")
                      and type(guide) is dict and guide["user"] == USER

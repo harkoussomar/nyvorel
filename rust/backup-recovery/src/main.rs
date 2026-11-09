@@ -496,6 +496,19 @@ fn load_state(instant: bool, refresh_dotfiles: bool) -> Value {
 }
 
 fn refresh_state() -> Result<(), String> {
+    let availability = run(
+        "systemctl",
+        &[
+            "show",
+            "backup-recovery-state.service",
+            "--property=LoadState",
+            "--value",
+        ],
+        Duration::from_secs(6),
+    );
+    if availability.code != 0 || availability.stdout.trim() != "loaded" {
+        return Err("Backup & Recovery system service is not installed; privileged refresh is unavailable on this machine.".into());
+    }
     let output = run(
         "systemctl",
         &["start", "backup-recovery-state.service"],

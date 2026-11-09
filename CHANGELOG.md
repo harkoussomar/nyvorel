@@ -4,6 +4,30 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-09
+
+### Shell controls and display placement
+- Fixed brightness probing on systems without DDC support, avoided routing
+  external-display controls to the laptop backlight, and disabled unavailable
+  brightness controls instead of showing a false 0% reading.
+- Included brightnessctl and Cava in fresh Arch setup; media visualization now
+  exits quietly when Cava is absent from an existing installation.
+- Kept media controls, session, overlay, notification toasts, and OSD on their
+  opening display, with a fallback if that display disconnects.
+- Kept notification toasts clear of the top or right navbar and stopped media
+  controls from merging unrelated players with coincidentally similar timing.
+- Restored readable keybinding descriptions and the Super+backslash shortcut,
+  fixed the keybinding window layout, and aligned Kitty tab/search behavior.
+
+### VM control centers
+- Backup & Recovery now reads cached state on open and during background refresh
+  without starting a privileged system service. Explicit refresh reports a
+  missing collector service before requesting authorization.
+- Arch Remote now distinguishes optional Tailscale, WayVNC, and SSH hardening
+  setup that is absent on a fresh VM from a configured service that has failed.
+  Its overall health reports “Not configured” when those features are absent;
+  configured security failures remain visible and critical.
+
 ## [0.1.5] - 2026-11-08
 
 ### Appearance Studio on minimal Arch

@@ -65,6 +65,13 @@ fn options(
 }
 
 fn health(checks: &[Value], tailscale: &Value) -> Value {
+    let unconfigured = ["tailscale-active", "vnc-auth", "ssh-configured-policy"]
+        .iter()
+        .all(|id| {
+            checks
+                .iter()
+                .any(|item| item["id"] == *id && item["status"] == "not-configured")
+        });
     let critical = checks
         .iter()
         .filter(|item| item["status"] == "fail" && item["severity"] == "critical")
@@ -113,6 +120,12 @@ fn health(checks: &[Value], tailscale: &Value) -> Value {
                 if warnings == 1 { "" } else { "s" }
             ),
         )
+    } else if unconfigured {
+        (
+            "not-configured",
+            "Not configured",
+            "Arch Remote features have not been set up on this machine".to_string(),
+        )
     } else if local > 0 {
         (
             "operational",
@@ -155,6 +168,14 @@ pub fn derive(input: &Value) -> Value {
     let wayvnc_launcher = field(paths, "wayvnc_launcher");
     let wayvnc_dropin = field(paths, "wayvnc_dropin");
     let manifest = field(paths, "manifest");
+    let tailscale_not_configured = !truth(&tailscale["available"])
+        && !truth(&services["tailscaled"]["loaded"])
+        && !truth(&tailscale["connected"]);
+    let wayvnc_not_configured =
+        !truth(&services["wayvnc"]["loaded"]) && field(wayvnc, "config_mode") == "missing";
+    let remote_services_configured = truth(&services["tailscaled"]["loaded"])
+        || truth(&services["lan_share"]["loaded"])
+        || truth(&services["wayvnc"]["loaded"]);
     let mut checks = Vec::new();
     checks.push(options(
         check(
@@ -184,7 +205,9 @@ pub fn derive(input: &Value) -> Value {
             "tailscale-active",
             "Tailscale",
             "critical",
-            if truth(&tailscale["connected"]) {
+            if tailscale_not_configured {
+                "not-configured"
+            } else if truth(&tailscale["connected"]) {
                 "pass"
             } else {
                 "fail"
@@ -214,7 +237,13 @@ pub fn derive(input: &Value) -> Value {
             "ssh-configured-policy",
             "SSH",
             "warning",
-            if configured_ok { "pass" } else { "warn" },
+            if ssh["dropin_exists"] == false {
+                "not-configured"
+            } else if configured_ok {
+                "pass"
+            } else {
+                "warn"
+            },
             "SSH hardening is configured",
             "root off · password off · pubkey on · intended user only",
             if configured_ok {
@@ -490,7 +519,7 @@ pub fn derive(input: &Value) -> Value {
         true,
         vec!["systemd --user".into()],
     ));
-    checks.push(options(check("vnc-auth", "Remote desktop", "critical", if truth(&wayvnc["ok"]) {"pass"} else {"fail"},
+    checks.push(options(check("vnc-auth", "Remote desktop", "critical", if wayvnc_not_configured {"not-configured"} else if truth(&wayvnc["ok"]) {"pass"} else {"fail"},
         "WayVNC requires independent encrypted authentication",
         "VeNCrypt/TLS + dedicated password + dynamic Tailscale bind",
         wayvnc["reason"].as_str().unwrap_or("unverified"), &wayvnc_config,
@@ -502,7 +531,9 @@ pub fn derive(input: &Value) -> Value {
             "linger",
             "Services",
             "warning",
-            if truth(&slow["linger"]["enabled"]) {
+            if !remote_services_configured {
+                "not-configured"
+            } else if truth(&slow["linger"]["enabled"]) {
                 "pass"
             } else {
                 "warn"
@@ -523,7 +554,14 @@ pub fn derive(input: &Value) -> Value {
 
     for name in ["lan-share", "wayvnc-remote"] {
         let posture = &hardening["services"][name];
-        let status = if truth(&posture["ok"]) {
+        let service_key = if name == "lan-share" {
+            "lan_share"
+        } else {
+            "wayvnc"
+        };
+        let status = if !truth(&services[service_key]["loaded"]) {
+            "not-configured"
+        } else if truth(&posture["ok"]) {
             "pass"
         } else {
             "warn"
@@ -556,7 +594,9 @@ pub fn derive(input: &Value) -> Value {
             "deployment-integrity",
             "Integrity",
             "warning",
-            if truth(&integrity["ok"]) {
+            if !remote_services_configured && field(integrity, "revision") == "missing" {
+                "not-configured"
+            } else if truth(&integrity["ok"]) {
                 "pass"
             } else {
                 "warn"

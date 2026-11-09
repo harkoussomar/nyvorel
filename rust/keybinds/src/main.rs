@@ -3,6 +3,7 @@
 use regex::Regex;
 use serde::Serialize;
 use std::{
+    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     process,
@@ -67,20 +68,61 @@ fn lua(path: &Path) -> Result<Section, String> {
         .map_err(|error| error.to_string())?;
     let description = Regex::new(r#"\["description"\]\s*=\s*("(?:\\.|[^"\\])*")"#)
         .map_err(|error| error.to_string())?;
+    let source_line =
+        Regex::new(r"^\s*--\s+([^:]+):(\d+)\s*$").map_err(|error| error.to_string())?;
     let action = Regex::new(r"hl\.dsp\.([a-zA-Z_]+)").map_err(|error| error.to_string())?;
     let mut binds = Vec::new();
+    let mut pending_source: Option<(PathBuf, usize)> = None;
+    let mut source_cache: HashMap<PathBuf, Vec<String>> = HashMap::new();
     for line in source.lines() {
+        if let Some(found) = source_line.captures(line) {
+            let line_number = found[2].parse::<usize>().unwrap_or(0);
+            pending_source = Some((
+                path.parent().unwrap_or(Path::new(".")).join(&found[1]),
+                line_number,
+            ));
+            continue;
+        }
         let Some(found) = call.captures(line) else {
             continue;
         };
         let combo: String = serde_json::from_str(&found[1])
             .map_err(|error| format!("Invalid keybind string in {}: {error}", path.display()))?;
         let tail = &line[found.get(0).unwrap().end()..];
+        let legacy = pending_source
+            .take()
+            .and_then(|(source_path, line_number)| {
+                let lines = source_cache.entry(source_path.clone()).or_insert_with(|| {
+                    fs::read_to_string(source_path)
+                        .unwrap_or_default()
+                        .lines()
+                        .map(str::to_owned)
+                        .collect()
+                });
+                lines
+                    .get(line_number.checked_sub(1)?)
+                    .filter(|line| line.trim_start().starts_with("bind"))
+                    .and_then(|line| conf_binding(line).ok())
+            });
+        // Preserve the annotated cheatsheet's deliberate hidden entries when
+        // the active native Lua config was generated from a legacy bind.
+        if legacy.as_ref().is_some_and(Option::is_none) {
+            continue;
+        }
         let comment = if let Some(found) = description.captures(tail) {
             serde_json::from_str::<String>(&found[1])
                 .map_err(|error| format!("Invalid description in {}: {error}", path.display()))?
         } else {
             String::new()
+        };
+        let comment = if comment.is_empty() {
+            legacy
+                .as_ref()
+                .and_then(|binding| binding.as_ref())
+                .map(|binding| binding.comment.clone())
+                .unwrap_or_default()
+        } else {
+            comment
         };
         let comment = if comment.is_empty() {
             action
@@ -104,6 +146,9 @@ fn lua(path: &Path) -> Result<Section, String> {
             params: String::new(),
             comment,
         });
+    }
+    if binds.is_empty() {
+        return Ok(Section::default());
     }
     Ok(Section {
         children: vec![Section {

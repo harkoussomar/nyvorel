@@ -23,6 +23,10 @@ Scope {
     readonly property real widgetHeight: Appearance.sizes.mediaControlsHeight
     property real popupRounding: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
     property list<real> visualizerPoints: []
+    property string targetScreenName: Hyprland.focusedMonitor?.name ?? ""
+    readonly property var targetScreen:
+        Quickshell.screens.find(screen => screen.name === root.targetScreenName)
+        ?? Quickshell.screens[0] ?? null
 
     // motion-phase2c-v1
     property bool mediaControlsMapped: false
@@ -31,6 +35,9 @@ Scope {
 
     function openMediaControlsPresentation(): void {
         mediaControlsCloseTimer.stop()
+        root.targetScreenName = GlobalStates.mediaControlsScreenName
+            || Hyprland.focusedMonitor?.name || ""
+        GlobalStates.mediaControlsScreenName = ""
         root.mediaControlsMapped = true
         root.mediaControlsClosing = false
 
@@ -88,10 +95,19 @@ Scope {
             let p1 = players[i];
             let group = [i];
 
-            // Find duplicates by trackTitle prefix
+            // Only merge players reporting the same track at the same time.
             for (let j = i + 1; j < players.length; ++j) {
+                if (used.has(j))
+                    continue;
                 let p2 = players[j];
-                if (p1.trackTitle && p2.trackTitle && (p1.trackTitle.includes(p2.trackTitle) || p2.trackTitle.includes(p1.trackTitle)) || (p1.position - p2.position <= 2 && p1.length - p2.length <= 2)) {
+                const title1 = (p1.trackTitle ?? "").trim().toLocaleLowerCase();
+                const title2 = (p2.trackTitle ?? "").trim().toLocaleLowerCase();
+                const sameTrack = title1.length > 0 && title1 === title2;
+                const sameLength = Number.isFinite(p1.length) && Number.isFinite(p2.length)
+                    && Math.abs(p1.length - p2.length) <= 2;
+                const samePosition = Number.isFinite(p1.position) && Number.isFinite(p2.position)
+                    && Math.abs(p1.position - p2.position) <= 2;
+                if (sameTrack && sameLength && samePosition) {
                     group.push(j);
                 }
             }
@@ -115,7 +131,7 @@ Scope {
                 root.visualizerPoints = [];
             }
         }
-        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
+        command: ["sh", "-c", "command -v cava >/dev/null 2>&1 || exit 0; exec cava -p \"$1\"", "nyvorel-cava", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
         stdout: SplitParser {
             onRead: data => {
                 // Parse `;`-separated values into the visualizerPoints array
@@ -137,6 +153,7 @@ Scope {
         sourceComponent: PanelWindow {
             id: panelWindow
             visible: true
+            screen: root.targetScreen
 
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
@@ -162,9 +179,9 @@ Scope {
                 right: Config.options.bar.vertical && Config.options.bar.bottom
             }
             margins {
-                top: Config.options.bar.vertical ? ((panelWindow.screen.height / 2) - widgetHeight * 1.5) : Appearance.sizes.barHeight
+                top: Config.options.bar.vertical ? (((panelWindow.screen?.height ?? 0) / 2) - widgetHeight * 1.5) : Appearance.sizes.barHeight
                 bottom: Appearance.sizes.barHeight
-                left: Config.options.bar.vertical ? Appearance.sizes.barHeight : ((panelWindow.screen.width / 2) - (osdWidth / 2) - widgetWidth)
+                left: Config.options.bar.vertical ? Appearance.sizes.barHeight : (((panelWindow.screen?.width ?? 0) / 2) - (osdWidth / 2) - widgetWidth)
                 right: Appearance.sizes.barHeight
             }
 

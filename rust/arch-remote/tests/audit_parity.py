@@ -82,6 +82,35 @@ def main():
     controller.RUST_AUDIT_BIN = RUST
     value = baseline()
     compare(value)
+    fresh_vm = copy.deepcopy(value)
+    fresh_vm["tailscale"].update(available=False, connected=False, backend_state="unavailable")
+    fresh_vm["services"]["tailscaled"]["loaded"] = False
+    fresh_vm["services"]["wayvnc"]["loaded"] = False
+    fresh_vm["slow"]["ssh"]["dropin_exists"] = False
+    fresh_vm["slow"]["linger"]["enabled"] = False
+    fresh_vm["wayvnc_security"].update(ok=False, config_mode="missing", reason="not installed")
+    fresh_vm["hardening"]["services"]["lan-share"].update(ok=False, missing=["not installed"])
+    fresh_vm["hardening"]["services"]["wayvnc-remote"].update(ok=False, missing=["not installed"])
+    fresh_vm["integrity"].update(ok=False, revision="missing", reason="manifest missing")
+    compare(fresh_vm)
+    checks = {row["id"]: row for row in controller.security_audit(
+        fresh_vm["services"], fresh_vm["tailscale"], fresh_vm["exposure"],
+        fresh_vm["slow"], fresh_vm["wayvnc_security"], fresh_vm["hardening"], fresh_vm["integrity"])}
+    for check_id in ("tailscale-active", "ssh-configured-policy", "vnc-auth"):
+        assert checks[check_id]["status"] == "not-configured", checks[check_id]
+    health = controller.health_summary(list(checks.values()), fresh_vm["tailscale"])
+    assert health["critical_count"] == 0 and health["status"] == "not-configured", health
+    configured_but_broken = copy.deepcopy(fresh_vm)
+    configured_but_broken["services"]["tailscaled"]["loaded"] = True
+    configured_but_broken["services"]["wayvnc"]["loaded"] = True
+    compare(configured_but_broken)
+    checks = {row["id"]: row for row in controller.security_audit(
+        configured_but_broken["services"], configured_but_broken["tailscale"],
+        configured_but_broken["exposure"], configured_but_broken["slow"],
+        configured_but_broken["wayvnc_security"], configured_but_broken["hardening"],
+        configured_but_broken["integrity"])}
+    assert checks["tailscale-active"]["status"] == "fail"
+    assert checks["vnc-auth"]["status"] == "fail"
     variants = []
     changes = (
         lambda x: x["services"]["sshd"].update(running=False, active_state="failed"),

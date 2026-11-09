@@ -35,6 +35,8 @@ grep -q 'tesseract-data-eng' "$tmp/plan.log"
 grep -q 'pipewire-jack' "$tmp/plan.log"
 grep -q 'qt6-multimedia-ffmpeg' "$tmp/plan.log"
 grep -q 'pacman-contrib' "$tmp/plan.log"
+grep -q 'brightnessctl' "$tmp/plan.log"
+grep -q 'cava' "$tmp/plan.log"
 grep -q 'Vulkan provider:' "$tmp/plan.log"
 grep -q 'No packages, services, or user files changed' "$tmp/plan.log"
 [[ ! -s "$NYVOREL_TEST_PACMAN_LOG" && ! -s "$NYVOREL_TEST_SUDO_LOG" ]]

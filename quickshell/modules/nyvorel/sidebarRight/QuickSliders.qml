@@ -50,7 +50,7 @@ Rectangle {
             label: "Brightness"
             symbol: "light_mode"
             value: root.brightnessValue
-            enabled: !!root.brightnessMonitor
+            enabled: !!root.brightnessMonitor?.ready
             onAdjusted: value => root.brightnessMonitor?.setBrightness(value)
         }
         LevelRing {
@@ -142,7 +142,7 @@ Rectangle {
                 }
                 StyledText {
                     anchors.centerIn: parent
-                    text: `${Math.round(gauge.value * 100)}%`
+                    text: gauge.enabled ? `${Math.round(gauge.value * 100)}%` : "—"
                     color: Appearance.colors.colOnLayer1
                     font.pixelSize: 19
                     font.weight: Font.DemiBold

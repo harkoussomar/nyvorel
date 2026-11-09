@@ -161,19 +161,19 @@ Flickable {
                                         var result = [];
                                         for (var i = 0; i < keybindSection.modelData.keybinds.length; i++) {
                                             const keybind = keybindSection.modelData.keybinds[i];
+                                            let mods = keybind.mods.slice();
 
                                             if (!Config.options.cheatsheet.splitButtons) {
-                                                for (var j = 0; j < keybind.mods.length; j++) {
-                                                    keybind.mods[j] = keySubstitutions[keybind.mods[j]] || keybind.mods[j];
-                                                }
-                                                keybind.mods = [keybind.mods.join(' ') ]
-                                                keybind.mods[0] += !keyBlacklist.includes(keybind.key) && keybind.mods[0].length ? ' ' : ''
-                                                keybind.mods[0] += !keyBlacklist.includes(keybind.key) ? (keySubstitutions[keybind.key] || keybind.key) : ''
+                                                mods = mods.map(mod => keySubstitutions[mod] || mod);
+                                                let label = mods.join(' ');
+                                                if (!keyBlacklist.includes(keybind.key))
+                                                    label += (label.length ? ' ' : '') + (keySubstitutions[keybind.key] || keybind.key);
+                                                mods = [label];
                                             } 
 
                                             result.push({
                                                 "type": "keys",
-                                                "mods": keybind.mods,
+                                                "mods": mods,
                                                 "key": keybind.key,
                                             });
                                             result.push({
