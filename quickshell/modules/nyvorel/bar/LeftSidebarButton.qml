@@ -23,10 +23,10 @@ RippleButton {
         ? Appearance.rounding.small : Appearance.rounding.full
     colBackgroundHover: Appearance.colors.colLayer1Hover
     colRipple: Appearance.colors.colLayer1Active
-    colBackgroundToggled: Appearance.colors.colSecondaryContainer
-    colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+    colBackgroundToggled: "transparent"
+    colBackgroundToggledHover: "transparent"
     colRippleToggled: Appearance.colors.colSecondaryContainerActive
-    toggled: GlobalStates.sidebarLeftOpen
+    toggled: GlobalStates.isBarPopupOpen("operations", root.QsWindow?.window?.screen?.name)
 
     // nyvorel-phase1b-ripple-click-contract
     onClicked: {
@@ -69,6 +69,13 @@ RippleButton {
             active: Config.options.bar.topLeftIcon === "nyvorel"
             sourceComponent: IconImage {
                 anchors.fill: parent
+                rotation: root.toggled ? 16 : 0
+                Behavior on rotation {
+                    NumberAnimation {
+                        duration: Appearance.reducedMotion ? 0 : 280
+                        easing.type: Easing.OutCubic
+                    }
+                }
                 source: "file://" + Quickshell.shellPath(
                     Appearance.m3colors.darkmode
                         ? "assets/icons/nyvorel.svg"

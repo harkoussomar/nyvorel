@@ -299,7 +299,7 @@ Singleton {
                     property bool showScreenRecord: false
                 }
                 property JsonObject workspaces: JsonObject {
-                    property bool monochromeIcons: true
+                    property bool monochromeIcons: false
                     property int shown: 5
                     property bool showAppIcons: true
                     property bool alwaysShowNumbers: true

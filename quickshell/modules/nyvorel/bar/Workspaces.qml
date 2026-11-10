@@ -18,6 +18,11 @@ Item {
     property bool borderless: Config.options.bar.borderless
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.QsWindow.window?.screen)
     readonly property int effectiveActiveWorkspaceId: monitor?.activeWorkspace?.id ?? 1
+    readonly property var clients: HyprlandData.windowList
+    readonly property var focusedToplevel: ToplevelManager.activeToplevel
+    readonly property string focusedAddress: focusedToplevel?.HyprlandToplevel?.address
+        ? `0x${focusedToplevel.HyprlandToplevel.address}` : ""
+    readonly property var monitorData: HyprlandData.monitors.find(m => m.name === monitor?.name) ?? null
     
     readonly property int workspacesShown: Config.options.bar.workspaces.shown
     readonly property int workspaceGroup: Math.floor((effectiveActiveWorkspaceId - 1) / root.workspacesShown)
@@ -28,13 +33,37 @@ Item {
     // Keep enough breathing room around the larger workspace app icon so the
     // active-workspace ring remains clearly visible.
     property real activeWorkspaceMargin: 1
-    // Workspace app icons need a little more optical size than text/dots.
-    // 24px cell -> ~17px normal icon and ~13px compact icon.
-    property real workspaceIconSize: workspaceButtonWidth * 0.71
+    // Give detailed app marks enough pixels to remain legible in a 24px cell.
+    property real workspaceIconSize: workspaceButtonWidth * 0.78
     property real workspaceIconSizeShrinked: workspaceButtonWidth * 0.55
     property real workspaceIconOpacityShrinked: 0.75
     property real workspaceIconMarginShrinked: -3
     property int workspaceIndexInGroup: (effectiveActiveWorkspaceId - 1) % root.workspacesShown
+
+    function clientsForWorkspace(workspaceId) {
+        const monitorId = root.monitorData?.id ?? root.monitor?.id
+        return root.clients.filter(win => win.workspace?.id === workspaceId
+            && win.monitor === monitorId)
+    }
+
+    function foregroundWindowForWorkspace(workspaceId) {
+        const windows = root.clientsForWorkspace(workspaceId)
+        if (windows.length === 0) return null
+
+        // Hyprland's active toplevel is the source of truth for the focused
+        // workspace. For other workspaces, use the most recent focus history.
+        const focused = windows.find(win => win.address === root.focusedAddress)
+        if (focused) return focused
+
+        return windows.reduce((best, win) => {
+            const rank = Number(win.focusHistoryID)
+            const bestRank = Number(best.focusHistoryID)
+            const validRank = Number.isFinite(rank) && rank >= 0 ? rank : 999999
+            const validBestRank = Number.isFinite(bestRank) && bestRank >= 0
+                ? bestRank : 999999
+            return validRank < validBestRank ? win : best
+        }, windows[0])
+    }
 
     property bool showNumbers: false
     Timer {
@@ -260,16 +289,15 @@ Item {
                     id: workspaceButtonBackground
                     implicitWidth: workspaceButtonWidth
                     implicitHeight: workspaceButtonWidth
-                    property var biggestWindow: root.workspaceOccupied[index]
-                        ? HyprlandData.biggestWindowForWorkspace(button.workspaceValue) : null
-                    property var mainAppIconSource: Quickshell.iconPath(AppSearch.guessIcon(biggestWindow?.class), "image-missing")
+                    property var foregroundWindow: root.foregroundWindowForWorkspace(button.workspaceValue)
+                    property var mainAppIconSource: Quickshell.iconPath(AppSearch.guessIcon(foregroundWindow?.class), "image-missing")
 
                     // text/icon-only. A second tile behind the travelling active
                     // indicator made the workspace island feel visually stacked.
 
                     StyledText { // Workspace number text
                         opacity: root.showNumbers
-                            || ((Config.options?.bar.workspaces.alwaysShowNumbers && (!Config.options?.bar.workspaces.showAppIcons || !workspaceButtonBackground.biggestWindow || root.showNumbers))
+                            || ((Config.options?.bar.workspaces.alwaysShowNumbers && (!Config.options?.bar.workspaces.showAppIcons || !workspaceButtonBackground.foregroundWindow || root.showNumbers))
                             || (root.showNumbers && !Config.options?.bar.workspaces.showAppIcons)
                             )  ? 1 : 0
                         z: 3
@@ -310,7 +338,7 @@ Item {
                         id: wsDot
                         opacity: (Config.options?.bar.workspaces.alwaysShowNumbers
                             || root.showNumbers
-                            || (Config.options?.bar.workspaces.showAppIcons && workspaceButtonBackground.biggestWindow)
+                            || (Config.options?.bar.workspaces.showAppIcons && workspaceButtonBackground.foregroundWindow)
                             ) ? 0 : 1
                         visible: opacity > 0
                         anchors.centerIn: parent
@@ -338,10 +366,10 @@ Item {
                         width: workspaceButtonWidth
                         height: workspaceButtonWidth
                         opacity: !Config.options?.bar.workspaces.showAppIcons ? 0 :
-                            (workspaceButtonBackground.biggestWindow && !root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? 
-                            1 : workspaceButtonBackground.biggestWindow ? workspaceIconOpacityShrinked : 0
+                            (workspaceButtonBackground.foregroundWindow && !root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ?
+                            1 : workspaceButtonBackground.foregroundWindow ? workspaceIconOpacityShrinked : 0
                             visible: opacity > 0
-                        IconImage {
+                        Image {
                             id: mainAppIcon
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
@@ -351,15 +379,13 @@ Item {
                                 (workspaceButtonWidth - workspaceIconSize) / 2 : workspaceIconMarginShrinked
 
                             source: workspaceButtonBackground.mainAppIconSource
-                            implicitSize: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? workspaceIconSize : workspaceIconSizeShrinked
-
-                            // IconImage exposes its backing QtQuick Image via
-                            // `backer`; request a larger source and let it
-                            // downsample into the tiny workspace slot.
-                            backer.sourceSize: Qt.size(64, 64)
-                            backer.smooth: true
+                            width: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? workspaceIconSize : workspaceIconSizeShrinked
+                            height: width
+                            sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
                             asynchronous: true
-                            mipmap: true
+                            mipmap: false
 
                             Behavior on opacity {
                                 MotionAnim {
@@ -381,7 +407,7 @@ Item {
                                 }
                             }
 
-                            Behavior on implicitSize {
+                            Behavior on width {
                                 MotionAnim {
                                     type: MotionAnim.FastSpatial
                                     duration: Appearance.barMotion.workspaceIconDuration
@@ -392,21 +418,34 @@ Item {
                         Loader {
                             active: Config.options.bar.workspaces.monochromeIcons
                             anchors.fill: mainAppIcon
-                            sourceComponent: Item {
-                                Desaturate {
-                                    id: desaturatedIcon
-                                    visible: false // There's already color overlay
-                                    anchors.fill: parent
-                                    source: mainAppIcon
-                                    desaturation: 0.8
-                                }
-                                ColorOverlay {
-                                    anchors.fill: desaturatedIcon
-                                    source: desaturatedIcon
-                                    color: ColorUtils.transparentize(wsDot.color, 0.9)
-                                }
+                            sourceComponent: ColorOverlay {
+                                anchors.fill: parent
+                                source: mainAppIcon
+                                color: wsDot.color
                             }
                         }
+                    }
+                }
+
+                MouseArea {
+                    id: workspaceHoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                }
+
+                StyledPopup {
+                    hoverTarget: workspaceHoverArea
+                    showOnHover: true
+                    irisAnimation: true
+                    popupRadius: Appearance.radius.bar
+                    contentMargin: 0
+
+                    WorkspacePreview {
+                        workspaceId: button.workspaceValue
+                        monitorData: root.monitorData
+                        windows: root.clientsForWorkspace(button.workspaceValue)
+                        foregroundWindow: workspaceButtonBackground.foregroundWindow
                     }
                 }
                 

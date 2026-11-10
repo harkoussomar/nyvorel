@@ -1,0 +1,12 @@
+A desktop should feel like one system.
+
+I've been building Nyvorel, an open-source desktop experience for Arch Linux with Hyprland and Quickshell. It connects the bar, sidebars, settings, appearance tools, operations, and recovery in one visual and interaction system.
+
+The most interesting work went beyond the interface: I built a backup-first installation and update path, made service ownership clearer, and moved selected on-demand utilities to Rust. It taught me how much of desktop design is really about making change and recovery understandable.
+
+Nyvorel began as a derivative of end-4/dots-hyprland. I've redesigned and extended it substantially, and I want to credit that foundation.
+
+Explore: https://nyvorel-web.vercel.app/
+Source and installation: https://github.com/harkoussomar/nyvorel
+
+#Linux #OpenSource #Rust #Hyprland

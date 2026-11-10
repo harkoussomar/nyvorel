@@ -19,7 +19,6 @@ Item { // Bar content region
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
     // Match the horizontal bar's information order from top to bottom.
     readonly property bool axiomOrientation: Appearance.barLayout.axiomComponents
-    readonly property bool compactAxiom: root.axiomOrientation && root.height < 760
     readonly property bool showResources: Config.options.bar.visibility.resources && root.height >= 900
     readonly property bool showClock: Config.options.bar.visibility.clock
     readonly property bool showTray: root.height >= 700
@@ -98,11 +97,9 @@ Item { // Bar content region
                 colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
             }
 
-            Bar.ActiveWindow {
-                compact: true
-                visible: appIcon.length > 0
+            VerticalMedia {
+                id: mediaWidget
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 2
             }
 
             Item { Layout.fillHeight: true }
@@ -147,24 +144,6 @@ Item { // Bar content region
                     }
                 }
             }
-        }
-    }
-
-    // The same contextual media that sits beside the horizontal workspaces
-    // sits immediately above them on the narrow rail.
-    Bar.BarGroup {
-        z: 4
-        vertical: true
-        quiet: root.axiomOrientation
-        padding: root.axiomOrientation ? 3 : 6
-        visible: mediaWidget.hasMedia && !root.compactAxiom
-        anchors.bottom: middleSection.top
-        anchors.bottomMargin: 8
-        anchors.horizontalCenter: parent.horizontalCenter
-
-        VerticalMedia {
-            id: mediaWidget
-            Layout.fillWidth: true
         }
     }
 
@@ -282,15 +261,15 @@ Item { // Bar content region
                 toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
                 colRipple: Appearance.colors.colLayer1Active
                 onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: Network.barSymbol
                     iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
-                    color: networkButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                    color: Appearance.colors.colOnLayer0
                 }
             }
 
@@ -312,11 +291,11 @@ Item { // Bar content region
                 colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
                 colBackgroundHover: Appearance.colors.colLayer1Hover
                 colRipple: Appearance.colors.colLayer1Active
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
                 colRippleToggled: Appearance.colors.colSecondaryContainerActive
                 toggled: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
-                property color colText: toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                property color colText: Appearance.colors.colOnLayer0
 
                 Behavior on colText {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

@@ -50,8 +50,8 @@ Item {
     // ============================================================
     // Dynamic three-zone layout
     //
-    // LEFT   -> current app/context
-    // CENTER -> media + physically anchored workspaces
+    // LEFT   -> shell control + music
+    // CENTER -> physically anchored workspaces
     // RIGHT  -> system state
     //
     // Visibility changes in one zone never move the center anchor.
@@ -60,8 +60,8 @@ Item {
     readonly property real zoneGap: Appearance.barLayout.zoneGap
     readonly property real safetyGap: Appearance.barLayout.safetyGap
 
-    // nyvorel-phase3e-media-yield: preserve the left launcher before
-    // allocating the remaining left-half width to contextual media.
+    // The music control sits beside the shell mark in the left utility zone.
+    // Workspaces retain their physical center anchor.
     readonly property real mediaFitWidth:
         Math.max(0,
             root.width / 2 - middleSection.implicitWidth / 2
@@ -69,10 +69,9 @@ Item {
             - leftSidebarButton.implicitWidth - root.zoneGap)
 
     readonly property real mediaDesiredWidth:
-        root.useShortenedForm < 2
-        && mediaWidget.hasMedia
-        && root.mediaFitWidth >= Appearance.barLayout.minimumMediaWidth
-            ? Math.min(mediaWidget.implicitWidth + 10, 200, root.mediaFitWidth)
+        mediaWidget.hasMedia
+        && root.mediaFitWidth >= mediaWidget.implicitWidth
+            ? mediaWidget.implicitWidth
             : 0
 
     readonly property real leftAvailableWidth:
@@ -276,7 +275,7 @@ Item {
     // ============================================================
     // LEFT SIDE
     //
-    // Left sidebar button + active application.
+    // Left sidebar button. App identity lives in the workspace controls.
     //
     // Scroll -> brightness
     // Click  -> left sidebar
@@ -399,32 +398,11 @@ Item {
                             1
                         )
                 colBackgroundHover: Appearance.colors.colLayer1Hover
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
             }
 
 
-            ActiveWindow {
-                Layout.leftMargin:
-                    (Appearance.barLayout.axiomComponents ? Appearance.spacing.sm : 8)
-                    + (
-                        leftSidebarButton.visible
-                            ? 0
-                            : Appearance.rounding.screenRounding
-                    )
-
-                Layout.rightMargin:
-                    8
-
-                Layout.fillWidth:
-                    true
-
-                Layout.fillHeight:
-                    true
-
-                visible:
-                    root.useShortenedForm === 0
-            }
         }
     }
 
@@ -525,8 +503,7 @@ Item {
     // ============================================================
     // MEDIA
     //
-    // Secondary center content. The active-window region yields
-    // horizontal room first; Workspaces never move.
+    // Music is a compact utility beside the brand control. Workspaces never move.
     // ============================================================
 
     BarGroup {
@@ -534,16 +511,16 @@ Item {
         z: 4
 
         // Axiom / Fluid-native: no secondary opaque island around media.
-        quiet: Appearance.barLayout.axiomComponents
+        quiet: true
+        padding: 0
 
-        // Contextual media belongs to the persistent plane but should never
-        // compete with navigation/system anchors for visual weight.
+        // Keep the player near the other left-hand shell control.
 
         anchors {
-            right:
-                middleSection.left
+            left:
+                barLeftSideMouseArea.right
 
-            rightMargin:
+            leftMargin:
                 visible
                     ? root.zoneGap
                     : 0
@@ -567,8 +544,8 @@ Item {
         scale:
              1
 
-        transformOrigin: Item.Right
-        clip: true
+        transformOrigin: Item.Left
+        clip: false
 
         Media {
             id: mediaWidget
@@ -714,9 +691,7 @@ Item {
                 colBackground:
                     root.axiomFluidRight
                         ? "transparent"
-                        : GlobalStates.isBarPopupOpen("controls", root.screen?.name)
-                            ? Appearance.colors.colSecondaryContainer
-                            : barRightSideMouseArea.hovered
+                        : barRightSideMouseArea.hovered
                                 ? Appearance.colors.colLayer1Hover
                                 : ColorUtils.transparentize(
                                     Appearance.colors.colLayer1,
@@ -731,12 +706,12 @@ Item {
                 colRipple:
                     Appearance.colors.colLayer1Active
 
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggled: "transparent"
 
                 colBackgroundToggledHover:
                     root.axiomFluidRight
                         ? "transparent"
-                        : Appearance.colors.colSecondaryContainerHover
+                        : "transparent"
 
                 colRippleToggled:
                     Appearance.colors.colSecondaryContainerActive
@@ -746,9 +721,7 @@ Item {
 
 
                 property color colText:
-                    toggled
-                        ? Appearance.m3colors.m3onSecondaryContainer
-                        : Appearance.colors.colOnLayer0
+                    Appearance.colors.colOnLayer0
 
 
                 Behavior on colText {
@@ -945,15 +918,15 @@ Item {
                 toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
                 colRipple: Appearance.colors.colLayer1Active
                 onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: Network.barSymbol
                     iconSize: root.sharedNavbarContent ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
-                    color: networkButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                    color: Appearance.colors.colOnLayer0
                 }
             }
 

@@ -1,7 +1,7 @@
+import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.services
-import qs
 import qs.modules.common.functions
 
 import QtQuick
@@ -11,163 +11,158 @@ import Quickshell.Services.Mpris
 
 Item {
     id: root
+    property bool vertical: false
 
+    readonly property var playablePlayers: MprisController.players.filter(player =>
+        player && player.trackTitle
+            && player.playbackState !== MprisPlaybackState.Stopped)
     readonly property MprisPlayer activePlayer:
         MprisController.activePlayer
-
-    readonly property string cleanedTitle:
-        StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || ""
-
-    readonly property bool hasMedia:
-        activePlayer !== null
-        && cleanedTitle.length > 0
-        && activePlayer?.playbackState !== MprisPlaybackState.Stopped
+            && MprisController.activePlayer.playbackState !== MprisPlaybackState.Stopped
+            ? MprisController.activePlayer : (playablePlayers[0] ?? null)
+    readonly property bool hasMedia: playablePlayers.length > 0
+    readonly property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
+    readonly property bool popupOpen:
+        GlobalStates.isBarPopupOpen("media", root.barScreenName)
 
     visible: hasMedia
+    Layout.fillHeight: !vertical
+    implicitWidth: vertical ? Appearance.sizes.verticalBarWidth : 28
+    implicitHeight: vertical ? 34 : Appearance.barLayout.persistentHeight
 
-    Layout.fillHeight: true
-
-    implicitWidth: hasMedia
-        ? Math.min(content.implicitWidth, 190)
-        : 0
-
-    // nyvorel-phase3a-content-height: match the persistent navbar plane.
-    implicitHeight: Appearance.barLayout.persistentHeight
+    onHasMediaChanged: {
+        if (!hasMedia && popupOpen)
+            GlobalStates.mediaControlsOpen = false
+    }
 
     Timer {
-        running:
-            root.hasMedia
-            && activePlayer?.playbackState === MprisPlaybackState.Playing
-
+        running: root.hasMedia
+            && root.activePlayer?.playbackState === MprisPlaybackState.Playing
         interval: Config.options.resources.updateInterval
         repeat: true
-
-        onTriggered: activePlayer?.positionChanged()
+        onTriggered: root.activePlayer?.positionChanged()
     }
 
-    MouseArea {
-        id: mouseArea
+    Rectangle {
+        id: mediaSurface
+        anchors.centerIn: parent
+        width: 26
+        height: 26
+        radius: Appearance.rounding.verysmall
+        color: root.popupOpen || mediaButton.containsMouse
+            ? Appearance.colors.colLayer1Hover : "transparent"
 
-        anchors.fill: parent
-
-        acceptedButtons:
-            Qt.LeftButton
-            | Qt.MiddleButton
-            | Qt.RightButton
-            | Qt.BackButton
-            | Qt.ForwardButton
-
-        onPressed: event => {
-            if (!root.activePlayer)
-                return
-
-            if (event.button === Qt.MiddleButton) {
-                root.activePlayer.togglePlaying()
-            } else if (event.button === Qt.BackButton) {
-                root.activePlayer.previous()
-            } else if (
-                event.button === Qt.ForwardButton
-                || event.button === Qt.RightButton
-            ) {
-                root.activePlayer.next()
-            } else if (event.button === Qt.LeftButton) {
-                if (!GlobalStates.mediaControlsOpen)
-                    GlobalStates.mediaControlsScreenName = root.QsWindow?.window?.screen?.name ?? ""
-                GlobalStates.mediaControlsOpen =
-                    !GlobalStates.mediaControlsOpen
-            }
-        }
-    }
-
-    RowLayout {
-        id: content
-
-        anchors {
-            left: parent.left
-            right: parent.right
-            verticalCenter: parent.verticalCenter
+        Rectangle {
+            visible: root.playablePlayers.length > 1
+            x: 8
+            y: 5
+            width: 17
+            height: 17
+            radius: 4
+            color: Appearance.colors.colPrimary
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
         }
 
-        spacing: Appearance.barLayout.axiomComponents ? Appearance.spacing.xs : 6
+        Rectangle {
+            id: coverTile
+            x: root.playablePlayers.length > 1 ? 3 : 4
+            y: 2
+            width: 18
+            height: 18
+            radius: 4
+            color: Appearance.colors.colLayer1
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+            clip: true
 
-        ClippedFilledCircularProgress {
-            id: mediaProgress
-
-            Layout.alignment: Qt.AlignVCenter
-
-            implicitSize: Appearance.barLayout.axiomComponents ? 20 : 20
-
-            lineWidth: Appearance.rounding.unsharpen
-
-            value: {
-                const length = root.activePlayer?.length ?? 0
-                const position = root.activePlayer?.position ?? 0
-
-                return length > 0
-                    ? position / length
-                    : 0
+            Image {
+                id: coverImage
+                anchors.fill: parent
+                source: root.activePlayer?.trackArtUrl ?? ""
+                sourceSize: Qt.size(48, 48)
+                fillMode: Image.PreserveAspectCrop
+                smooth: true
+                asynchronous: true
+                visible: status === Image.Ready
             }
 
-            colPrimary:
-                Appearance.barLayout.axiomComponents ? Appearance.colors.colPrimary
-                    : Appearance.colors.colOnSecondaryContainer
-
-            enableAnimation: false
-
-            Item {
+            MaterialSymbol {
                 anchors.centerIn: parent
+                visible: coverImage.status !== Image.Ready
+                text: "music_note"
+                iconSize: 15
+                fill: 1
+                color: Appearance.colors.colOnLayer1
+            }
 
-                width: mediaProgress.implicitSize
-                height: mediaProgress.implicitSize
-
+            Rectangle {
+                anchors.fill: parent
+                visible: !root.activePlayer?.isPlaying
+                    && coverImage.status === Image.Ready
+                color: Qt.rgba(0, 0, 0, 0.38)
                 MaterialSymbol {
                     anchors.centerIn: parent
-
-                    text:
-                        root.activePlayer?.isPlaying
-                        ? "pause"
-                        : "music_note"
-
+                    text: "play_arrow"
+                    iconSize: 14
                     fill: 1
-
-                    iconSize:
-                        Appearance.font.pixelSize.normal
-
-                    color:
-                        Appearance.m3colors.m3onSecondaryContainer
+                    color: "white"
                 }
             }
         }
 
-        StyledText {
-            Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 1
+            width: 16
+            height: 2
+            radius: 1
+            color: Appearance.colors.colLayer1
 
-            font {
-                family: Appearance.barLayout.axiomComponents ? Appearance.font.family.monospace
-                    : Appearance.font.family.main
-                pixelSize: Appearance.barLayout.axiomComponents
-                    ? Appearance.barVisual.axiomTextSize
-                    : Appearance.font.pixelSize.small
-                weight: Appearance.barLayout.axiomComponents ? Font.DemiBold : Font.Medium
+            Rectangle {
+                width: parent.width * Math.max(0, Math.min(1,
+                    root.activePlayer?.length > 0
+                        ? root.activePlayer.position / root.activePlayer.length : 0))
+                height: parent.height
+                radius: 1
+                color: Appearance.colors.colPrimary
             }
-
-            horizontalAlignment: Text.AlignLeft
-
-            color: Appearance.barLayout.axiomComponents ? Appearance.barVisual.axiomValue
-                : Appearance.colors.colOnLayer1
-
-            text: root.cleanedTitle
-
-            elide: Text.ElideRight
-            maximumLineCount: 1
         }
     }
 
-    Behavior on implicitWidth {
-        MotionAnim {
-            type: MotionAnim.FastSpatial
-            duration: Appearance.barMotion.mediaWidthDuration
+    MouseArea {
+        id: mediaButton
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+            | Qt.BackButton | Qt.ForwardButton
+
+        onClicked: event => {
+            if (!root.activePlayer) return
+            if (event.button === Qt.MiddleButton)
+                root.activePlayer.togglePlaying()
+            else if (event.button === Qt.BackButton)
+                root.activePlayer.previous()
+            else if (event.button === Qt.ForwardButton)
+                root.activePlayer.next()
+            else {
+                if (root.popupOpen) {
+                    GlobalStates.mediaControlsOpen = false
+                } else {
+                    GlobalStates.mediaControlsScreenName = root.barScreenName
+                    if (GlobalStates.mediaControlsOpen)
+                        GlobalStates.openBarPopup("media", root.barScreenName)
+                    else
+                        GlobalStates.mediaControlsOpen = true
+                }
+            }
         }
+    }
+
+    MediaPopup {
+        hoverTarget: mediaButton
+        forceActive: root.popupOpen
     }
 }

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 1080px; height: 1350px; margin: 0; overflow: hidden; }
+  body { font-family: 'Noto Sans', sans-serif; color: #f4f5f4; background: #10191c; }
+  .card { position: relative; width: 1080px; height: 1350px; padding: 66px 66px 54px; overflow: hidden;
+    background: radial-gradient(circle at 94% 11%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 32%),
+      linear-gradient(154deg, #152427 0%, #10191c 55%, #0c1417 100%); --accent: #f2b9c8; }
+  .top { display: flex; align-items: center; justify-content: space-between; height: 67px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 800; letter-spacing: .18em; }
+  .brand img { width: 52px; height: 52px; object-fit: contain; }
+  .count { font-family: monospace; font-size: 19px; color: #9fb4b5; letter-spacing: .1em; }
+  .rule { height: 1px; background: #44585b; margin: 25px 0 54px; }
+  .eyebrow { color: var(--accent); font-family: monospace; font-size: 19px; font-weight: 700; letter-spacing: .14em; }
+  h1 { margin: 23px 0 18px; max-width: 920px; font-size: 72px; line-height: 1.055; letter-spacing: -.055em; font-weight: 800; }
+  .description { margin: 0; max-width: 860px; color: #bbc9c9; font-size: 27px; line-height: 1.38; }
+  .shot { position: absolute; left: 66px; right: 66px; top: 515px; height: 578px; overflow: hidden;
+    border: 1px solid #648082; border-radius: 25px; background: #26373a;
+    box-shadow: 0 33px 75px rgba(0,0,0,.32), 0 0 0 8px rgba(168,220,224,.035); }
+  .shot img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+  .shot.operations img { width: 160%; height: auto; max-width: none; object-fit: contain; }
+  .shot::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.09); border-radius: 24px; }
+  .below { position: absolute; left: 66px; right: 66px; top: 1130px; display: flex; justify-content: space-between; gap: 25px; align-items: flex-start; }
+  .caption { font-family: monospace; font-size: 19px; letter-spacing: .1em; color: var(--accent); }
+  .note { max-width: 490px; text-align: right; color: #d3dddd; font-size: 23px; }
+  .bottom { position: absolute; bottom: 51px; left: 66px; right: 66px; display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid #44585b; padding-top: 22px; color: #8ea8aa; font-family: monospace; font-size: 17px; letter-spacing: .07em; }
+  .line { width: 72px; height: 3px; border-radius: 9px; background: var(--accent); }
+</style></head><body>
+<main class="card">
+  <div class="top"><div class="brand"><img src="file:///data/dev-mine/projects/personal/nyvorel/assets/nyvorel-mark.svg" alt="">NYVOREL</div><div class="count">02 / 05</div></div>
+  <div class="rule"></div>
+  <div class="eyebrow">CONNECTED CONTROLS</div>
+  <h1>Make the next action clear.</h1>
+  <p class="description">Settings bring the shell&#x27;s controls into one organized place, from the bar to the background.</p>
+  <div class="shot "><img src="file:///data/dev-mine/projects/personal/nyvorel/assets/showcase/settings-overview.webp" alt=""></div>
+  <div class="below"><div class="caption">SETTINGS</div><div class="note">Direct controls, with room for detail</div></div>
+  <div class="bottom"><span>ARCH LINUX · HYPRLAND · QUICKSHELL</span><span class="line"></span></div>
+</main></body></html>

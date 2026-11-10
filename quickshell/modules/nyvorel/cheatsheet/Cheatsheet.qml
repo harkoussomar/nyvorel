@@ -24,8 +24,8 @@ Scope { // Scope
             "name": Translation.tr("Keybinds")
         },
         {
-            "icon": "experiment",
-            "name": Translation.tr("Elements")
+            "icon": "public",
+            "name": Translation.tr("Universe")
         },
     ]
 
@@ -113,8 +113,12 @@ Scope { // Scope
                     : null
 
             WlrLayershell.namespace: "quickshell:cheatsheet"
-            // Hyprland 0.49: Focus is always exclusive and setting this breaks mouse focus grab
-            // WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            // Request keyboard input only while the guide is open, as the other
+            // interactive Nyvorel panels do. This makes search focus on first click.
+            WlrLayershell.keyboardFocus:
+                root.stableCheatsheetOpen
+                    ? WlrKeyboardFocus.OnDemand
+                    : WlrKeyboardFocus.None
             color: "transparent"
 
             mask: Region {
@@ -184,17 +188,8 @@ Scope { // Scope
                 radius:
                       Appearance.rounding.windowRounding
                 property real padding: 20
-                implicitWidth:
-                    Math.min(
-                        cheatsheetColumnLayout.implicitWidth + padding * 2,
-                        cheatsheetRoot.width - 48
-                    )
-
-                implicitHeight:
-                    Math.min(
-                        cheatsheetColumnLayout.implicitHeight + padding * 2,
-                        cheatsheetRoot.height - 48
-                    )
+                width: Math.max(360, Math.min(1320, cheatsheetRoot.width - 48))
+                height: Math.max(420, Math.min(760, cheatsheetRoot.height - 48))
 
                 Keys.onPressed: event => { // Esc to close
                     if (event.key === Qt.Key_Escape) {
@@ -202,16 +197,16 @@ Scope { // Scope
                     }
                     if (event.modifiers === Qt.ControlModifier) {
                         if (event.key === Qt.Key_PageDown) {
-                            tabBar.incrementCurrentIndex();
+                            swipeView.currentIndex = Math.min(1, swipeView.currentIndex + 1);
                             event.accepted = true;
                         } else if (event.key === Qt.Key_PageUp) {
-                            tabBar.decrementCurrentIndex();
+                            swipeView.currentIndex = Math.max(0, swipeView.currentIndex - 1);
                             event.accepted = true;
                         } else if (event.key === Qt.Key_Tab) {
-                            tabBar.setCurrentIndex((tabBar.currentIndex + 1) % root.tabButtonList.length);
+                            swipeView.currentIndex = (swipeView.currentIndex + 1) % root.tabButtonList.length;
                             event.accepted = true;
                         } else if (event.key === Qt.Key_Backtab) {
-                            tabBar.setCurrentIndex((tabBar.currentIndex - 1 + root.tabButtonList.length) % root.tabButtonList.length);
+                            swipeView.currentIndex = (swipeView.currentIndex - 1 + root.tabButtonList.length) % root.tabButtonList.length;
                             event.accepted = true;
                         }
                     }
@@ -286,18 +281,103 @@ Scope { // Scope
 
                 ColumnLayout { // Real content
                     id: cheatsheetColumnLayout
-                    anchors.centerIn: parent
+                    anchors.fill: parent
+                    anchors.margins: cheatsheetBackground.padding
                     spacing: 10
 
-                    Toolbar {
-                        Layout.alignment: Qt.AlignHCenter
-                        enableShadow: false
-                        ToolbarTabBar {
-                            id: tabBar
-                            tabButtonList: root.tabButtonList
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 47
+                        spacing: 10
+                        StyledText {
+                            text: "Nyvorel"
+                            color: Appearance.colors.colOnLayer0
+                            font.pixelSize: 17
+                            font.weight: Font.DemiBold
+                        }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            id: tabRail
+                            readonly property int tabInset: 5
+                            readonly property int tabGap: 5
+                            Layout.rightMargin: 58
+                            Layout.preferredWidth: 240 + 2 * tabInset + tabGap
+                            Layout.preferredHeight: 42
+                            radius: Appearance.radius.card
+                            color: Appearance.colors.colLayer1
+                            border.width: 1
+                            border.color: Appearance.colors.colLayer0Border
 
-                            Synchronizer on currentIndex {
-                                property alias source: swipeView.currentIndex
+                            Rectangle {
+                                id: activeTabSurface
+                                x: tabRail.tabInset + swipeView.currentIndex * (120 + tabRail.tabGap)
+                                y: tabRail.tabInset
+                                width: 120
+                                height: parent.height - 2 * tabRail.tabInset
+                                radius: Math.max(2, Appearance.radius.card - tabRail.tabInset)
+                                color: Appearance.colors.colLayer2
+                                border.width: 1
+                                border.color: Qt.rgba(
+                                    Appearance.colors.colPrimary.r,
+                                    Appearance.colors.colPrimary.g,
+                                    Appearance.colors.colPrimary.b,
+                                    0.58
+                                )
+                                Behavior on x {
+                                    enabled: !Appearance.reducedMotion
+                                    NumberAnimation { duration: Appearance.barMotion.statusDuration; easing.type: Easing.OutCubic }
+                                }
+                            }
+
+                            Row {
+                                anchors.fill: parent
+                                anchors.margins: tabRail.tabInset
+                                spacing: tabRail.tabGap
+                                Repeater {
+                                    model: root.tabButtonList
+                                    delegate: Item {
+                                        id: tabButton
+                                        required property int index
+                                        required property var modelData
+                                        width: 120
+                                        height: parent.height
+                                        readonly property bool selected: swipeView.currentIndex === index
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: Math.max(2, Appearance.radius.card - tabRail.tabInset)
+                                            color: tabMouse.containsMouse && !tabButton.selected
+                                                ? Appearance.colors.colLayer1Hover : "transparent"
+                                        }
+
+                                        Row {
+                                            anchors.centerIn: parent
+                                            spacing: 7
+                                            MaterialSymbol {
+                                                text: tabButton.modelData.icon
+                                                iconSize: 16
+                                                color: tabButton.selected
+                                                    ? Appearance.colors.colPrimary
+                                                    : Appearance.colors.colOnLayer1
+                                            }
+                                            StyledText {
+                                                text: tabButton.modelData.name
+                                                color: tabButton.selected
+                                                    ? Appearance.colors.colOnLayer0
+                                                    : Appearance.colors.colOnLayer1
+                                                font.pixelSize: 12
+                                                font.weight: tabButton.selected ? Font.DemiBold : Font.Normal
+                                            }
+                                        }
+                                        MouseArea {
+                                            id: tabMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: swipeView.currentIndex = tabButton.index
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -313,13 +393,6 @@ Scope { // Scope
                             Persistent.states.cheatsheet.tabIndex = currentIndex;
                         }
 
-                        implicitWidth: currentIndex === 0
-                            ? keybindsPage.implicitWidth
-                            : elementsPage.implicitWidth
-                        implicitHeight: currentIndex === 0
-                            ? keybindsPage.implicitHeight
-                            : elementsPage.implicitHeight
-
                         clip: true
                         layer.enabled: true
                         layer.effect: OpacityMask {
@@ -331,7 +404,10 @@ Scope { // Scope
                         }
 
                         CheatsheetKeybinds { id: keybindsPage }
-                        CheatsheetPeriodicTable { id: elementsPage }
+                        CheatsheetUniverse {
+                            id: universePage
+                            viewActive: root.stableCheatsheetOpen && swipeView.currentIndex === 1
+                        }
                     }
                 }
             }
