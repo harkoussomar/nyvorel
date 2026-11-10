@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Discover XKB layouts and change Hyprland's live keyboard selection."""
+
+import argparse
+import json
+import os
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+RULES = Path(os.environ.get("NYVOREL_XKB_RULES_FILE", "/usr/share/X11/xkb/rules/evdev.xml"))
+EMPTY = {"", "[[EMPTY]]", "[[Empty]]"}
+
+
+def catalog():
+    root = ET.parse(RULES).getroot()
+    layouts = root.find("layoutList")
+    if layouts is None:
+        raise ValueError("XKB layout catalogue is missing")
+    entries = []
+    for layout in layouts.findall("layout"):
+        code = layout.findtext("configItem/name", "").strip()
+        name = layout.findtext("configItem/description", code).strip()
+        if not code:
+            continue
+        entries.append({"value": code, "displayName": name, "layout": code, "variant": "", "family": name})
+        variants = layout.find("variantList")
+        if variants is None:
+            continue
+        for variant in variants.findall("variant"):
+            variant_code = variant.findtext("configItem/name", "").strip()
+            variant_name = variant.findtext("configItem/description", variant_code).strip()
+            if variant_code:
+                entries.append({
+                    "value": f"{code}:{variant_code}", "displayName": variant_name,
+                    "layout": code, "variant": variant_code, "family": name,
+                })
+    return entries
+
+
+def hyprctl(*args):
+    result = subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=5, check=False)
+    if result.returncode:
+        message = (result.stderr or result.stdout).strip()
+        raise RuntimeError(message or f"hyprctl failed ({result.returncode})")
+    return result.stdout
+
+
+def option(name):
+    value = json.loads(hyprctl("getoption", f"input:{name}", "-j"))
+    raw = str(value.get("str", ""))
+    return "" if raw in EMPTY else raw
+
+
+def status():
+    layout = option("kb_layout")
+    variant = option("kb_variant")
+    active_keymap = ""
+    try:
+        devices = json.loads(hyprctl("devices", "-j"))
+        keyboards = devices.get("keyboards", [])
+        current = next((item for item in keyboards if item.get("main")), None)
+        if current is None and keyboards:
+            current = keyboards[0]
+        if current:
+            active_keymap = current.get("active_keymap", "")
+    except (ValueError, RuntimeError, subprocess.TimeoutExpired):
+        pass
+    return {"ok": True, "layout": layout, "variant": variant, "activeKeymap": active_keymap}
+
+
+def set_layout(code):
+    entry = next((item for item in catalog() if item["value"] == code), None)
+    if entry is None:
+        raise ValueError(f"This layout is not installed: {code}")
+    before = status()
+    try:
+        hyprctl("keyword", "input:kb_layout", entry["layout"])
+        hyprctl("keyword", "input:kb_variant", entry["variant"])
+        after = status()
+        if after["layout"] != entry["layout"] or after["variant"] != entry["variant"]:
+            raise RuntimeError("Hyprland did not activate the selected layout")
+    except (RuntimeError, subprocess.TimeoutExpired):
+        try:
+            hyprctl("keyword", "input:kb_layout", before["layout"])
+            hyprctl("keyword", "input:kb_variant", before["variant"])
+        except (RuntimeError, subprocess.TimeoutExpired):
+            pass
+        raise
+    return {**after, "selected": code}
+
+
+def restore():
+    # Re-evaluate the user's actual Hyprland config, including Lua expressions.
+    # Parsing that file ourselves would silently choose the wrong layout.
+    hyprctl("reload")
+    for _ in range(12):
+        try:
+            return status()
+        except (RuntimeError, ValueError, subprocess.TimeoutExpired):
+            time.sleep(0.1)
+    raise RuntimeError("Hyprland reloaded, but its keyboard state could not be read")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    subcommands.add_parser("catalog")
+    subcommands.add_parser("status")
+    choose = subcommands.add_parser("set")
+    choose.add_argument("code")
+    subcommands.add_parser("restore")
+    args = parser.parse_args()
+    if args.command == "catalog":
+        payload = {"ok": True, "choices": catalog()}
+    elif args.command == "status":
+        payload = status()
+    elif args.command == "set":
+        payload = set_layout(args.code)
+    else:
+        payload = restore()
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, ET.ParseError, subprocess.TimeoutExpired) as error:
+        print(json.dumps({"ok": False, "error": str(error)}))
+        raise SystemExit(1) from None

@@ -12,6 +12,7 @@ ComboBox {
 
     property string buttonIcon: ""
     property real buttonRadius: height / 2
+    property bool openUpward: false
     property color colBackground: Appearance.colors.colSecondaryContainer
     property color colBackgroundHover: Appearance.colors.colSecondaryContainerHover
     property color colBackgroundActive: Appearance.colors.colSecondaryContainerActive
@@ -65,7 +66,7 @@ ComboBox {
 
             Loader {
                 Layout.alignment: Qt.AlignVCenter
-                active: root.buttonIcon.length > 0 || (root.currentIndex >= 0 && typeof root.model[root.currentIndex] === 'object' && root.model[root.currentIndex]?.icon)
+                active: root.buttonIcon.length > 0 || (root.currentIndex >= 0 && typeof root.model[root.currentIndex] === 'object' && (root.model[root.currentIndex]?.icon?.length ?? 0) > 0)
                 visible: active
                 sourceComponent: MaterialSymbol {
                     text: {
@@ -165,7 +166,7 @@ ComboBox {
     }
 
     popup: Popup {
-        y: root.height + 4
+        y: root.openUpward ? -height - 4 : root.height + 4
         width: root.width
         height: Math.min(listView.contentHeight + topPadding + bottomPadding, 300)
         padding: 8

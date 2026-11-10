@@ -26,31 +26,59 @@ ContentPage {
     readonly property int wallpaperDecodeHeight: 420
 
     property bool colorStylesExpanded: false
-
-    readonly property string configFilePath:
-        FileUtils.trimFileProtocol(`${Directories.config}/nyvorel/config.json`)
+    signal appearanceStudioOpened()
+    property var activeAppearance: ({})
+    property string requestedMode: ""
+    property string requestedScheme: ""
+    property string appearanceError: ""
+    readonly property bool appearanceBusy:
+        statusProc.running || applyProc.running || studioOpenProc.running
+    readonly property string appearanceBackend:
+        FileUtils.trimFileProtocol(
+            Quickshell.shellPath("scripts/system/nyvorel-appearance-studio")
+        )
 
     readonly property bool showExtendedColorStyles:
         colorStylesExpanded || isExtendedPalette(Config.options.appearance.palette.type)
 
     function setThemeMode(dark: bool): void {
-        Quickshell.execDetached([
-            "bash",
-            "-c",
-            `${Directories.wallpaperSwitchScriptPath} --mode ${dark ? "dark" : "light"} --noswitch`
-        ])
+        requestAppearance(dark ? "dark" : "light", "")
     }
 
     function setPaletteType(value: string): void {
         if (Config.options.appearance.palette.type === value)
             return
+        requestAppearance("", value)
+    }
 
-        Config.options.appearance.palette.type = value
-        Quickshell.execDetached([
-            "bash",
-            "-c",
-            `${Directories.wallpaperSwitchScriptPath} --noswitch`
-        ])
+    function requestAppearance(mode: string, scheme: string): void {
+        if (root.appearanceBusy)
+            return
+        root.requestedMode = mode
+        root.requestedScheme = scheme
+        root.appearanceError = ""
+        statusProc.running = true
+    }
+
+    function applyRequestedAppearance(): void {
+        const active = root.activeAppearance
+        const source = active.source ?? "wallpaper"
+        let seed = active.seed ?? ""
+        const palette = active.customPalette
+        if (palette && palette.primary && palette.secondary
+                && palette.tertiary && palette.neutral) {
+            seed = "ii4:" + [palette.primary, palette.secondary,
+                palette.tertiary, palette.neutral].join("|")
+        }
+
+        applyProc.command = [root.appearanceBackend, "apply",
+            "--source", source,
+            "--mode", root.requestedMode || active.mode || "dark",
+            "--scheme", root.requestedScheme || active.scheme || "auto",
+            "--preset", active.preset ?? "",
+            "--seed", seed,
+            "--wallpaper", active.wallpaper ?? ""]
+        applyProc.running = true
     }
 
     function isExtendedPalette(value: string): bool {
@@ -60,33 +88,60 @@ ContentPage {
             || value === "scheme-tonal-spot"
     }
 
-    function currentBarPosition(): int {
-        return (Config.options.bar.bottom ? 1 : 0)
-            | (Config.options.bar.vertical ? 2 : 0)
-    }
-
-    function setBarPosition(value: int): void {
-        Config.options.bar.bottom = (value & 1) !== 0
-        Config.options.bar.vertical = (value & 2) !== 0
+    Process {
+        id: statusProc
+        command: [root.appearanceBackend, "status"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text)
+                    if (!result.ok || !result.active) {
+                        root.appearanceError = result.error ?? "Could not read the current appearance."
+                        return
+                    }
+                    root.activeAppearance = result.active
+                    root.applyRequestedAppearance()
+                } catch (error) {
+                    root.appearanceError = "Could not read the current appearance."
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && !root.appearanceError)
+                root.appearanceError = "Appearance Studio is unavailable."
+        }
     }
 
     Process {
-        id: randomWallProc
-
-        property string status: ""
-        property string scriptPath:
-            `${Directories.scriptPath}/colors/random/random_konachan_wall.sh`
-
-        command: [
-            "bash",
-            "-c",
-            FileUtils.trimFileProtocol(randomWallProc.scriptPath)
-        ]
-
-        stdout: SplitParser {
-            onRead: data => {
-                randomWallProc.status = data.trim()
+        id: applyProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text)
+                    if (!result.ok)
+                        root.appearanceError = result.error ?? "Appearance could not be applied."
+                } catch (error) {
+                    root.appearanceError = "Appearance could not be applied."
+                }
             }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && !root.appearanceError)
+                root.appearanceError = "Appearance could not be applied."
+            if (exitCode === 0 && !root.appearanceError)
+                Config.reload()
+        }
+    }
+
+    Process {
+        id: studioOpenProc
+        command: ["qs", "ipc", "-c", "nyvorel", "--any-display",
+            "call", "appearanceStudio", "open"]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0)
+                root.appearanceStudioOpened()
+            else
+                root.appearanceError = "Could not open Appearance Studio. Check that the Nyvorel shell is running."
         }
     }
 
@@ -167,6 +222,8 @@ ContentPage {
         readonly property bool selected:
             Config.options.appearance.palette.type === value
 
+        enabled: !root.appearanceBusy
+
         toggled: selected
         implicitHeight: root.compactControlHeight
         implicitWidth: Math.max(86, chipContent.implicitWidth + 26)
@@ -240,7 +297,9 @@ ContentPage {
             // Wallpaper is the main visual anchor of the page.
             Rectangle {
                 Layout.fillWidth: true
-                Layout.minimumWidth: 0
+                Layout.preferredWidth: wallpaperGrid.columns === 2
+                    ? wallpaperGrid.width * 0.42
+                    : wallpaperGrid.width
                 implicitHeight: root.wallpaperPreviewHeight
 
                 radius:
@@ -323,6 +382,9 @@ ContentPage {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
+                Layout.preferredWidth: wallpaperGrid.columns === 2
+                    ? wallpaperGrid.width * 0.56
+                    : wallpaperGrid.width
                 spacing: 12
 
                 ColumnLayout {
@@ -351,6 +413,7 @@ ContentPage {
 
                     QuickChoiceButton {
                         Layout.fillWidth: true
+                        enabled: !root.appearanceBusy
                         label: Translation.tr("Light")
                         iconName: "light_mode"
                         selected: !Appearance.m3colors.darkmode
@@ -360,6 +423,7 @@ ContentPage {
 
                     QuickChoiceButton {
                         Layout.fillWidth: true
+                        enabled: !root.appearanceBusy
                         label: Translation.tr("Dark")
                         iconName: "dark_mode"
                         selected: Appearance.m3colors.darkmode
@@ -372,66 +436,32 @@ ContentPage {
                     Layout.fillWidth: true
                     implicitHeight: root.controlHeight
                     buttonRadius: Appearance.radius.control
-                    materialIcon: "wallpaper"
-                    mainText: Translation.tr("Change wallpaper")
+                    materialIcon: "palette"
+                    mainText: Translation.tr("Open Appearance Studio")
 
                     onClicked: {
-                        Quickshell.execDetached(
-                            `${Directories.wallpaperSwitchScriptPath}`
-                        )
+                        root.appearanceError = ""
+                        studioOpenProc.running = true
                     }
 
                     StyledToolTip {
-                        text: Translation.tr("Pick a wallpaper image from your system.")
-                    }
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    visible: Config.options.policies.weeb === 1
-                    spacing: 8
-
-                    RippleButtonWithIcon {
-                        enabled: !randomWallProc.running
-                        implicitHeight: root.compactControlHeight
-                        buttonRadius: Appearance.radius.control
-                        materialIcon: "ifl"
-                        mainText: randomWallProc.running
-                            ? Translation.tr("Loading…")
-                            : Translation.tr("Konachan")
-
-                        onClicked: {
-                            randomWallProc.scriptPath =
-                                `${Directories.scriptPath}/colors/random/random_konachan_wall.sh`
-                            randomWallProc.running = true
-                        }
-
-                        StyledToolTip {
-                            text: Translation.tr("Random SFW anime wallpaper from Konachan.")
-                        }
-                    }
-
-                    RippleButtonWithIcon {
-                        enabled: !randomWallProc.running
-                        implicitHeight: root.compactControlHeight
-                        buttonRadius: Appearance.radius.control
-                        materialIcon: "shuffle"
-                        mainText: randomWallProc.running
-                            ? Translation.tr("Loading…")
-                            : Translation.tr("osu! seasonal")
-
-                        onClicked: {
-                            randomWallProc.scriptPath =
-                                `${Directories.scriptPath}/colors/random/random_osu_wall.sh`
-                            randomWallProc.running = true
-                        }
-
-                        StyledToolTip {
-                            text: Translation.tr("Random osu! seasonal wallpaper.")
-                        }
+                        text: Translation.tr("Choose a wallpaper or build a custom theme.")
                     }
                 }
             }
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            visible: root.appearanceBusy || root.appearanceError.length > 0
+            text: root.appearanceBusy
+                ? Translation.tr("Applying appearance…")
+                : root.appearanceError
+            color: root.appearanceError.length > 0
+                ? Appearance.m3colors.m3error
+                : Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            wrapMode: Text.Wrap
         }
 
         ColumnLayout {
@@ -611,340 +641,4 @@ ContentPage {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Bar & screen
-    // -------------------------------------------------------------------------
-
-    ContentSection {
-        icon: "screenshot_monitor"
-        title: Translation.tr("Bar & screen")
-        Layout.fillWidth: true
-
-        GridLayout {
-            Layout.fillWidth: true
-            columns: width >= root.wideBreakpoint ? 2 : 1
-            columnSpacing: 14
-            rowSpacing: 14
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                implicitHeight: barCardColumn.implicitHeight + root.cardPadding * 2
-
-                radius:
-                     Appearance.radius.card
-                color:
-                     Appearance.colors.colLayer2
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
-
-                ColumnLayout {
-                    id: barCardColumn
-
-                    anchors.fill: parent
-                    anchors.margins: root.cardPadding
-                    spacing: 10
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        MaterialSymbol {
-                            text: "toolbar"
-                            iconSize: 20
-                            color: Appearance.colors.colPrimary
-                        }
-
-                        StyledText {
-                            text: Translation.tr("Bar")
-                            color: Appearance.colors.colOnLayer2
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.weight: Font.DemiBold
-                        }
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Choose where the main bar sits and how it is shaped.")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
-                    }
-
-                    StyledText {
-                        text: Translation.tr("Position")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: width >= 460 ? 4 : 2
-                        columnSpacing: 8
-                        rowSpacing: 8
-
-                        QuickChoiceButton {
-                            Layout.fillWidth: true
-                            compact: true
-                            label: Translation.tr("Top")
-                            iconName: "arrow_upward"
-                            selected: root.currentBarPosition() === 0
-                            onClicked: root.setBarPosition(0)
-                        }
-
-                        QuickChoiceButton {
-                            Layout.fillWidth: true
-                            compact: true
-                            label: Translation.tr("Left")
-                            iconName: "arrow_back"
-                            selected: root.currentBarPosition() === 2
-                            onClicked: root.setBarPosition(2)
-                        }
-
-                        QuickChoiceButton {
-                            Layout.fillWidth: true
-                            compact: true
-                            label: Translation.tr("Bottom")
-                            iconName: "arrow_downward"
-                            selected: root.currentBarPosition() === 1
-                            onClicked: root.setBarPosition(1)
-                        }
-
-                        QuickChoiceButton {
-                            Layout.fillWidth: true
-                            compact: true
-                            label: Translation.tr("Right")
-                            iconName: "arrow_forward"
-                            selected: root.currentBarPosition() === 3
-                            onClicked: root.setBarPosition(3)
-                        }
-                    }
-
-                    StyledText {
-                        Layout.topMargin: 2
-                        text: Translation.tr("Style")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Compact")
-                            iconName: "line_curve"
-                            selected: Config.options.bar.cornerStyle === 0
-                            description: Translation.tr("Shape the bar closely around its content.")
-                            onClicked: Config.options.bar.cornerStyle = 0
-                        }
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Floating")
-                            iconName: "page_header"
-                            selected: Config.options.bar.cornerStyle === 1
-                            description: Translation.tr("Float the bar away from the screen edge.")
-                            onClicked: Config.options.bar.cornerStyle = 1
-                        }
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Full width")
-                            iconName: "toolbar"
-                            selected: Config.options.bar.cornerStyle === 2
-                            description: Translation.tr("Use a straight full-width bar.")
-                            onClicked: Config.options.bar.cornerStyle = 2
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                implicitHeight: screenCardColumn.implicitHeight + root.cardPadding * 2
-
-                radius:
-                     Appearance.radius.card
-                color:
-                     Appearance.colors.colLayer2
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
-
-                ColumnLayout {
-                    id: screenCardColumn
-
-                    anchors.fill: parent
-                    anchors.margins: root.cardPadding
-                    spacing: 10
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        MaterialSymbol {
-                            text: "rounded_corner"
-                            iconSize: 20
-                            color: Appearance.colors.colPrimary
-                        }
-
-                        StyledText {
-                            text: Translation.tr("Screen corners")
-                            color: Appearance.colors.colOnLayer2
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.weight: Font.DemiBold
-                        }
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Control when simulated rounded screen corners are visible.")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
-                    }
-
-                    StyledText {
-                        text: Translation.tr("Corner treatment")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Off")
-                            iconName: "close"
-                            selected: Config.options.appearance.fakeScreenRounding === 0
-                            onClicked: Config.options.appearance.fakeScreenRounding = 0
-                        }
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Always")
-                            iconName: "check"
-                            selected: Config.options.appearance.fakeScreenRounding === 1
-                            onClicked: Config.options.appearance.fakeScreenRounding = 1
-                        }
-
-                        QuickChoiceButton {
-                            compact: true
-                            label: Translation.tr("Except fullscreen")
-                            iconName: "fullscreen_exit"
-                            selected: Config.options.appearance.fakeScreenRounding === 2
-                            onClicked: Config.options.appearance.fakeScreenRounding = 2
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Advanced / config file
-    // -------------------------------------------------------------------------
-
-    Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: advancedRow.implicitHeight + root.cardPadding * 2
-
-        radius:
-             Appearance.radius.card
-        color:
-             Appearance.colors.colLayer1
-        border.width: 1
-        border.color:
-             Appearance.colors.colLayer0Border
-
-        RowLayout {
-            id: advancedRow
-
-            anchors.fill: parent
-            anchors.margins: root.cardPadding
-            spacing: 12
-
-            MaterialSymbol {
-                text: "tune"
-                iconSize: 20
-                color: Appearance.colors.colSubtext
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-
-                StyledText {
-                    text: Translation.tr("Configuration file")
-                    color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: Translation.tr("Browse the other tabs for more controls. Edit config.json for options not yet available in Settings.")
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            Flow {
-                Layout.maximumWidth: 320
-                spacing: 8
-
-                RippleButtonWithIcon {
-                    implicitHeight: root.compactControlHeight
-                    buttonRadius: Appearance.radius.control
-                    materialIcon: "edit"
-                    mainText: Translation.tr("Open config")
-
-                    colBackground: Appearance.colors.colPrimaryContainer
-                    colBackgroundHover: Appearance.colors.colPrimaryContainerHover
-                    colRipple: Appearance.colors.colPrimaryContainerActive
-
-                    onClicked: {
-                        Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", root.configFilePath])
-                    }
-                }
-
-                RippleButtonWithIcon {
-                    id: copyPathButton
-
-                    property bool justCopied: false
-
-                    implicitHeight: root.compactControlHeight
-                    buttonRadius: Appearance.radius.control
-                    materialIcon: justCopied ? "check" : "content_copy"
-                    mainText: justCopied
-                        ? Translation.tr("Path copied")
-                        : Translation.tr("Copy path")
-
-                    colBackground: Appearance.colors.colLayer2
-                    colBackgroundHover: Appearance.colors.colLayer2Hover
-                    colRipple: Appearance.colors.colLayer2Active
-
-                    onClicked: {
-                        Quickshell.clipboardText = root.configFilePath
-                        justCopied = true
-                        revertTextTimer.restart()
-                    }
-
-                    Timer {
-                        id: revertTextTimer
-                        interval: 1500
-                        onTriggered: copyPathButton.justCopied = false
-                    }
-                }
-            }
-        }
-    }
 }

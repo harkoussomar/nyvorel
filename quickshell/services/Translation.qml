@@ -22,13 +22,33 @@ Singleton {
     property string translationsDir: Quickshell.shellPath("translations")
     property string generatedTranslationsDir: Directories.shellConfig + "/translations"
 
+    readonly property var languageNames: ({
+        "de_DE": "Deutsch",
+        "en_US": "English",
+        "he_HE": "עברית",
+        "id_ID": "Bahasa Indonesia",
+        "it_IT": "Italiano",
+        "ja_JP": "日本語",
+        "pt_BR": "Português (Brasil)",
+        "ru_RU": "Русский",
+        "tr_TR": "Türkçe",
+        "uk_UA": "Українська",
+        "vi_VN": "Tiếng Việt",
+        "zh_CN": "简体中文"
+    })
+
+    function displayLanguage(code) {
+        return root.languageNames[code] ?? code
+    }
+
     property string languageCode: {
         var configLang = Config?.options.language.ui ?? "auto";
 
         if (configLang !== "auto")
             return configLang;
 
-        return Qt.locale().name;
+        const systemLang = Qt.locale().name;
+        return root.allAvailableLanguages.includes(systemLang) ? systemLang : "en_US";
     }
 
     TranslationScanner {
@@ -103,7 +123,7 @@ Singleton {
             id: languagesCollector
             onStreamFinished: {
                 const output = languagesCollector.text;
-                const files = output.trim().split('\n').map(f => f.trim());
+                const files = output.trim().split('\n').map(f => f.trim()).filter(f => f.length > 0);
                 translationScanner.languagesScanned(files);
             }
         }

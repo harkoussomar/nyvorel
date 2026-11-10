@@ -34,6 +34,12 @@ jobs:
       - name: Validate isolated appearance recovery
         run: python3 scripts/ci/test-appearance-studio.py
 
+      - name: Validate Settings routes and lock-clock updates
+        run: python3 scripts/ci/test-settings-refactor.py
+
+      - name: Validate keyboard layout discovery and rollback
+        run: python3 scripts/ci/test-keyboard-layout.py
+
       - name: Validate appearance runtime ownership
         run: bash scripts/ci/test-appearance-ownership.sh
 

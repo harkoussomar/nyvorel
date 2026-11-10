@@ -25,6 +25,8 @@ ContentPage {
     property bool translationExpanded: false
     property int lastFullChargeThreshold:
         Math.min(100, Config.options.battery.full)
+    property string timeFormatError: ""
+    property string pendingTimeFormat: ""
 
     // >>> TOUCHPAD-SCROLL-SETTINGS-V1 >>>
     readonly property string scrollSettingsHelper:
@@ -106,24 +108,38 @@ ContentPage {
             || Config.options.battery.suspend <= Config.options.battery.critical)
 
     function setTimeFormat(value: string): void {
-        if (value === Config.options.time.format)
+        if (value === Config.options.time.format || lockTimeProc.running)
             return
+        root.pendingTimeFormat = value
+        root.timeFormatError = ""
+        lockTimeProc.command = [
+            FileUtils.trimFileProtocol(
+                Quickshell.shellPath("scripts/system/nyvorel-lock-time-format")
+            ),
+            "--format", value
+        ]
+        lockTimeProc.running = true
+    }
 
-        if (value === "hh:mm") {
-            Quickshell.execDetached([
-                "bash",
-                "-c",
-                `sed -i 's/\\TIME12\\b/TIME/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`
-            ])
-        } else {
-            Quickshell.execDetached([
-                "bash",
-                "-c",
-                `sed -i 's/\\TIME\\b/TIME12/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`
-            ])
+    Process {
+        id: lockTimeProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text)
+                    if (!result.ok)
+                        root.timeFormatError = result.error ?? "Could not update the lock-screen clock."
+                } catch (error) {
+                    root.timeFormatError = "Could not update the lock-screen clock."
+                }
+            }
         }
-
-        Config.options.time.format = value
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0 && !root.timeFormatError)
+                Config.options.time.format = root.pendingTimeFormat
+            else if (!root.timeFormatError)
+                root.timeFormatError = "Could not update the lock-screen clock."
+        }
     }
 
     Process {
@@ -804,7 +820,7 @@ ContentPage {
             SettingsCard {
                 id: languageCard
 
-                title: Translation.tr("Interface language")
+                title: Translation.tr("Shell language")
                 subtitle: Translation.tr("Choose the language used throughout the shell.")
                 iconName: "translate"
 
@@ -818,12 +834,12 @@ ContentPage {
 
                     model: [
                         {
-                            displayName: Translation.tr("Auto (System)"),
+                            displayName: Translation.tr("System language"),
                             value: "auto"
                         },
                         ...Translation.allAvailableLanguages.map(lang => {
                             return {
-                                displayName: lang,
+                                displayName: Translation.displayLanguage(lang),
                                 value: lang
                             }
                         })
@@ -839,6 +855,44 @@ ContentPage {
                     onActivated: index => {
                         Config.options.language.ui = model[index].value
                     }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Translation.tr("Current shell language") + ": "
+                        + (Translation.allAvailableLanguages.includes(Translation.languageCode)
+                            ? Translation.displayLanguage(Translation.languageCode)
+                            : Translation.tr("English (fallback)"))
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 10
+                    text: Translation.tr("Keyboard layout")
+                    color: Appearance.colors.colOnLayer1
+                }
+
+                KeyboardLayoutSelector {
+                    Layout.fillWidth: true
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Translation.tr("Typing layout is independent of the shell language.")
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.Wrap
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: KeyboardLayout.lastError.length > 0
+                    text: KeyboardLayout.lastError
+                    color: Appearance.m3colors.m3error
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.Wrap
                 }
 
                 RippleButtonWithIcon {
@@ -947,6 +1001,7 @@ ContentPage {
                     spacing: 8
 
                     ChoiceChip {
+                        enabled: !lockTimeProc.running
                         label: Translation.tr("13:42")
                         iconName: "schedule"
                         description: Translation.tr("24-hour format")
@@ -956,6 +1011,7 @@ ContentPage {
                     }
 
                     ChoiceChip {
+                        enabled: !lockTimeProc.running
                         label: Translation.tr("1:42 pm")
                         iconName: "schedule"
                         description: Translation.tr("12-hour format with lowercase am/pm")
@@ -965,6 +1021,7 @@ ContentPage {
                     }
 
                     ChoiceChip {
+                        enabled: !lockTimeProc.running
                         label: Translation.tr("1:42 PM")
                         iconName: "schedule"
                         description: Translation.tr("12-hour format with uppercase AM/PM")
@@ -972,6 +1029,19 @@ ContentPage {
 
                         onClicked: root.setTimeFormat("h:mm AP")
                     }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: lockTimeProc.running || root.timeFormatError.length > 0
+                    text: lockTimeProc.running
+                        ? Translation.tr("Updating time format…")
+                        : root.timeFormatError
+                    color: root.timeFormatError.length > 0
+                        ? Appearance.m3colors.m3error
+                        : Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.Wrap
                 }
             }
         }

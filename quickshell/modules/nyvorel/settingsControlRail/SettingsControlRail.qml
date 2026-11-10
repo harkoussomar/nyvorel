@@ -14,7 +14,17 @@ Item {
     signal searchRequested()
     signal pageRequested(int index)
 
-    implicitWidth: root.expanded ? 180 : 58
+    implicitWidth: root.expanded ? 210 : 58
+
+    Rectangle {
+        anchors {
+            top: parent.top
+            right: parent.right
+            bottom: parent.bottom
+        }
+        width: 1
+        color: Appearance.colors.colLayer0Border
+    }
 
     component NavigationButton: RippleButton {
         id: button
@@ -26,7 +36,7 @@ Item {
 
         Layout.fillWidth: true
         Layout.minimumWidth: 0
-        implicitHeight: 40
+        implicitHeight: 44
         activeFocusOnTab: true
 
         Accessible.role: Accessible.Button
@@ -70,6 +80,18 @@ Item {
                         : Appearance.colors.colOnLayer0
             }
 
+            Rectangle {
+                visible: button.selected
+                anchors {
+                    left: parent.left
+                    verticalCenter: parent.verticalCenter
+                }
+                width: 3
+                height: 20
+                radius: 2
+                color: Appearance.colors.colPrimary
+            }
+
             StyledText {
                 visible: root.expanded
                 anchors {
@@ -99,7 +121,12 @@ Item {
     Flickable {
         id: navigationScroller
         anchors.fill: parent
-        anchors.margins: 8
+        anchors {
+            topMargin: 8
+            bottomMargin: 8
+            leftMargin: 4
+            rightMargin: 12
+        }
         clip: true
         contentWidth: width
         contentHeight: navigationColumn.implicitHeight
@@ -128,16 +155,32 @@ Item {
             Repeater {
                 model: root.pages
 
-                delegate: NavigationButton {
+                delegate: ColumnLayout {
                     required property int index
                     required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 3
 
-                    iconName: modelData.icon
-                    iconRotation: modelData.iconRotation ?? 0
-                    label: modelData.name
-                    selected: root.currentPage === index
+                    StyledText {
+                        visible: root.expanded && (index === 0 || index === 3 || index === 6)
+                        Layout.fillWidth: true
+                        Layout.topMargin: index === 0 ? 8 : 15
+                        Layout.leftMargin: 12
+                        text: modelData.group ?? ""
+                        color: Appearance.colors.colSubtext
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.DemiBold
+                        font.capitalization: Font.AllUppercase
+                    }
 
-                    onClicked: root.pageRequested(index)
+                    NavigationButton {
+                        iconName: modelData.icon
+                        iconRotation: modelData.iconRotation ?? 0
+                        label: modelData.name
+                        selected: root.currentPage === index
+
+                        onClicked: root.pageRequested(index)
+                    }
                 }
             }
         }

@@ -134,6 +134,31 @@ Item {
         return output
     }
 
+    function activateSearchEntry(entry): void {
+        if (!entry || entry.pageIndex === undefined)
+            return
+
+        const pageIndex = Number(entry.pageIndex)
+        if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= root.pages.length)
+            return
+
+        const label = entry.path === "Page" ? "" : String(entry.label ?? "")
+        root.close()
+        root.navigateRequested(pageIndex, label)
+    }
+
+    function focusSearchResult(index: int): void {
+        if (index < 0 || index >= searchResults.count)
+            return
+
+        searchResults.positionViewAtIndex(index, ListView.Contain)
+        Qt.callLater(() => {
+            const result = searchResults.itemAtIndex(index)
+            if (result)
+                result.forceActiveFocus(Qt.TabFocusReason)
+        })
+    }
+
     function flattenHistory(events): var {
         let rows = []
 
@@ -477,8 +502,12 @@ Item {
 
         radius:
               Appearance.radius.card
-        color:
-              Appearance.colors.colLayer0Base
+        color: Qt.rgba(
+            Appearance.colors.colLayer0Base.r,
+            Appearance.colors.colLayer0Base.g,
+            Appearance.colors.colLayer0Base.b,
+            1
+        )
         border.width:
               1
         border.color:

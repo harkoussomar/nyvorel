@@ -90,6 +90,7 @@ ShellRoot {
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
         Hyprsunset.load()
+        KeyboardLayout.load()
         FirstRunExperience.load()
         ConflictKiller.load()
         Cliphist.refresh()

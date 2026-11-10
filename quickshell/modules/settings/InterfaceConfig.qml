@@ -773,6 +773,70 @@ ContentPage {
         }
     }
 
+    ContentSection {
+        icon: "motion_photos_on"
+        title: Translation.tr("Motion & comfort")
+        Layout.fillWidth: true
+
+        SettingsCard {
+            title: Translation.tr("Animation")
+            subtitle: Translation.tr("Adjust movement throughout the shell. Changes take effect immediately.")
+            iconName: "animation"
+
+            PreferenceSwitchRow {
+                title: Translation.tr("Reduce motion")
+                subtitle: Translation.tr("Keep transitions brief and avoid decorative movement.")
+                iconName: "motion_photos_off"
+                switchChecked: Config.options.appearance.motion.reduced
+                onUserToggled: checked => Config.options.appearance.motion.reduced = checked
+            }
+
+            PreferenceSwitchRow {
+                enabled: !Config.options.appearance.motion.reduced
+                title: Translation.tr("Expressive motion")
+                subtitle: Translation.tr("Use the richer motion style for supported controls.")
+                iconName: "auto_awesome_motion"
+                switchChecked: Config.options.appearance.motion.expressive
+                onUserToggled: checked => Config.options.appearance.motion.expressive = checked
+            }
+
+            ColumnLayout {
+                enabled: !Config.options.appearance.motion.reduced
+                Layout.fillWidth: true
+                spacing: 7
+
+                FieldLabel {
+                    title: Translation.tr("Animation speed")
+                    subtitle: Translation.tr("Lower values are faster; higher values are slower.")
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    StyledSlider {
+                        Layout.fillWidth: true
+                        configuration: StyledSlider.Configuration.XS
+                        from: 0.5
+                        to: 1.5
+                        stepSize: 0.05
+                        value: Config.options.appearance.motion.scale
+                        stopIndicatorValues: [0.5, 0.75, 1, 1.25, 1.5]
+                        usePercentTooltip: false
+                        onMoved: Config.options.appearance.motion.scale = value
+                    }
+
+                    StyledText {
+                        text: Math.round(Config.options.appearance.motion.scale * 100) + "%"
+                        color: Appearance.colors.colSubtext
+                        font.family: Appearance.font.family.numbers
+                        font.pixelSize: Appearance.font.pixelSize.small
+                    }
+                }
+            }
+        }
+    }
+
     // =========================================================================
     // APPEARANCE & GEOMETRY
     // =========================================================================
@@ -781,6 +845,38 @@ ContentPage {
         icon: "rounded_corner"
         title: Translation.tr("Appearance & geometry")
         Layout.fillWidth: true
+
+        SettingsCard {
+            title: Translation.tr("Screen corners")
+            subtitle: Translation.tr("Choose when simulated screen corners appear.")
+            iconName: "rounded_corner"
+
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ChoiceChip {
+                    label: Translation.tr("Off")
+                    iconName: "close"
+                    selected: Config.options.appearance.fakeScreenRounding === 0
+                    onClicked: Config.options.appearance.fakeScreenRounding = 0
+                }
+
+                ChoiceChip {
+                    label: Translation.tr("Always")
+                    iconName: "check"
+                    selected: Config.options.appearance.fakeScreenRounding === 1
+                    onClicked: Config.options.appearance.fakeScreenRounding = 1
+                }
+
+                ChoiceChip {
+                    label: Translation.tr("Except fullscreen")
+                    iconName: "fullscreen_exit"
+                    selected: Config.options.appearance.fakeScreenRounding === 2
+                    onClicked: Config.options.appearance.fakeScreenRounding = 2
+                }
+            }
+        }
 
         SettingsCard {
             title: Translation.tr("Corner geometry")
@@ -1769,64 +1865,6 @@ ContentPage {
                     }
                 }
 
-                PreferenceSwitchRow {
-                    title: Translation.tr("Quick sliders")
-                    subtitle: Translation.tr("Enable the sidebar slider area; choose which sliders are shown below.")
-                    iconName: "tune"
-                    switchChecked: Config.options.sidebar.quickSliders.enable
-
-                    onUserToggled: checked => {
-                        Config.options.sidebar.quickSliders.enable = checked
-                    }
-                }
-
-                GridLayout {
-                    visible: Config.options.sidebar.quickSliders.enable
-                    Layout.fillWidth: true
-                    columns: width >= 520 ? 2 : 1
-                    columnSpacing: 8
-                    rowSpacing: 8
-
-                    PreferenceSwitchRow {
-                        title: Translation.tr("Brightness")
-                        subtitle: Translation.tr("Show the brightness slider.")
-                        iconName: "brightness_6"
-                        switchChecked:
-                            Config.options.sidebar.quickSliders.showBrightness
-
-                        onUserToggled: checked => {
-                            Config.options.sidebar.quickSliders.showBrightness =
-                                checked
-                        }
-                    }
-
-                    PreferenceSwitchRow {
-                        title: Translation.tr("Volume")
-                        subtitle: Translation.tr("Show the output-volume slider.")
-                        iconName: "volume_up"
-                        switchChecked:
-                            Config.options.sidebar.quickSliders.showVolume
-
-                        onUserToggled: checked => {
-                            Config.options.sidebar.quickSliders.showVolume =
-                                checked
-                        }
-                    }
-
-                    PreferenceSwitchRow {
-                        Layout.columnSpan: width >= 520 ? 2 : 1
-                        title: Translation.tr("Microphone")
-                        subtitle: Translation.tr("Show the microphone-input slider.")
-                        iconName: "mic"
-                        switchChecked:
-                            Config.options.sidebar.quickSliders.showMic
-
-                        onUserToggled: checked => {
-                            Config.options.sidebar.quickSliders.showMic =
-                                checked
-                        }
-                    }
-                }
             }
 
             SettingsCard {

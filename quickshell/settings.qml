@@ -58,9 +58,9 @@ ApplicationWindow {
     property int previousPage: 0
     property bool showNextTime: false
 
-    readonly property bool navigationExpanded: width >= 880
+    readonly property bool navigationExpanded: width >= 900
     readonly property real navigationWidth:
-        navigationExpanded ? 180 : 58
+        navigationExpanded ? 210 : 58
 
     readonly property real preferredScreenMargin: 64
     readonly property real preferredWindowWidth: 1100
@@ -76,44 +76,67 @@ ApplicationWindow {
 
     property var pages: [
         {
-            name: Translation.tr("Quick"),
-            icon: "instant_mix",
+            name: Translation.tr("Appearance"),
+            description: Translation.tr("Wallpaper, color and transparency"),
+            group: Translation.tr("Make it yours"),
+            icon: "palette",
+            sections: [Translation.tr("Theme"), Translation.tr("Color style"), Translation.tr("Transparency")],
             component: "modules/settings/QuickConfig.qml"
         },
         {
-            name: Translation.tr("General"),
-            icon: "browse",
-            component: "modules/settings/GeneralConfig.qml"
-        },
-        {
-            name: Translation.tr("Bar"),
-            icon: "toast",
-            iconRotation: 180,
+            name: Translation.tr("Bar & workspaces"),
+            description: Translation.tr("Layout, indicators and workspace display"),
+            group: Translation.tr("Make it yours"),
+            icon: "view_agenda",
+            sections: [Translation.tr("Bar layout"), Translation.tr("Bar content"), Translation.tr("Workspace indicator")],
             component: "modules/settings/BarConfig.qml"
         },
         {
-            name: Translation.tr("Background"),
-            icon: "texture",
+            name: Translation.tr("Desktop"),
+            description: Translation.tr("Wallpaper motion, clock and weather"),
+            group: Translation.tr("Make it yours"),
+            icon: "wallpaper",
+            sections: [Translation.tr("Background motion"), Translation.tr("Desktop clock"), Translation.tr("Desktop weather")],
             component: "modules/settings/BackgroundConfig.qml"
         },
         {
-            name: Translation.tr("Interface"),
-            icon: "bottom_app_bar",
+            name: Translation.tr("Windows & controls"),
+            description: Translation.tr("Corners, sidebars, overlays and lock screen"),
+            group: Translation.tr("Everyday use"),
+            icon: "dashboard_customize",
+            sections: [Translation.tr("Motion & comfort"), Translation.tr("Appearance & geometry"), Translation.tr("Shell surfaces"), Translation.tr("Lock & feedback"), Translation.tr("Tools & overlays"), Translation.tr("Navigation & sidebars"), Translation.tr("Typography")],
             component: "modules/settings/InterfaceConfig.qml"
         },
         {
+            name: Translation.tr("System & language"),
+            description: Translation.tr("Sound, power, input and language"),
+            group: Translation.tr("Everyday use"),
+            icon: "tune",
+            sections: [Translation.tr("System"), Translation.tr("Input"), Translation.tr("Locale & time"), Translation.tr("Feedback"), Translation.tr("Privacy & content")],
+            component: "modules/settings/GeneralConfig.qml"
+        },
+        {
             name: Translation.tr("Services"),
-            icon: "settings",
+            description: Translation.tr("Search, weather, network and storage"),
+            group: Translation.tr("Everyday use"),
+            icon: "cloud",
+            sections: [Translation.tr("AI & recognition"), Translation.tr("Search & web"), Translation.tr("Weather & network"), Translation.tr("Storage & performance")],
             component: "modules/settings/ServicesConfig.qml"
         },
         {
             name: Translation.tr("Advanced"),
+            description: Translation.tr("Color generation and terminal theming"),
+            group: Translation.tr("More"),
             icon: "construction",
+            sections: [Translation.tr("Color generation"), Translation.tr("Configuration file")],
             component: "modules/settings/AdvancedConfig.qml"
         },
         {
             name: Translation.tr("About"),
+            description: Translation.tr("Version, diagnostics and project links"),
+            group: Translation.tr("More"),
             icon: "info",
+            sections: [Translation.tr("Runtime"), Translation.tr("System & project"), Translation.tr("About this page")],
             component: "modules/settings/About.qml"
         }
     ]
@@ -273,6 +296,12 @@ ApplicationWindow {
 
         root.pendingSearchLabel = ""
         root.searchTargetAttempts = 0
+    }
+
+    function jumpToSection(label: string): void {
+        root.pendingSearchLabel = label
+        root.searchTargetAttempts = 0
+        root.revealPendingSearchTarget()
     }
 
     property bool keyboardNavigationActive: false
@@ -804,7 +833,7 @@ ApplicationWindow {
                     margins: root.contentPadding
                 }
 
-                spacing: 8
+                spacing: 4
 
                 // -------------------------------------------------------------
                 // Fixed header
@@ -995,103 +1024,146 @@ ApplicationWindow {
                             }
                         }
 
-                        Loader {
-                            id: pageLoader
-
+                        ColumnLayout {
                             anchors.fill: parent
-                            opacity: 1
+                            spacing: 4
 
-                            active: Config.ready
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: root.width < 780 ? 84 : 92
 
-                            Component.onCompleted: {
-                                source =
-                                    root.pages[root.currentPage].component
-                            }
+                                ColumnLayout {
+                                    anchors {
+                                        fill: parent
+                                        leftMargin: 18
+                                        rightMargin: 8
+                                    }
+                                    spacing: 2
 
-                            onLoaded: {
-                                if (
-                                    item
-                                    && item.contentY !== undefined
-                                ) {
-                                    item.contentY =
-                                        root.pageScrollPositions[
-                                            root.currentPage
-                                        ] ?? 0
-                                }
-                            }
-
-                            Connections {
-                                target: root
-
-                                function onCurrentPageChanged() {
-                                    if (
-                                        pageLoader.item
-                                        && pageLoader.item.contentY
-                                            !== undefined
-                                    ) {
-                                        root.pageScrollPositions[
-                                            root.previousPage
-                                        ] = pageLoader.item.contentY
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: root.pages[root.currentPage]?.name ?? ""
+                                        color: Appearance.colors.colOnLayer0
+                                        font.family: Appearance.font.family.title
+                                        font.pixelSize: root.width < 780 ? 18 : 22
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
                                     }
 
-                                    root.previousPage =
-                                        root.currentPage
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: root.pages[root.currentPage]?.description ?? ""
+                                        color: Appearance.colors.colSubtext
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        elide: Text.ElideRight
+                                    }
 
-                                    pageSwitchAnimation.complete()
-                                    pageSwitchAnimation.restart()
+                                    Flickable {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 30
+                                        clip: true
+                                        contentWidth: sectionShortcuts.width
+                                        contentHeight: height
+                                        interactive: contentWidth > width
+                                        boundsBehavior: Flickable.StopAtBounds
+
+                                        Row {
+                                            id: sectionShortcuts
+                                            width: childrenRect.width
+                                            height: parent.height
+                                            spacing: 6
+
+                                            Repeater {
+                                                model: root.pages[root.currentPage]?.sections ?? []
+
+                                                delegate: RippleButtonWithIcon {
+                                                    required property string modelData
+                                                    implicitHeight: 28
+                                                    implicitWidth: Math.max(90, modelData.length * 7 + 34)
+                                                    buttonRadius: Appearance.radius.control
+                                                    materialIcon: "arrow_forward"
+                                                    mainText: modelData
+                                                    colBackground: Appearance.colors.colLayer1
+                                                    colBackgroundHover: Appearance.colors.colLayer1Hover
+                                                    colRipple: Appearance.colors.colLayer1Active
+                                                    onClicked: root.jumpToSection(modelData)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                            Loader {
+                                id: pageLoader
 
-                            // Desktop settings navigation should feel immediate,
-                            // not like a horizontally sliding mobile carousel.
-                            SequentialAnimation {
-                                id: pageSwitchAnimation
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                opacity: 1
 
-                                NumberAnimation {
-                                    target: pageLoader
-                                    property: "opacity"
-                                    from: 1
-                                    to: 0
-                                    duration:
-                                        Math.round(
-                                            Appearance.animation
-                                                .elementMoveFast.duration
-                                            * 0.4
-                                        )
-                                    easing.type:
-                                        Appearance.animation
-                                            .elementMoveExit.type
-                                    easing.bezierCurve:
-                                        Appearance.animation
-                                            .elementMoveExit.bezierCurve
+                                active: Config.ready
+
+                                Component.onCompleted: {
+                                    source =
+                                        root.pages[root.currentPage].component
                                 }
 
-                                PropertyAction {
-                                    target: pageLoader
-                                    property: "source"
-                                    value:
-                                        root.pages[
+                                onLoaded: {
+                                    if (
+                                        item
+                                        && item.contentY !== undefined
+                                    ) {
+                                        item.contentY =
+                                            root.pageScrollPositions[
+                                                root.currentPage
+                                            ] ?? 0
+                                    }
+                                }
+
+                                Connections {
+                                    target: pageLoader.item
+                                    ignoreUnknownSignals: true
+                                    function onAppearanceStudioOpened() {
+                                        root.requestClose()
+                                    }
+                                }
+
+                                Connections {
+                                    target: root
+
+                                    function onCurrentPageChanged() {
+                                        if (
+                                            pageLoader.item
+                                            && pageLoader.item.contentY
+                                                !== undefined
+                                        ) {
+                                            root.pageScrollPositions[
+                                                root.previousPage
+                                            ] = pageLoader.item.contentY
+                                        }
+
+                                        root.previousPage =
                                             root.currentPage
-                                        ].component
+
+                                        pageSwitchAnimation.stop()
+                                        pageLoader.source =
+                                            root.pages[root.currentPage].component
+                                        pageLoader.opacity = 0
+                                        pageSwitchAnimation.restart()
+                                    }
                                 }
 
                                 NumberAnimation {
+                                    id: pageSwitchAnimation
                                     target: pageLoader
                                     property: "opacity"
                                     from: 0
                                     to: 1
-                                    duration:
-                                        Math.round(
-                                            Appearance.animation
-                                                .elementMoveFast.duration
-                                            * 0.55
+                                    duration: Appearance.reducedMotion
+                                        ? 1
+                                        : Math.round(
+                                            Appearance.animation.elementMoveFast.duration * 0.55
                                         )
-                                    easing.type:
-                                        Appearance.animation
-                                            .elementMoveEnter.type
-                                    easing.bezierCurve:
-                                        Appearance.animation
-                                            .elementMoveEnter.bezierCurve
+                                    easing.type: Easing.OutCubic
                                 }
                             }
                         }

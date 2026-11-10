@@ -157,6 +157,21 @@ Real Nyvorel surfaces running on the desktop — no mockups.
   <br />
   <sub><b>Backup &amp; Recovery</b> — recovery readiness, backup evidence and restore health as a first-class desktop workflow.</sub>
 </p>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+  <img src="./assets/showcase/operations-center.webp" alt="Nyvorel Operations Center" width="100%" />
+  <br />
+  <sub><b>Operations Center</b> — system health and actions in the desktop.</sub>
+</td>
+<td width="50%" valign="top">
+  <img src="./assets/showcase/arch-remote.webp" alt="Nyvorel Arch Remote" width="100%" />
+  <br />
+  <sub><b>Arch Remote</b> — remote access and security status at a glance.</sub>
+</td>
+</tr>
+</table>
 <!-- NYVOREL_SHOWCASE_GALLERY_END -->
 
 ## AUR Git candidate (not yet published)
