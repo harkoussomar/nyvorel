@@ -745,23 +745,14 @@ ContentPage {
                     }
 
                     UtilityToggleTile {
-                        title: Translation.tr("On-screen keyboard")
-                        subtitle: Translation.tr("Show a button to open the virtual keyboard.")
+                        title: Translation.tr("Keyboard")
+                        subtitle: Translation.tr("Switch layouts and open the virtual keyboard from one bar control.")
                         iconName: "keyboard"
-                        switchChecked: Config.options.bar.utilButtons.showKeyboardToggle
+                        switchChecked: Config.options.bar.utilButtons.showKeyboardLayout
+                            || Config.options.bar.utilButtons.showKeyboardToggle
 
                         onUserToggled: checked => {
                             Config.options.bar.utilButtons.showKeyboardToggle = checked
-                        }
-                    }
-
-                    UtilityToggleTile {
-                        title: Translation.tr("Keyboard layout")
-                        subtitle: Translation.tr("Show the active typing layout and switch configured layouts.")
-                        iconName: "language"
-                        switchChecked: Config.options.bar.utilButtons.showKeyboardLayout
-
-                        onUserToggled: checked => {
                             Config.options.bar.utilButtons.showKeyboardLayout = checked
                         }
                     }

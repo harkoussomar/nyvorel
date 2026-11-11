@@ -51,7 +51,7 @@ Item {
     // ============================================================
     // Dynamic three-zone layout
     //
-    // LEFT   -> shell control + music
+    // LEFT   -> shell control + enabled actions + music
     // CENTER -> physically anchored workspaces
     // RIGHT  -> system state
     //
@@ -61,13 +61,37 @@ Item {
     readonly property real zoneGap: Appearance.barLayout.zoneGap
     readonly property real safetyGap: Appearance.barLayout.safetyGap
 
-    // The music control sits beside the shell mark in the left utility zone.
-    // Workspaces retain their physical center anchor.
+    readonly property bool wantsLeftUtilities:
+        root.hasUtilityActions
+
+    readonly property real utilityActionsWidth:
+        utilityActionsLoader.item?.implicitWidth ?? 0
+
+    readonly property real leftUtilityFitWidth:
+        Math.max(0, root.width / 2 - middleSection.implicitWidth / 2
+            - root.safetyGap - Appearance.barLayout.edgeInset
+            - leftSidebarButton.implicitWidth - root.zoneGap)
+
+    readonly property bool showLeftUtilities:
+        root.useShortenedForm === 0 && root.wantsLeftUtilities
+        && root.leftUtilityFitWidth >= root.utilityActionsWidth
+
+    readonly property bool showCompactUtilities:
+        root.wantsLeftUtilities && !root.showLeftUtilities
+        && root.leftUtilityFitWidth >= 30
+
+    readonly property real leftUtilitiesOccupiedWidth:
+        root.showLeftUtilities ? root.utilityActionsWidth
+            : root.showCompactUtilities ? 30 : 0
+
+    // Workspaces retain their physical center anchor as optional controls fit.
     readonly property real mediaFitWidth:
         Math.max(0,
             root.width / 2 - middleSection.implicitWidth / 2
             - root.safetyGap - Appearance.barLayout.edgeInset
-            - leftSidebarButton.implicitWidth - root.zoneGap)
+            - leftSidebarButton.implicitWidth - root.zoneGap
+            - (root.leftUtilitiesOccupiedWidth > 0
+                ? root.leftUtilitiesOccupiedWidth + root.zoneGap : 0))
 
     readonly property real mediaDesiredWidth:
         mediaWidget.hasMedia
@@ -84,6 +108,8 @@ Item {
                 - Appearance.barLayout.edgeInset
                 - root.mediaDesiredWidth
                 - (root.mediaDesiredWidth > 0 ? root.zoneGap : 0)
+                - (root.leftUtilitiesOccupiedWidth > 0
+                    ? root.leftUtilitiesOccupiedWidth + root.zoneGap : 0)
         )
 
     readonly property real rightAvailableWidth:
@@ -105,10 +131,6 @@ Item {
 
     readonly property bool wantsRightTray:
         root.useShortenedForm === 0
-
-    readonly property bool wantsRightUtilities:
-        root.useShortenedForm === 0
-        && root.hasUtilityActions
 
     readonly property bool wantsRightWeather:
         root.useShortenedForm === 0
@@ -158,8 +180,8 @@ Item {
             ? root.axiomFitGap + clockRightGroup.implicitWidth
             : 0)
 
-    // Keep the clock, then reserve space for user-enabled weather before
-    // optional resources, tray items and utility actions.
+    // Keep the clock, then reserve space for weather before optional
+    // resources and tray items.
     readonly property real weatherWidth:
         weatherLoader.item?.implicitWidth ?? 0
 
@@ -194,20 +216,6 @@ Item {
         root.rightAfterResourcesWidth
         + (root.showRightTray
             ? root.axiomFitGap + sysTray.implicitWidth
-            : 0)
-
-    readonly property real utilityActionsWidth:
-        utilityActionsLoader.item?.implicitWidth ?? 0
-
-    readonly property bool showRightUtilities:
-        root.wantsRightUtilities
-        && root.rightFitWidth >= root.rightAfterTrayWidth
-            + root.axiomFitGap + root.utilityActionsWidth
-
-    readonly property real rightAfterUtilitiesWidth:
-        root.rightAfterTrayWidth
-        + (root.showRightUtilities
-            ? root.axiomFitGap + root.utilityActionsWidth
             : 0)
 
     // ============================================================
@@ -414,6 +422,88 @@ Item {
         }
     }
 
+    // User-enabled actions live beside the shell control, away from the
+    // system tray and status indicators on the right.
+    Loader {
+        id: utilityActionsLoader
+        z: 4
+        active: root.wantsLeftUtilities
+        visible: root.showLeftUtilities
+        anchors {
+            left: barLeftSideMouseArea.right
+            leftMargin: visible ? root.zoneGap : 0
+            verticalCenter: parent.verticalCenter
+        }
+        sourceComponent: BarGroup {
+            quiet: Appearance.barLayout.axiomComponents
+            padding: Appearance.fluidMode ? 0 : 3
+            UtilButtons {}
+        }
+    }
+
+    Rectangle {
+        visible: root.showLeftUtilities || root.showCompactUtilities
+        z: 5
+        anchors.left: barLeftSideMouseArea.right
+        anchors.leftMargin: Math.round(root.zoneGap / 2)
+        anchors.verticalCenter: parent.verticalCenter
+        width: 1
+        height: 20
+        color: Appearance.colors.colOnLayer0
+        opacity: 0.32
+    }
+
+    RippleButton {
+        id: compactUtilityButton
+        z: 4
+        visible: root.showCompactUtilities
+        implicitWidth: 30
+        implicitHeight: 30
+        anchors.left: barLeftSideMouseArea.right
+        anchors.leftMargin: visible ? root.zoneGap : 0
+        anchors.verticalCenter: parent.verticalCenter
+        buttonRadius: Appearance.radius.control
+        toggled: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+        colBackground: "transparent"
+        colBackgroundToggled: "transparent"
+        colBackgroundHover: Appearance.colors.colLayer1Hover
+        colBackgroundToggledHover: Appearance.colors.colLayer1Hover
+        onClicked: GlobalStates.toggleBarPopup("utilities", root.screen?.name)
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: "tune"
+            iconSize: Appearance.barVisual.axiomIconSize
+            color: Appearance.colors.colOnLayer0
+        }
+    }
+
+    StyledPopup {
+        hoverTarget: compactUtilityButton
+        showOnHover: false
+        forceActive: root.showCompactUtilities
+            && GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        popupRadius: Appearance.radius.bar
+        contentMargin: 10
+        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.screen?.name)
+        UtilButtons {}
+    }
+
+    Rectangle {
+        visible: root.mediaDesiredWidth > 0
+            && (root.showLeftUtilities || root.showCompactUtilities)
+        z: 5
+        anchors.left: root.showLeftUtilities
+            ? utilityActionsLoader.right : compactUtilityButton.right
+        anchors.leftMargin: Math.round(root.zoneGap / 2)
+        anchors.verticalCenter: parent.verticalCenter
+        width: 1
+        height: 20
+        color: Appearance.colors.colOnLayer0
+        opacity: 0.32
+    }
+
 
     // Operations grows from the left navbar control and shares the joined
     // popup geometry used by the right control center.
@@ -526,7 +616,11 @@ Item {
 
         anchors {
             left:
-                barLeftSideMouseArea.right
+                root.showLeftUtilities
+                    ? utilityActionsLoader.right
+                    : root.showCompactUtilities
+                        ? compactUtilityButton.right
+                        : barLeftSideMouseArea.right
 
             leftMargin:
                 visible
@@ -839,6 +933,9 @@ Item {
                     // --------------------------------------------
 
                     HyprlandXkbIndicator {
+                        visible: active
+                            && !Config.options.bar.utilButtons.showKeyboardLayout
+                            && !Config.options.bar.utilButtons.showKeyboardToggle
                         Layout.alignment:
                             Qt.AlignVCenter
 
@@ -999,58 +1096,6 @@ Item {
                 invertSide:
                     Config?.options.bar.bottom
             }
-
-            // Keep user actions distinct from background application icons.
-            Rectangle {
-                visible: root.axiomFluidRight && root.showRightTray
-                    && root.showRightUtilities && sysTray.implicitWidth > 0
-                Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 1
-                implicitHeight: 20
-                color: Appearance.barVisual.axiomDivider
-            }
-
-
-            // ====================================================
-            // Utility actions
-            //
-            // Secondary actions are intentionally unframed in Fluid;
-            // each icon owns its own hover/toggled state.
-            // ====================================================
-
-            Loader {
-                id: utilityActionsLoader
-
-                active:
-                    root.wantsRightUtilities
-
-                visible:
-                    root.showRightUtilities
-
-                Layout.alignment:
-                    Qt.AlignVCenter
-
-                Layout.fillWidth:
-                    false
-
-                Layout.fillHeight:
-                    true
-
-                sourceComponent:
-                    BarGroup {
-
-                        quiet:
-                            Appearance.barLayout.axiomComponents
-
-                        padding:
-                             Appearance.fluidMode
-                                ? 0
-                                : Appearance.barLayout.axiomComponents ? 0 : 3
-
-                        UtilButtons {}
-                    }
-            }
-
 
             // Axiom / precision divider, visible only in Fluid.
             Rectangle {

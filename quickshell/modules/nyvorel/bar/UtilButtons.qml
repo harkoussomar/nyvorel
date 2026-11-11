@@ -12,6 +12,7 @@ import Quickshell.Services.Pipewire
 Item {
     id: root
     property bool borderless: Config.options.bar.borderless
+    property bool showKeyboardLayoutAction: true
     implicitWidth: rowLayout.implicitWidth + rowLayout.spacing * 2
     implicitHeight: rowLayout.implicitHeight
 
@@ -70,44 +71,12 @@ Item {
         }
 
         Loader {
-            active: Config.options.bar.utilButtons.showKeyboardToggle
-            visible: Config.options.bar.utilButtons.showKeyboardToggle
-            sourceComponent: CircleUtilButton {
-                Layout.alignment: Qt.AlignVCenter
-                onClicked: GlobalStates.oskOpen = !GlobalStates.oskOpen
-                MaterialSymbol {
-                    horizontalAlignment: Qt.AlignHCenter
-                    fill: 0
-                    text: "keyboard"
-                    iconSize: Appearance.font.pixelSize.large
-                    color: Appearance.colors.colOnLayer2
-                }
-            }
-        }
-
-        Loader {
-            active: Config.options.bar.utilButtons.showKeyboardLayout
+            active: root.showKeyboardLayoutAction
+                && (Config.options.bar.utilButtons.showKeyboardLayout
+                    || Config.options.bar.utilButtons.showKeyboardToggle)
             visible: active
-            sourceComponent: CircleUtilButton {
+            sourceComponent: KeyboardLayoutButton {
                 Layout.alignment: Qt.AlignVCenter
-                Accessible.name: HyprlandXkb.layoutCodes.length > 1
-                    ? Translation.tr("Switch keyboard layout")
-                    : Translation.tr("Configure keyboard layout")
-                onClicked: {
-                    if (HyprlandXkb.layoutCodes.length > 1)
-                        Quickshell.execDetached(["hyprctl", "switchxkblayout", "all", "next"])
-                    else
-                        Quickshell.execDetached([`${Directories.home}/.local/bin/nyvorel-settings`])
-                }
-                StyledText {
-                    anchors.centerIn: parent
-                    text: (HyprlandXkb.currentLayoutCode
-                        || HyprlandXkb.layoutCodes[0] || "KB")
-                        .split(":")[0].slice(0, 2).toUpperCase()
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnLayer2
-                }
             }
         }
 

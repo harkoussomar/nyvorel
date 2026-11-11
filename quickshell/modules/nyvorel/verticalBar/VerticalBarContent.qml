@@ -25,6 +25,14 @@ Item { // Bar content region
     readonly property bool showTray: root.height >= 700
         && ((TrayService.pinnedItems?.length ?? 0) > 0
             || (TrayService.unpinnedItems?.length ?? 0) > 0)
+    readonly property bool hasOtherUtilityActions:
+        Config.options.bar.utilButtons.showScreenSnip
+        || Config.options.bar.utilButtons.showScreenRecord
+        || Config.options.bar.utilButtons.showColorPicker
+        || Config.options.bar.utilButtons.showMicToggle
+        || Config.options.bar.utilButtons.showDarkModeToggle
+        || Config.options.bar.utilButtons.showKeepAwakeToggle
+        || Config.options.bar.utilButtons.showNightLightToggle
 
     component HorizontalBarSeparator: Rectangle {
         Layout.leftMargin: Appearance.sizes.baseBarHeight / 3
@@ -98,6 +106,50 @@ Item { // Bar content region
                 colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
             }
 
+            HorizontalBarSeparator {
+                visible: Config.options.bar.utilButtons.showKeyboardLayout
+                    || Config.options.bar.utilButtons.showKeyboardToggle
+                    || root.hasOtherUtilityActions
+                color: Appearance.colors.colOnLayer0
+                opacity: 0.32
+            }
+
+            Bar.KeyboardLayoutButton {
+                visible: Config.options.bar.utilButtons.showKeyboardLayout
+                    || Config.options.bar.utilButtons.showKeyboardToggle
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            RippleButton {
+                id: utilityLauncher
+                visible: root.hasOtherUtilityActions
+                Layout.alignment: Qt.AlignHCenter
+                implicitWidth: 30
+                implicitHeight: 30
+                buttonRadius: Appearance.radius.control
+                toggled: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+                colBackground: "transparent"
+                colBackgroundToggled: "transparent"
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackgroundToggledHover: Appearance.colors.colLayer1Hover
+                onClicked: GlobalStates.toggleBarPopup("utilities", root.screen?.name)
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "tune"
+                    iconSize: Appearance.barVisual.axiomIconSize
+                    color: Appearance.colors.colOnLayer0
+                }
+            }
+
+            HorizontalBarSeparator {
+                visible: mediaWidget.hasMedia
+                    && (Config.options.bar.utilButtons.showKeyboardLayout
+                        || Config.options.bar.utilButtons.showKeyboardToggle
+                        || root.hasOtherUtilityActions)
+                color: Appearance.colors.colOnLayer0
+                opacity: 0.32
+            }
+
             VerticalMedia {
                 id: mediaWidget
                 Layout.alignment: Qt.AlignHCenter
@@ -117,6 +169,18 @@ Item { // Bar content region
         contentMargin: 0
         onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
         SidebarLeftContent {}
+    }
+
+    Bar.StyledPopup {
+        hoverTarget: utilityLauncher
+        showOnHover: false
+        forceActive: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+        irisAnimation: true
+        dismissOnOutsideClick: true
+        popupRadius: Appearance.radius.bar
+        contentMargin: 10
+        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.screen?.name)
+        Bar.UtilButtons { showKeyboardLayoutAction: false }
     }
 
     Column { // Middle section
@@ -349,6 +413,9 @@ Item { // Bar content region
                     }
                     Bar.HyprlandXkbIndicator {
                         vertical: true
+                        visible: active
+                            && !Config.options.bar.utilButtons.showKeyboardLayout
+                            && !Config.options.bar.utilButtons.showKeyboardToggle
                         Layout.alignment: Qt.AlignHCenter
                         Layout.bottomMargin: indicatorsColumnLayout.realSpacing
                         color: rightSidebarButton.colText
