@@ -9,12 +9,13 @@ Singleton {
     id: root
 
     property bool smartTray: Config.options.tray.filterPassive
-    property list<var> itemsInUserList: SystemTray.items.values.filter(i => (Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || i.status !== Status.Passive)))
-    property list<var> itemsNotInUserList: SystemTray.items.values.filter(i => (!Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || i.status !== Status.Passive)))
+    readonly property var availableItems: SystemTray.items.values.filter(i => !smartTray || i.status !== Status.Passive)
+    readonly property var itemsInUserList: availableItems.filter(i => Config.options.tray.pinnedItems.includes(i.id))
+    readonly property var itemsNotInUserList: availableItems.filter(i => !Config.options.tray.pinnedItems.includes(i.id))
 
     property bool invertPins: Config.options.tray.invertPinnedItems
-    property list<var> pinnedItems: invertPins ? itemsNotInUserList : itemsInUserList
-    property list<var> unpinnedItems: invertPins ? itemsInUserList : itemsNotInUserList
+    readonly property var pinnedItems: invertPins ? itemsNotInUserList : itemsInUserList
+    readonly property var unpinnedItems: invertPins ? itemsInUserList : itemsNotInUserList
 
     function getTooltipForItem(item) {
         var result = item.tooltipTitle.length > 0 ? item.tooltipTitle
@@ -28,7 +29,7 @@ Singleton {
     function pin(itemId) {
         var pins = Config.options.tray.pinnedItems;
         if (pins.includes(itemId)) return;
-        Config.options.tray.pinnedItems.push(itemId);
+        Config.options.tray.pinnedItems = pins.concat([itemId]);
     }
     function unpin(itemId) {
         Config.options.tray.pinnedItems = Config.options.tray.pinnedItems.filter(id => id !== itemId);

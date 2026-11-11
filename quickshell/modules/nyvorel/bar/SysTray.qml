@@ -21,8 +21,10 @@ Item {
     property bool showOverflowMenu: true
     property var activeMenu: null
 
-    property list<var> pinnedItems: TrayService.pinnedItems
-    property list<var> unpinnedItems: TrayService.unpinnedItems
+    // LockSurface supplies its own Fcitx-only pinned list; keep these
+    // overrideable while preserving reactive var-array replacements.
+    property var pinnedItems: TrayService.pinnedItems
+    property var unpinnedItems: TrayService.unpinnedItems
     onUnpinnedItemsChanged: {
         if (unpinnedItems.length == 0) root.closeOverflowMenu();
     }

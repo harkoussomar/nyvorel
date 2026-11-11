@@ -157,13 +157,29 @@ Item {
             ? root.axiomFitGap + clockRightGroup.implicitWidth
             : 0)
 
+    // Keep the clock, then reserve space for user-enabled weather before
+    // optional resources, tray items and utility actions.
+    readonly property real weatherWidth:
+        weatherLoader.item?.implicitWidth ?? 0
+
+    readonly property bool showRightWeather:
+        root.wantsRightWeather
+        && root.rightFitWidth >= root.rightEssentialWidth
+            + root.axiomFitGap + root.weatherWidth
+
+    readonly property real rightAfterWeatherWidth:
+        root.rightEssentialWidth
+        + (root.showRightWeather
+            ? root.axiomFitGap + root.weatherWidth
+            : 0)
+
     readonly property bool showRightResources:
         root.wantsRightResources
-        && root.rightFitWidth >= root.rightEssentialWidth
+        && root.rightFitWidth >= root.rightAfterWeatherWidth
             + root.axiomFitGap + resourcesRightGroup.implicitWidth
 
     readonly property real rightAfterResourcesWidth:
-        root.rightEssentialWidth
+        root.rightAfterWeatherWidth
         + (root.showRightResources
             ? root.axiomFitGap + resourcesRightGroup.implicitWidth
             : 0)
@@ -192,15 +208,6 @@ Item {
         + (root.showRightUtilities
             ? root.axiomFitGap + root.utilityActionsWidth
             : 0)
-
-    readonly property real weatherWidth:
-        weatherLoader.item?.implicitWidth ?? 0
-
-    readonly property bool showRightWeather:
-        root.wantsRightWeather
-        && root.rightFitWidth >= root.rightAfterUtilitiesWidth
-            + root.axiomFitGap + root.weatherWidth
-
 
     // ============================================================
     // Bar background shadow
@@ -1117,7 +1124,7 @@ Item {
 
 
             // ====================================================
-            // Weather — lowest-priority optional right-side module
+            // Weather — user-enabled right-side module
             // ====================================================
 
             Loader {

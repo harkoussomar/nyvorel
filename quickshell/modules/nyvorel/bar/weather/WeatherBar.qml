@@ -3,18 +3,27 @@ pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
+import qs
 import Quickshell
 import QtQuick
 import QtQuick.Layouts
 
 MouseArea {
     id: root
-    property bool hovered: false
-    implicitWidth: rowLayout.implicitWidth + 10 * 2
-    implicitHeight: Appearance.sizes.barHeight
+    property bool vertical: false
+    readonly property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
+    readonly property bool popupPinned: GlobalStates.isBarPopupOpen("weather", root.barScreenName)
+    implicitWidth: root.vertical ? 30 : rowLayout.implicitWidth + 10 * 2
+    implicitHeight: root.vertical ? 30 : Appearance.sizes.barHeight
 
     acceptedButtons: Qt.LeftButton | Qt.RightButton
-    hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+
+    onClicked: mouse => {
+        if (mouse.button === Qt.LeftButton)
+            GlobalStates.toggleBarPopup("weather", root.barScreenName)
+    }
 
     onPressed: {
         if (mouse.button === Qt.RightButton) {
@@ -41,7 +50,7 @@ MouseArea {
         }
 
         StyledText {
-            visible: true
+            visible: !root.vertical
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colOnLayer1
             text: Weather.data?.temp ?? "--°"
@@ -52,5 +61,9 @@ MouseArea {
     WeatherPopup {
         id: weatherPopup
         hoverTarget: root
+        showOnHover: !Config.options.bar.tooltips.clickToShow
+        forceActive: root.popupPinned
+        dismissOnOutsideClick: true
+        onDismissRequested: GlobalStates.closeBarPopup("weather", root.barScreenName)
     }
 }

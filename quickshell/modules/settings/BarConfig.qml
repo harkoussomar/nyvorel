@@ -664,7 +664,7 @@ ContentPage {
 
                 PreferenceSwitchRow {
                     title: Translation.tr("Require click for supported popups")
-                    subtitle: Translation.tr("Disable hover-triggered popups for bar widgets that honor this preference.")
+                    subtitle: Translation.tr("Open weather details and workspace previews on click instead of hover.")
                     iconName: "ads_click"
                     switchChecked: Config.options.bar.tooltips.clickToShow
 
@@ -685,6 +685,9 @@ ContentPage {
                 PreferenceSwitchRow {
                     title: Translation.tr("Invert tray pinning")
                     subtitle: Translation.tr("Treat apps outside the pinned list as pinned, and listed apps as unpinned.")
+                        + "  " + Translation.tr("%1 in bar · %2 in overflow")
+                            .arg(TrayService.pinnedItems.length)
+                            .arg(TrayService.unpinnedItems.length)
                     iconName: "keep"
                     switchChecked: Config.options.tray.invertPinnedItems
 

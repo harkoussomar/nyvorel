@@ -34,8 +34,12 @@ Item {
     property real contentShift: 0
     property bool contentShown: true
     property bool entered: false
-    property bool loading: false
-    property bool systemLoading: false
+    property bool loading: true
+    property bool systemLoading: true
+    property bool snapshotReady: false
+    property bool systemReady: false
+    property string snapshotError: ""
+    property string systemError: ""
     // Never drop a refresh while a snapshot or a mutating action is running.
     property bool queuedSnapshot: false
     property bool queuedFreshSnapshot: false
@@ -145,6 +149,9 @@ Item {
             return
 
         root.previousTab = root.selectedTab
+        root.inspectorOpen = false
+        root.optionsOpen = false
+        root.stopConfirmKey = ""
         root.selectedTab = next
         root.contentShift =
             next > root.previousTab
@@ -177,10 +184,10 @@ Item {
             payload && payload.ui_contract !== undefined
                 ? payload.ui_contract
                 : "missing"
-        root.showToast(
-            `Operations backend/UI mismatch (schema ${schema}, contract ${contract})`,
-            true
-        )
+        const message = `Operations backend/UI mismatch (schema ${schema}, contract ${contract})`
+        root.snapshotError = message
+        root.systemError = message
+        root.showToast(message, true)
     }
 
     function requestSnapshot(forceFresh) {
@@ -534,6 +541,7 @@ Item {
                         JSON.parse(this.text)
 
                     if (payload.error) {
+                        root.snapshotError = payload.message || "Operations refresh failed"
                         root.showToast(
                             payload.message || "Operations refresh failed",
                             true
@@ -547,8 +555,11 @@ Item {
                     }
 
                     root.snapshotData = payload
+                    root.snapshotReady = true
+                    root.snapshotError = ""
                     root.pruneExpandedRuntimeKeys(payload.runtimes || [])
                 } catch (error) {
+                    root.snapshotError = `Operations data error: ${error}`
                     root.showToast(
                         `Operations data error: ${error}`,
                         true
@@ -570,6 +581,7 @@ Item {
                         JSON.parse(this.text)
 
                     if (payload.error) {
+                        root.systemError = payload.message || "System refresh failed"
                         root.showToast(
                             payload.message || "System refresh failed",
                             true
@@ -583,8 +595,11 @@ Item {
                     }
 
                     root.systemData = payload
+                    root.systemReady = true
+                    root.systemError = ""
                     root.requestSnapshot()
                 } catch (error) {
+                    root.systemError = `System data error: ${error}`
                     root.showToast(
                         `System data error: ${error}`,
                         true
@@ -764,1257 +779,613 @@ Item {
         }
     }
 
-    component HeaderIconButton: RippleButton {
-        id: headerButton
+    // Workbench data projection. Every row is built from the existing snapshot,
+    // system, or package queries; the visual reference contributes no data.
+    property var selectedKeys: ["", "", "", ""]
+    property bool inspectorOpen: false
+    property bool optionsOpen: false
+    property string stopConfirmKey: ""
+    readonly property bool wideWorkbench: root.width >= 1060
+    readonly property bool compactWorkbench: root.width < 680
+    readonly property var currentRows: root.rowsForTab(root.activeView)
+    readonly property var currentSelection: root.selectedRow(root.activeView, root.currentRows)
 
-        property string iconName: ""
-        property string tooltipText: ""
-        property bool active: false
-
-        implicitWidth: 32
-        implicitHeight: 32
-        activeFocusOnTab: true
-
-        Accessible.role: Accessible.Button
-        Accessible.name: tooltipText
-
-        buttonRadius: Appearance.radius.control
-        buttonRadiusPressed: Appearance.radius.control
-        colBackground:
-            active
-                ? (Appearance.colors.colSecondaryContainer)
-                : "transparent"
-        colBackgroundHover:
-              (active
-                 ? Appearance.colors.colSecondaryContainerHover
-                 : Appearance.colors.colLayer2Hover)
-        colRipple:
-             (active
-                ? Appearance.colors.colSecondaryContainerActive
-                : Appearance.colors.colLayer2Active)
-
-        background: Rectangle {
-            radius: headerButton.buttonRadius
-            color: headerButton.buttonColor
-            border.width: (headerButton.tabbedTo? 2 : 0)
-            border.color:
-                 Appearance.colors.colSecondary
-        }
-
-        contentItem: MaterialSymbol {
-            anchors.centerIn: parent
-            text: headerButton.iconName
-            iconSize: 17
-            fill: headerButton.active ? 1 : 0
-            color:
-                false && headerButton.active
-                    ? Appearance.colors.colPrimary
-                    : headerButton.active
-                        ? Appearance.colors.colOnSecondaryContainer
-                        : headerButton.hovered
-                            ? Appearance.colors.colPrimary
-                            : Appearance.colors.colSubtext
-        }
-
-        StyledToolTip {
-            extraVisibleCondition:
-                parent.hovered === true
-            delay: 450
-            text: headerButton.tooltipText
-        }
+    function row(kind, key, title, detail, value, scope, icon, source) {
+        return { kind, key, title, detail, value, scope, icon, source }
     }
 
-    component AtlasSurface: Rectangle {
-        Layout.fillWidth: true
-        radius: 13
-        color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.62)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
-
-    component OpsKicker: StyledText {
-        color: Appearance.colors.colSubtext
-        font.pixelSize: Appearance.font.pixelSize.smallest
-        font.letterSpacing: 1.15
-        font.weight: Font.DemiBold
-    }
-
-    // Compact Operations: shared sections remain theme-aware in all four styles.
-    component SectionTitle: RowLayout {
-        id: section
-
-        property string title: ""
-        property string detail: ""
-        property string iconName: ""
-
-        Layout.fillWidth: true
-        spacing: 7
-        implicitHeight: 30
-
-        MaterialSymbol {
-            visible: section.iconName.length > 0
-            text: section.iconName
-            iconSize: 16
-            color: Appearance.colors.colSubtext
+    function rowsForTab(tab) {
+        const rows = []
+        const summary = root.snapshotData.summary || ({})
+        if (tab === 0) {
+            const failed = Number(root.systemData.failed_unit_count || 0)
+            const jobs = root.jobCount()
+            const local = root.localRuntimeCount()
+            const upgrades = root.updateCount()
+            const history = (root.snapshotData.job_history || []).length
+            const firstRuntime = root.localRuntimes()[0]
+            rows.push(root.row("overview-failed", "overview:failed", "Failed user services",
+                !root.systemReady ? "Checking user services…"
+                    : failed > 0 ? root.countText(failed, "unit") + " need review" : "No failed user services",
+                !root.systemReady ? "Checking" : failed > 0 ? "Attention" : "Clear",
+                !root.systemReady ? "—" : root.countText(failed, "unit"), "error_outline", null))
+            rows.push(root.row("overview-jobs", "overview:jobs", "Running operations",
+                root.snapshotReady ? root.countText(root.trackedProcessCount(), "tracked process") : "Checking current operations…",
+                root.snapshotReady ? String(jobs) + " active" : "Checking", "Live", "progress_activity", null))
+            rows.push(root.row("overview-runtime", "overview:runtime", "Local endpoints",
+                !root.snapshotReady ? "Checking local listeners…"
+                    : firstRuntime ? (firstRuntime.name || "Service") + " · " + (firstRuntime.bind || "local") : "No local listener detected",
+                root.snapshotReady ? String(local) + " listening" : "Checking", "Local", "dns", null))
+            rows.push(root.row("overview-packages", "overview:packages", "Repository upgrades",
+                !root.snapshotReady ? "Checking package status…"
+                    : root.officialUpgradeChecked && root.officialUpgradeRows.length > 0
+                    ? root.officialUpgradeRows[0].name + " package update"
+                    : upgrades !== "—" && Number(upgrades) > 0
+                    ? root.countText(Number(upgrades), "package update") : "Local package database",
+                upgrades === "—" ? "Not checked" : root.countText(Number(upgrades), "update"),
+                "Available", "inventory_2", null))
+            rows.push(root.row("overview-history", "overview:history", "Operation history",
+                root.snapshotReady ? "Recent tasks and earlier runs" : "Checking operation history…",
+                root.snapshotReady ? root.countText(history, "entry") : "Checking",
+                "History", "history", null))
+            return rows
         }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: section.title
-            color:
-                 Appearance.colors.colSubtext
-            font {
-                pixelSize: Appearance.font.pixelSize.small
-                weight: Font.DemiBold
+        if (tab === 1) {
+            const runtimes = root.filteredLocalRuntimes().concat(root.filteredRemoteManagedRuntimes())
+            for (const runtime of runtimes) {
+                rows.push(root.row("runtime", "runtime:" + root.runtimeStableKey(runtime),
+                    runtime.name || "Unnamed service",
+                    runtime.managed_by_arch_remote
+                        ? (runtime.bind || "Remote endpoint") + " · Arch Remote"
+                        : (runtime.scope || "Local") + " · "
+                            + (runtime.protocol && runtime.port
+                                ? String(runtime.protocol).toUpperCase() + " " + runtime.port
+                                : runtime.bind || "Endpoint unavailable"),
+                    runtime.memory || "—", String(runtime.cpu ?? 0) + "% CPU",
+                    runtime.icon || "dns", runtime))
             }
+            return rows
         }
-
-        StyledText {
-            visible: section.detail.length > 0
-            text: section.detail
-            color: Appearance.colors.colSubtext
-            font.pixelSize:
-                Appearance.font.pixelSize.smallest
+        if (tab === 2) {
+            for (const job of root.filteredJobGroups()) {
+                rows.push(root.row("job", "job:" + String(job.key || job.operation_id || job.root_pid),
+                    root.jobDisplayName(job),
+                    root.countText(job.process_count || 1, "process") + " · " + (job.memory || "—"),
+                    String(job.cpu ?? 0) + "%", job.uptime || "Active",
+                    "progress_activity", job))
+            }
+            for (const job of root.filteredJobHistory()) {
+                rows.push(root.row("history", "history:" + String(job.key || job.operation_id || job.name),
+                    root.jobDisplayName(job),
+                    (job.project ? job.project + " · " : "") + (job.result_label || "Result unknown"),
+                    String(job.cpu ?? 0) + "%", job.time_label || "History", "history", job))
+            }
+            return rows
         }
+        for (const unit of root.systemData.failed_units || []) {
+            rows.push(root.row("failed-unit", "unit:" + unit, String(unit),
+                "Failed systemd --user unit", "Failed", "User", "error_outline", unit))
+        }
+        for (const pkg of root.officialUpgradeRows) {
+            rows.push(root.row("package", "repo:" + pkg.name, pkg.name,
+                pkg.installed + " → " + pkg.available, "Update", "Repo", "inventory_2", pkg))
+        }
+        for (const pkg of root.aurUpgradeRows) {
+            rows.push(root.row("aur-package", "aur:" + pkg.name, pkg.name,
+                pkg.installed + " → " + pkg.available, "Update", "AUR", "deployed_code", pkg))
+        }
+        const attention = root.snapshotData.attention || []
+        for (let i = 0; i < attention.length; ++i) {
+            const issue = attention[i]
+            rows.push(root.row("attention", "attention:" + i + ":" + issue.title,
+                issue.title || "System signal", issue.detail || "Review recommended",
+                issue.severity || "Signal", "Monitor", issue.icon || "warning", issue))
+        }
+        return rows
     }
 
-    component MetricTile: Rectangle {
-        id: metric
+    function selectedRow(tab, rows) {
+        if (rows.length === 0) return null
+        const key = root.selectedKeys[tab]
+        for (const item of rows) if (item.key === key) return item
+        return rows[0]
+    }
 
-        property string iconName: ""
-        property string value: "0"
+    function selectRow(entry) {
+        const keys = root.selectedKeys.slice()
+        keys[root.activeView] = entry.key
+        root.selectedKeys = keys
+        if (!root.wideWorkbench) root.inspectorOpen = true
+    }
+
+    function diagnosticCount() {
+        const knownUpdates = root.systemData.updates?.total ?? -1
+        return Number(root.systemData.failed_unit_count || 0)
+            + Math.max(0, knownUpdates, root.officialUpgradeRows.length)
+            + root.aurUpgradeRows.length + root.attentionCount()
+    }
+
+    function headerTitle(tab) {
+        return ["System overview", "Services & endpoints", "Current jobs", "System diagnostics"][tab]
+    }
+    function headerDetail(tab) {
+        return ["Choose an area to inspect. Items are grouped by work type.",
+                "Local and remote-managed runtime connections.",
+                "Active processes and recent operations.",
+                "Failures and updates that need review."][tab]
+    }
+    function columnLabels(tab) {
+        return tab === 1 ? ["SERVICE", "MEMORY", "CPU"]
+            : tab === 2 ? ["OPERATION", "CPU", "AGE"]
+            : tab === 3 ? ["CHECK", "STATE", "SOURCE"]
+            : ["ITEM", "STATE", "SCOPE"]
+    }
+
+    function jobDisplayName(job) {
+        const base = job.name || job.kind || "Operation"
+        if (job.project && job.project !== base)
+            return base + " · " + job.project
+        const identity = String(job.operation_id || job.key || "").split(":")[0]
+        const pid = Number(job.root_pid || job.pid || identity || 0)
+        return pid > 0 ? base + " · PID " + pid : base
+    }
+
+    function inspectorHint(entry) {
+        if (!entry) return ""
+        if (entry.kind === "overview-failed")
+            return "Open Diagnostics to inspect each failed user service."
+        if (entry.kind === "job")
+            return "This process group is active. Stop it only when its current work is no longer needed."
+        if (entry.kind === "history")
+            return "This operation is no longer running. Its result is based on the last observed state."
+        if (entry.kind === "failed-unit")
+            return "Inspect the journal and unit configuration before attempting a restart."
+        if (entry.kind === "package" || entry.kind === "aur-package")
+            return "Package versions come from the local update check."
+        return ""
+    }
+
+    function inspectorHeading(entry) {
+        if (!entry) return "Selection inspector"
+        if (entry.kind === "runtime") return "Service inspector"
+        if (entry.kind === "job" || entry.kind === "history") return "Operation inspector"
+        if (entry.kind === "failed-unit") return "Unit inspector"
+        if (entry.kind === "package" || entry.kind === "aur-package") return "Package inspector"
+        if (entry.kind === "attention") return "Signal inspector"
+        return "Selection inspector"
+    }
+    function inspectorStatus(entry) {
+        if (!entry) return "Nothing selected"
+        if (entry.kind === "runtime") return entry.source.managed_by_arch_remote
+            ? "Managed by Arch Remote" : entry.source.status || "Listening"
+        if (entry.kind === "job") return "Currently running"
+        if (entry.kind === "history") return entry.source.result_label || "Ended"
+        if (entry.kind === "failed-unit") return "Service failed"
+        if (entry.kind === "package" || entry.kind === "aur-package") return "Update available"
+        if (entry.kind === "attention") return entry.source.severity || "Attention"
+        return entry.value
+    }
+    function inspectorFields(entry) {
+        if (!entry) return []
+        const item = entry.source || ({})
+        if (entry.kind === "runtime") return [
+            { label: "Scope", value: item.scope || "—" },
+            { label: "Endpoint", value: item.bind || "—" },
+            { label: "PID", value: String(item.pid || "—") },
+            { label: "Uptime", value: item.uptime || "—" },
+            { label: "Directory", value: item.cwd || "—" }
+        ]
+        if (entry.kind === "job" || entry.kind === "history") return [
+            { label: "Processes", value: String(item.process_count || 1) },
+            { label: entry.kind === "job" ? "Elapsed" : "Finished", value: item.uptime || item.time_label || "—" },
+            { label: "Project", value: item.project || "—" }
+        ]
+        if (entry.kind === "failed-unit") return [
+            { label: "Type", value: "User service" },
+            { label: "State", value: "Failed" },
+            { label: "Other failures", value: String(Math.max(0, (root.systemData.failed_unit_count || 0) - 1)) }
+        ]
+        if (entry.kind === "package" || entry.kind === "aur-package") return [
+            { label: "Source", value: entry.kind === "package" ? "Repository" : "AUR" },
+            { label: "Installed", value: item.installed || "—" },
+            { label: "Available", value: item.available || "—" }
+        ]
+        if (entry.kind === "attention") return [
+            { label: "Severity", value: item.severity || "Signal" },
+            { label: "Source", value: "Operations monitor" }
+        ]
+        if (entry.kind === "overview-failed") return [
+            { label: "Scope", value: "Systemd user" },
+            { label: "Units", value: root.countText(root.systemData.failed_unit_count, "failed") },
+            { label: "Severity", value: entry.value }
+        ]
+        return [
+            { label: "State", value: entry.value },
+            { label: "Scope", value: entry.scope }
+        ]
+    }
+    function inspectorActions(entry) {
+        if (!entry) return []
+        if (entry.kind === "runtime") {
+            const runtime = entry.source
+            const actions = []
+            if (runtime.managed_by_arch_remote) actions.push({label:"Open Remote", icon:"shield", action:"remote"})
+            else {
+                if (runtime.url) actions.push({label:"Open", icon:"open_in_new", action:"open"})
+                actions.push({label:"Terminal", icon:"terminal", action:"terminal"})
+            }
+            actions.push({label:runtime.url ? "Copy URL" : "Copy endpoint", icon:"content_copy", action:"copy"})
+            if (!runtime.managed_by_arch_remote) {
+                actions.push({label:"Files", icon:"folder_open", action:"files"})
+                actions.push({label:"Editor", icon:"code", action:"editor"})
+            }
+            if (runtime.pin_key) actions.push({label:runtime.pinned ? "Unpin service" : "Pin service", icon:"keep", action:"pin"})
+            if (!runtime.managed_by_arch_remote && runtime.operations_stop_allowed)
+                actions.push({label:root.stopConfirmKey === entry.key ? "Confirm stop" : "Stop process", icon:"stop", action:"stop-runtime", danger:true})
+            return actions
+        }
+        if (entry.kind === "job" && entry.source.root_pid > 0)
+            return [{label:root.stopConfirmKey === entry.key ? "Confirm stop" : "Stop job", icon:"stop", action:"stop-job", danger:true}]
+        if (entry.kind === "overview-failed") return [
+            {label:"Open diagnostics", icon:"error_outline", action:"diagnostics"},
+            {label:"Show runtimes", icon:"dns", action:"runtime"}
+        ]
+        if (entry.kind === "overview-runtime") return [{label:"Show runtimes", icon:"dns", action:"runtime"}]
+        if (entry.kind === "overview-jobs" || entry.kind === "overview-history")
+            return [{label:"Open jobs", icon:"progress_activity", action:"jobs"}]
+        if (entry.kind === "overview-packages") return [{label:"Open diagnostics", icon:"inventory_2", action:"diagnostics"}]
+        if (entry.kind === "aur-package") return [{label:"Scan AUR", icon:"refresh", action:"aur"}]
+        return [{label:"Refresh checks", icon:"refresh", action:"refresh"}]
+    }
+    function performInspectorAction(action, entry) {
+        if (!entry) return
+        const item = entry.source || ({})
+        if (action === "diagnostics") { root.switchTab(3); return }
+        if (action === "runtime") { root.switchTab(1); return }
+        if (action === "jobs") { root.switchTab(2); return }
+        if (action === "refresh") { root.refreshAll(); return }
+        if (action === "aur") { root.requestAurUpgrades(); return }
+        if (action === "remote") { root.openArchRemote(); return }
+        if (action === "open") { root.runAction(["open", item.url]); return }
+        if (action === "terminal") { root.runAction(["terminal", String(item.pid), String(item.start_ticks || 0)]); return }
+        if (action === "copy") {
+            root.runAction(["copy-runtime", String(item.pid), String(item.start_ticks || 0), item.url ? "url" : "endpoint"])
+            return
+        }
+        if (action === "files") { root.runAction(["open-folder", String(item.pid), String(item.start_ticks || 0)]); return }
+        if (action === "editor") { root.runAction(["open-editor", String(item.pid), String(item.start_ticks || 0)]); return }
+        if (action === "pin") { root.runAction(["toggle-pin", item.pin_key]); return }
+        if (action === "stop-runtime" || action === "stop-job") {
+            if (root.stopConfirmKey !== entry.key) {
+                root.stopConfirmKey = entry.key
+                stopConfirmation.restart()
+                return
+            }
+            root.stopConfirmKey = ""
+            stopConfirmation.stop()
+            if (action === "stop-runtime")
+                root.runAction(["stop", String(item.pid), String(item.start_ticks || 0), String(item.pin_key || "")])
+            else
+                root.runAction(["stop-operation", String(item.root_pid), String(item.root_start_ticks || 0)])
+        }
+    }
+    Timer { id: stopConfirmation; interval: 3000; onTriggered: root.stopConfirmKey = "" }
+
+    component WorkbenchAction: RippleButton {
+        id: actionButton
         property string label: ""
-        property bool attention: false
-
-        Layout.fillWidth: true
-        implicitHeight: 98
-
-        radius: 12
-        color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.72)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        ColumnLayout {
-            anchors {
-                fill: parent
-                margins: 14
-            }
-            spacing: 2
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 5
-
-                MaterialSymbol {
-                    text: metric.iconName
-                    iconSize: 15
-                    color: metric.attention ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: metric.value
-                    color: Appearance.colors.colOnLayer1
-                    font {
-                        pixelSize: 28
-                        weight: Font.DemiBold
-                    }
-                    horizontalAlignment: Text.AlignLeft
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: metric.label
-                color: Appearance.colors.colSubtext
-                font.pixelSize:
-                    Appearance.font.pixelSize.smallest
-                elide: Text.ElideRight
-            }
-        }
-    }
-
-    component SearchField: TextField {
-        id: searchField
-
-        property string iconName: "search"
-
-        Layout.fillWidth: true
-        implicitHeight: 34
-        leftPadding: 34
-        rightPadding: 12
-        topPadding: 0
-        bottomPadding: 0
-        color: Appearance.colors.colOnLayer1
-        placeholderTextColor: Appearance.colors.colSubtext
-        selectionColor: Appearance.colors.colPrimary
-        selectedTextColor: Appearance.colors.colOnPrimary
-        font.pixelSize: Appearance.font.pixelSize.small
-        activeFocusOnTab: true
-        Accessible.role: Accessible.EditableText
-        Accessible.name: placeholderText
-
-        background: Rectangle {
-            radius: Appearance.radius.control
-            color:
-                searchField.activeFocus
-                    ? Appearance.colors.colLayer2
-                    : Appearance.colors.colLayer1
-            border.width: searchField.activeFocus ? 1 : 0
-            border.color: Appearance.colors.colPrimary
-
-            MaterialSymbol {
-                anchors.left: parent.left
-                anchors.leftMargin: 11
-                anchors.verticalCenter: parent.verticalCenter
-                text: searchField.iconName
-                iconSize: 16
-                color:
-                    searchField.activeFocus
-                        ? Appearance.colors.colPrimary
-                        : Appearance.colors.colSubtext
-            }
-        }
-    }
-
-    component FilterChip: RippleButton {
-        id: chip
-
-        property string label: ""
-        property bool active: false
-
-        implicitHeight: 27
-        implicitWidth: chipText.implicitWidth + 20
-        activeFocusOnTab: true
-        Accessible.role: Accessible.Button
-        Accessible.name: label
-        Accessible.checked: active
-
-        buttonRadius: Appearance.radius.full
-        buttonRadiusPressed: Appearance.radius.full
-        colBackground:
-            active
-                ? Appearance.colors.colSecondaryContainer
-                : Appearance.colors.colLayer1
-        colBackgroundHover:
-            active
-                ? Appearance.colors.colSecondaryContainerHover
-                : Appearance.colors.colLayer2Hover
-        colRipple:
-            active
-                ? Appearance.colors.colSecondaryContainerActive
-                : Appearance.colors.colLayer2Active
-
-        contentItem: StyledText {
-            id: chipText
-            anchors.centerIn: parent
-            text: chip.label
-            color:
-                chip.active
-                    ? Appearance.colors.colOnSecondaryContainer
-                    : Appearance.colors.colSubtext
-            font {
-                pixelSize: Appearance.font.pixelSize.smallest
-                weight: chip.active ? Font.DemiBold : Font.Medium
-            }
-        }
-    }
-
-    component SmallAction: RippleButton {
-        id: action
-
-        property string iconName: ""
-        property string label: ""
+        property string symbol: ""
         property bool danger: false
-
-        implicitHeight: 32
-        implicitWidth:
-            Math.max(
-                62,
-                actionText.implicitWidth + 34
-            )
-
-        activeFocusOnTab: true
+        property bool pinAction: false
+        property bool plain: false
+        property bool leftAligned: false
+        implicitHeight: 30
+        implicitWidth: Math.max(62, actionText.implicitWidth + (symbol ? 35 : 22))
+        buttonRadius: Appearance.radius.control
+        colBackground: danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.91)
+            : pinAction ? ColorUtils.transparentize(Appearance.colors.colSecondary, 0.90) : "transparent"
+        colBackgroundHover: danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.82)
+            : pinAction ? ColorUtils.transparentize(Appearance.colors.colSecondary, 0.82)
+            : Appearance.colors.colLayer1Hover
+        colRipple: Appearance.colors.colLayer1Active
+        background: Rectangle {
+            radius: actionButton.buttonRadius
+            color: actionButton.buttonColor
+            border.width: actionButton.plain ? 0 : 1
+            border.color: actionButton.danger
+                ? ColorUtils.transparentize(Appearance.colors.colError, 0.58)
+                : actionButton.pinAction
+                ? ColorUtils.transparentize(Appearance.colors.colSecondary, 0.62)
+                : Appearance.colors.colLayer0Border
+        }
         Accessible.role: Accessible.Button
         Accessible.name: label
+        contentItem: RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: actionButton.leftAligned ? 10 : 0
+            anchors.rightMargin: actionButton.leftAligned ? 7 : 0
+            spacing: 6
+            Item { Layout.fillWidth: !actionButton.leftAligned }
+            MaterialSymbol { visible: actionButton.symbol.length > 0; text: actionButton.symbol; iconSize: 14;
+                color: actionButton.danger ? Appearance.colors.colError : actionButton.pinAction
+                    ? Appearance.colors.colSecondary : actionButton.plain
+                    ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer0 }
+            StyledText { id: actionText; text: actionButton.label; font.pixelSize: 12;
+                Layout.maximumWidth: Math.max(0, actionButton.width - 34);
+                elide: Text.ElideRight;
+                color: actionButton.danger ? Appearance.colors.colError : actionButton.pinAction
+                    ? Appearance.colors.colSecondary : actionButton.plain
+                    ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer0 }
+            Item { Layout.fillWidth: true }
+        }
+    }
 
+    component WorkbenchNavItem: RippleButton {
+        id: nav
+        required property int tabIndex
+        readonly property bool chosen: root.selectedTab === tabIndex
+        implicitHeight: 39
+        Layout.fillWidth: true
         buttonRadius: Appearance.radius.control
-        buttonRadiusPressed:
-            Appearance.radius.control
-
-        colBackground:
-            danger
-                ? Appearance.colors.colErrorContainer
-                : Appearance.colors.colLayer2
-        colBackgroundHover:
-            danger
-                ? Appearance.colors.colErrorContainerHover
-                : Appearance.colors.colLayer2Hover
-        colRipple:
-            danger
-                ? Appearance.colors.colErrorContainerActive
-                : Appearance.colors.colLayer2Active
-
-        contentItem: Row {
-            anchors.centerIn: parent
-            spacing: 5
-
+        colBackground: chosen ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.88) : "transparent"
+        colBackgroundHover: chosen ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.80) : Appearance.colors.colLayer1Hover
+        colRipple: Appearance.colors.colLayer1Active
+        Accessible.role: Accessible.Button
+        Accessible.name: root.tabName(tabIndex)
+        Accessible.checked: chosen
+        onClicked: root.switchTab(tabIndex)
+        background: Rectangle {
+            radius: nav.buttonRadius
+            color: nav.buttonColor
+            border.width: nav.chosen ? 1 : 0
+            border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.72)
+        }
+        contentItem: RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: root.compactWorkbench ? 0 : 12
+            anchors.rightMargin: root.compactWorkbench ? 0 : 11
+            spacing: 11
             MaterialSymbol {
-                anchors.verticalCenter:
-                    parent.verticalCenter
-                text: action.iconName
-                iconSize: 15
-                color:
-                    action.danger
-                        ? Appearance.colors.colOnErrorContainer
-                        : Appearance.colors.colOnLayer1
+                Layout.alignment: root.compactWorkbench ? Qt.AlignHCenter : Qt.AlignVCenter
+                Layout.preferredWidth: root.compactWorkbench ? nav.width : 17
+                horizontalAlignment: Text.AlignHCenter
+                text: root.tabIcon(nav.tabIndex)
+                iconSize: 17
+                color: nav.chosen ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
             }
-
             StyledText {
-                id: actionText
-                anchors.verticalCenter:
-                    parent.verticalCenter
-                text: action.label
-                color:
-                    action.danger
-                        ? Appearance.colors.colOnErrorContainer
-                        : Appearance.colors.colOnLayer1
-                font {
-                    pixelSize:
-                        Appearance.font.pixelSize.smallest
-                    weight: Font.DemiBold
-                }
+                visible: !root.compactWorkbench
+                Layout.fillWidth: true
+                text: root.tabName(nav.tabIndex)
+                font.pixelSize: 13
+                color: nav.chosen ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
+            }
+            StyledText {
+                visible: !root.compactWorkbench && nav.tabIndex > 0
+                text: nav.tabIndex === 1 ? String(root.runtimeCount())
+                    : nav.tabIndex === 2 ? String(root.jobCount()) : String(root.diagnosticCount())
+                font.pixelSize: 10
+                color: Appearance.colors.colSubtext
             }
         }
     }
 
-    component RuntimeCard: Rectangle {
-        id: runtimeCard
-
-        required property var runtime
-        property bool expanded: false
-        property bool stopArmed: false
-
-        signal openRequested()
-        signal terminalRequested()
-        signal stopRequested()
-        signal pinRequested()
-        signal expansionToggleRequested()
-        signal remoteRequested()
-        signal copyRequested(string mode)
-        signal folderRequested()
-        signal editorRequested()
-
-        Layout.fillWidth: true
-        implicitHeight: expanded ? 224 : 122
-
-        radius: 11
-        color: runtime.pinned
-            ? ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colLayer1, 0.55)
-            : ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: runtime.pinned ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
-        clip: true
-
-        Behavior on implicitHeight {
-            MotionAnim {
-                type: MotionAnim.FastSpatial
-            }
-        }
-
-        Timer {
-            interval: 3000
-            running: runtimeCard.stopArmed
-            repeat: false
-            onTriggered: runtimeCard.stopArmed = false
-        }
-
-        ColumnLayout {
-            anchors {
-                fill: parent
-                margins: 9
-            }
-            spacing: 6
-
+    component WorkbenchRow: Rectangle {
+        id: resultRow
+        required property var entry
+        property bool chosen: root.currentSelection && root.currentSelection.key === entry.key
+        width: ListView.view ? ListView.view.width : 0
+        height: 57
+        color: chosen ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.90)
+            : pointer.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
+        Rectangle { anchors.left: parent.left; width: 3; height: parent.height;
+            visible: resultRow.chosen; color: Appearance.colors.colPrimary }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;
+            color: ColorUtils.transparentize(Appearance.colors.colLayer0Border, 0.45) }
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: centerPane.rowInset
+            anchors.rightMargin: centerPane.rowInset
+            spacing: 10
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
-
-                Rectangle {
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    radius: Appearance.radius.control
-                    color:
-                        runtime.managed_by_arch_remote
-                            ? Appearance.colors.colLayer2
-                            : runtime.exposed
-                                ? Appearance.colors.colSecondaryContainer
-                                : Appearance.colors.colLayer2
-
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text:
-                            runtime.icon && runtime.icon.length > 0
-                                ? runtime.icon
-                                : runtime.managed_by_arch_remote
-                                    ? runtime.managed_icon
-                                    : runtime.exposed
-                                        ? "public"
-                                        : "dns"
-                        iconSize: 18
-                        color:
-                            runtime.exposed && !runtime.managed_by_arch_remote
-                                ? Appearance.colors.colOnSecondaryContainer
-                                : Appearance.colors.colPrimary
-                    }
+                Layout.minimumWidth: 0
+                spacing: 12
+                MaterialSymbol {
+                    text: resultRow.entry.icon
+                    iconSize: 17
+                    color: resultRow.entry.kind === "failed-unit" || resultRow.entry.kind === "overview-failed"
+                        ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                 }
-
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 0
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: runtime.name
-                        color: Appearance.colors.colOnLayer1
-                        elide: Text.ElideRight
-                        font {
-                            pixelSize: Appearance.font.pixelSize.small
-                            weight: Font.DemiBold
-                        }
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text:
-                            runtime.managed_by_arch_remote
-                                ? `${runtime.bind} · managed by Arch Remote`
-                                : `${runtime.kind} · ${runtime.scope} · :${runtime.port}`
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        elide: Text.ElideMiddle
-                    }
-                }
-
-                Rectangle {
-                    implicitWidth: runtimeStatusText.implicitWidth + 14
-                    implicitHeight: 22
-                    radius: Appearance.radius.full
-                    color:
-                        runtime.managed_by_arch_remote
-                            ? Appearance.colors.colLayer2
-                            : runtime.exposed
-                                ? Appearance.colors.colSecondaryContainer
-                                : Appearance.colors.colLayer2
-
-                    StyledText {
-                        id: runtimeStatusText
-                        anchors.centerIn: parent
-                        text:
-                            runtime.managed_by_arch_remote
-                                ? "Remote"
-                                : runtime.exposed
-                                    ? runtime.scope
-                                    : runtime.status
-                        color:
-                            runtime.exposed && !runtime.managed_by_arch_remote
-                                ? Appearance.colors.colOnSecondaryContainer
-                                : Appearance.colors.colSubtext
-                        font {
-                            pixelSize: Appearance.font.pixelSize.smallest
-                            weight: Font.DemiBold
-                        }
-                    }
+                    Layout.minimumWidth: 0
+                    spacing: 2
+                    StyledText { Layout.fillWidth: true; text: resultRow.entry.title;
+                        color: Appearance.colors.colOnLayer0; font.pixelSize: 13;
+                        font.weight: Font.Medium; elide: Text.ElideRight }
+                    StyledText { Layout.fillWidth: true; text: resultRow.entry.detail;
+                        color: Appearance.colors.colSubtext; font.pixelSize: 11;
+                        elide: Text.ElideRight }
                 }
             }
-
             StyledText {
-                Layout.fillWidth: true
-                text: `${runtime.cpu}% CPU · ${runtime.memory} · ${runtime.uptime}`
+                Layout.preferredWidth: centerPane.valueWidth
+                Layout.maximumWidth: centerPane.valueWidth
+                horizontalAlignment: Text.AlignLeft
+                text: resultRow.entry.value
                 color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                font.pixelSize: 12
                 elide: Text.ElideRight
             }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 1
-                color: Appearance.colors.colLayer0Border
-                opacity: 0.72
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                SmallAction {
-                    visible: runtime.managed_by_arch_remote
-                    iconName: "shield"
-                    label: "Open Remote"
-                    onClicked: runtimeCard.remoteRequested()
-                }
-
-                SmallAction {
-                    visible: !runtime.managed_by_arch_remote && runtime.url.length > 0
-                    iconName: "open_in_new"
-                    label: "Open"
-                    onClicked: runtimeCard.openRequested()
-                }
-
-                SmallAction {
-                    visible: !runtime.managed_by_arch_remote
-                    iconName: "terminal"
-                    label: "Terminal"
-                    onClicked: runtimeCard.terminalRequested()
-                }
-
-                Item { Layout.fillWidth: true }
-
-                HeaderIconButton {
-                    iconName: "keep"
-                    tooltipText: runtime.pinned ? "Unpin runtime" : "Pin runtime"
-                    active: runtime.pinned
-                    onClicked: runtimeCard.pinRequested()
-                }
-
-                HeaderIconButton {
-                    iconName: runtimeCard.expanded ? "expand_less" : "expand_more"
-                    tooltipText: runtimeCard.expanded ? "Hide details" : "Show details"
-                    onClicked: runtimeCard.expansionToggleRequested()
-                }
-
-                SmallAction {
-                    visible: !runtime.managed_by_arch_remote && runtime.operations_stop_allowed
-                    iconName: "stop"
-                    label: runtimeCard.stopArmed ? "Confirm" : "Stop"
-                    danger: runtimeCard.stopArmed
-                    onClicked: {
-                        if (!runtimeCard.stopArmed) {
-                            runtimeCard.stopArmed = true
-                            return
-                        }
-                        runtimeCard.stopArmed = false
-                        runtimeCard.stopRequested()
-                    }
-                }
-            }
-
-            ColumnLayout {
-                visible: runtimeCard.expanded
-                Layout.fillWidth: true
-                spacing: 3
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: Appearance.colors.colLayer0Border
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: `PID ${runtime.pid} · ${runtime.protocol || "tcp"} · ${runtime.bind} · ${runtime.scope}`
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideRight
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: runtime.cwd.length > 0 ? runtime.cwd : "Working directory unavailable"
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideMiddle
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    SmallAction {
-                        iconName: "content_copy"
-                        label: runtime.url.length > 0 ? "Copy URL" : "Copy endpoint"
-                        onClicked:
-                            runtimeCard.copyRequested(
-                                runtime.url.length > 0 ? "url" : "endpoint"
-                            )
-                    }
-
-                    SmallAction {
-                        visible: !runtime.managed_by_arch_remote
-                        iconName: "folder_open"
-                        label: "Files"
-                        onClicked: runtimeCard.folderRequested()
-                    }
-
-                    SmallAction {
-                        visible: !runtime.managed_by_arch_remote
-                        iconName: "code"
-                        label: "Editor"
-                        onClicked: runtimeCard.editorRequested()
-                    }
-
-                    Item { Layout.fillWidth: true }
-                }
-            }
-        }
-    }
-
-    component JobGroupRow: Rectangle {
-        id: jobGroupRow
-
-        required property var job
-        property bool historical: false
-        property bool stopArmed: false
-
-        signal stopRequested()
-
-        Layout.fillWidth: true
-        implicitHeight: historical ? 43 : 59
-        radius: 10
-        color: historical ? "transparent"
-            : Appearance.colors.colLayer1
-        border.width: historical ? 0 : 1
-        border.color: Appearance.colors.colLayer0Border
-
-        Timer {
-            interval: 3000
-            running: jobGroupRow.stopArmed
-            repeat: false
-            onTriggered: jobGroupRow.stopArmed = false
-        }
-
-        RowLayout {
-            anchors {
-                fill: parent
-                margins: historical ? 6 : 9
-            }
-            spacing: 8
-
-            MaterialSymbol {
-                text: historical ? "history" : "progress_activity"
-                iconSize: 16
-                color: historical ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text:
-                        job.project && job.project.length > 0
-                            ? `${job.name} · ${job.project}`
-                            : job.name
-                    color: Appearance.colors.colOnLayer1
-                    font {
-                        pixelSize: Appearance.font.pixelSize.small
-                        weight: historical ? Font.Normal : Font.DemiBold
-                    }
-                    elide: Text.ElideRight
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text:
-                        historical
-                            ? `${job.time_label || "Ended"} · ${job.result_label || "Result unknown"}`
-                            : `${job.process_count || 1} ${(job.process_count || 1) === 1 ? "process" : "processes"} · ${job.cpu}% CPU · ${job.memory} · ${job.uptime}`
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideMiddle
-                }
-            }
-
-            SmallAction {
-                visible: !historical && job.root_pid > 0
-                iconName: "stop"
-                label: jobGroupRow.stopArmed ? "Confirm" : "Stop"
-                danger: jobGroupRow.stopArmed
-                onClicked: {
-                    if (!jobGroupRow.stopArmed) {
-                        jobGroupRow.stopArmed = true
-                        return
-                    }
-                    jobGroupRow.stopArmed = false
-                    jobGroupRow.stopRequested()
-                }
-            }
-        }
-    }
-
-    component AttentionRow: Rectangle {
-        id: attentionRow
-
-        required property var issue
-
-        Layout.fillWidth: true
-        implicitHeight: 59
-        radius: 10
-        color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        RowLayout {
-            anchors {
-                fill: parent
-                margins: 9
-            }
-            spacing: 9
-
-            MaterialSymbol {
-                text: issue.icon
-                iconSize: 17
-                color:
-                    issue.severity === "critical"
-                        ? Appearance.colors.colOnErrorContainer
-                        : issue.severity === "warning"
-                            ? Appearance.colors.colPrimary
-                            : Appearance.colors.colSubtext
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 0
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: issue.title
-                    color: Appearance.colors.colOnLayer1
-                    font {
-                        pixelSize: Appearance.font.pixelSize.small
-                        weight: Font.DemiBold
-                    }
-                    elide: Text.ElideRight
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: issue.detail
-                    color: Appearance.colors.colSubtext
-                    opacity: 1
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideRight
-                }
-            }
-        }
-    }
-
-    component OverviewLink: RippleButton {
-        id: overviewLink
-        property string iconName: ""
-        property string title: ""
-        property string value: ""
-        property string subtitle: ""
-        property int tabIndex: 0
-
-        Layout.fillWidth: true
-        implicitHeight: 58
-        activeFocusOnTab: true
-        buttonRadius: Appearance.radius.card
-        buttonRadiusPressed: Appearance.radius.card
-        colBackground:
-             Appearance.colors.colLayer1
-        colBackgroundHover:
-             Appearance.colors.colLayer1Hover
-        colRipple:
-             Appearance.colors.colLayer1Active
-
-        onClicked: root.switchTab(tabIndex)
-
-        contentItem: RowLayout {
-            anchors {
-                fill: parent
-                margins: 10
-            }
-            spacing: 9
-
-            Rectangle {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 28
-                radius: Appearance.radius.control
-                color: Appearance.colors.colLayer2
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: overviewLink.iconName
-                    iconSize: 15
-                    color: Appearance.colors.colPrimary
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 0
-                StyledText {
-                    Layout.fillWidth: true
-                    text: overviewLink.title
-                    color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: overviewLink.subtitle
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideRight
-                }
-            }
-
             StyledText {
-                text: overviewLink.value
-                color: Appearance.colors.colOnLayer1
-                font.weight: Font.DemiBold
-            }
-
-            MaterialSymbol {
-                text: "chevron_right"
-                iconSize: 17
+                visible: centerPane.showScopeColumn
+                Layout.preferredWidth: centerPane.scopeWidth
+                Layout.maximumWidth: centerPane.scopeWidth
+                text: resultRow.entry.scope
                 color: Appearance.colors.colSubtext
+                font.pixelSize: 11
+                elide: Text.ElideRight
             }
         }
-    }
-
-    // Workbench row: opens the already available Runtime tab, without new
-    // shell commands or an unsafe URL open side effect.
-    // Lightweight, read-only data rows: never execute package installs.
-    component DiagnosticPackageRow: Rectangle {
-        id: packageRow
-        required property var packageInfo
-        property bool aur: false
-        Layout.fillWidth: true
-        implicitHeight: 55
-        radius: 10
-        color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-        RowLayout {
+        MouseArea {
+            id: pointer
             anchors.fill: parent
-            anchors.margins: 9
-            spacing: 9
-            MaterialSymbol {
-                text: packageRow.aur ? "deployed_code" : "inventory_2"
-                iconSize: 17
-                color: Appearance.colors.colPrimary
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-                StyledText {
-                    Layout.fillWidth: true
-                    text: packageRow.packageInfo.name
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer1
-                    elide: Text.ElideMiddle
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: packageRow.packageInfo.installed + "  →  " + packageRow.packageInfo.available
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    elide: Text.ElideMiddle
-                }
-            }
-            StyledText {
-                text: packageRow.aur ? "AUR" : "REPO"
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colSubtext
-            }
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.selectRow(resultRow.entry)
         }
     }
 
-    component DiagnosticServiceRow: Rectangle {
-        id: failedRow
-        required property string unitName
-        Layout.fillWidth: true
-        implicitHeight: 40
-        radius: 10
-        color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 9
-            spacing: 9
-            MaterialSymbol {
-                text: "error_outline"
-                iconSize: 17
-                color: Appearance.colors.colError
+    component SelectionInspector: Rectangle {
+        id: inspector
+        property var entry: null
+        property bool overlay: false
+        readonly property bool healthy: entry && (entry.kind === "runtime" || entry.kind === "job")
+        readonly property color statusColor: healthy
+            ? Appearance.colors.colSecondary : Appearance.colors.colPrimary
+        gradient: Gradient {
+            GradientStop {
+                position: 0
+                color: Config.options.bar.vertical || Config.options.bar.bottom
+                    ? ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78)
+                    : "transparent"
             }
-            StyledText {
-                Layout.fillWidth: true
-                text: failedRow.unitName
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colOnLayer1
-                elide: Text.ElideMiddle
-            }
-            StyledText {
-                text: "FAILED"
-                color: Appearance.colors.colError
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                font.weight: Font.DemiBold
+            GradientStop { position: 0.14; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78) }
+            GradientStop { position: 0.86; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78) }
+            GradientStop {
+                position: 1
+                color: !Config.options.bar.vertical && Config.options.bar.bottom
+                    ? "transparent"
+                    : ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78)
             }
         }
-    }
-
-    component WorkbenchPinnedRow: Rectangle {
-        id: pinnedRow
-        required property var runtime
-        Layout.fillWidth: true
-        implicitHeight: 54
-        radius: Appearance.radius.control
-        color: Appearance.colors.colLayer1
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 8
-            MaterialSymbol {
-                text: "push_pin"
-                iconSize: 17
-                color: Appearance.colors.colPrimary
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-                StyledText {
-                    Layout.fillWidth: true
-                    text: pinnedRow.runtime.name || "Pinned endpoint"
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer1
-                    elide: Text.ElideRight
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: pinnedRow.runtime.url || pinnedRow.runtime.bind || "Local endpoint"
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideMiddle
-                }
-            }
-            SmallAction {
-                visible: pinnedRow.runtime.url && pinnedRow.runtime.url.length > 0
-                iconName: "open_in_new"
-                label: "Open"
-                onClicked: root.runAction(["open", String(pinnedRow.runtime.url)])
-            }
-            SmallAction {
-                iconName: "arrow_forward"
-                label: "View"
-                onClicked: {
-                    root.runtimeFilter = "pinned"
-                    root.runtimeQuery = ""
-                    root.switchTab(1)
-                }
-            }
-        }
-    }
-
-    component WorkbenchEventRow: Rectangle {
-        id: eventRow
-        required property var entry
-        property bool running: false
-        Layout.fillWidth: true
-        implicitHeight: 50
-        radius: Appearance.radius.control
-        color: Appearance.colors.colLayer1
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 9
-            MaterialSymbol {
-                text: eventRow.running ? "progress_activity" : "history"
-                iconSize: 16
-                color: eventRow.running
-                    ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-                StyledText {
-                    Layout.fillWidth: true
-                    text: eventRow.entry.name || eventRow.entry.kind || "Operation"
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer1
-                    elide: Text.ElideRight
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: eventRow.running
-                        ? `${eventRow.entry.process_count || 1} process(es) · ${eventRow.entry.uptime || "active"}`
-                        : `${eventRow.entry.time_label || "Finished"} · ${eventRow.entry.result_label || "Outcome unknown"}`
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
-                }
-            }
-            StyledText {
-                text: eventRow.running ? "LIVE" : "ENDED"
-                color: eventRow.running ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                font.weight: Font.DemiBold
-            }
-        }
-    }
-
-    component EmptyState: Item {
-        id: emptyState
-
-        property string iconName: "check_circle"
-        property string title: ""
-        property string subtitle: ""
-
-        Layout.fillWidth: true
-        implicitHeight: 98
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 5
-
-            MaterialSymbol {
-                anchors.horizontalCenter:
-                    parent.horizontalCenter
-                text: emptyState.iconName
-                iconSize: 24
-                color: Appearance.colors.colSubtext
-            }
-
-            StyledText {
-                anchors.horizontalCenter:
-                    parent.horizontalCenter
-                text: emptyState.title
-                color: Appearance.colors.colOnLayer0
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                anchors.horizontalCenter:
-                    parent.horizontalCenter
-                text: emptyState.subtitle
-                color: Appearance.colors.colSubtext
-                font.pixelSize:
-                    Appearance.font.pixelSize.smallest
-            }
-        }
-    }
-
-    component TabButton: RippleButton {
-        id: tab
-        required property int tabIndex
-        readonly property bool selected: root.selectedTab === tab.tabIndex
-        Layout.preferredWidth: 145
-        implicitHeight: 43
-        activeFocusOnTab: true
-        Accessible.role: Accessible.Button
-        Accessible.name: root.tabName(tab.tabIndex)
-        Accessible.checked: tab.selected
-        buttonRadius: Appearance.radius.control
-        colBackground: "transparent"
-        colBackgroundHover: Appearance.colors.colLayer2Hover
-        colRipple: Appearance.colors.colLayer2Active
-        background: Item {
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: 2
-                radius: 1
-                visible: tab.selected
-                color: Appearance.colors.colPrimary
-            }
-        }
-        onClicked: root.switchTab(tab.tabIndex)
-        contentItem: RowLayout {
-            anchors.centerIn: parent
-            spacing: 7
-            MaterialSymbol {
-                text: root.tabIcon(tab.tabIndex)
-                iconSize: 16
-                color: tab.selected ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-            }
-            StyledText {
-                text: root.tabName(tab.tabIndex)
-                color: tab.selected ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: tab.selected ? Font.DemiBold : Font.Normal
-            }
-        }
-    }
-
-    component RunwayMetric: Rectangle {
-        id: metric
-        required property string title
-        required property string value
-        required property string detail
-        required property int targetTab
-        property bool hovered: pointer.containsMouse
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        radius: 10
-        color: hovered ? Appearance.colors.colLayer1Hover
-            : ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 3
-            StyledText {
-                text: metric.title.toUpperCase()
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                font.letterSpacing: 1
-                color: Appearance.colors.colSubtext
-            }
-            StyledText {
-                text: metric.value
-                font.pixelSize: 26
-                font.weight: Font.DemiBold
-                color: Appearance.colors.colOnLayer1
-            }
-            Item { Layout.fillHeight: true }
+            anchors.topMargin: 22
+            anchors.bottomMargin: 18
+            anchors.leftMargin: 18
+            anchors.rightMargin: 18
+            spacing: 14
             RowLayout {
                 Layout.fillWidth: true
-                StyledText {
-                    Layout.fillWidth: true
-                    text: metric.detail
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
-                }
-                MaterialSymbol {
-                    text: "arrow_forward"
-                    iconSize: 16
-                    color: Appearance.colors.colPrimary
-                }
+                StyledText { Layout.fillWidth: true; text: root.inspectorHeading(inspector.entry).toUpperCase();
+                    font.pixelSize: 10; font.weight: Font.DemiBold; font.letterSpacing: 1.2;
+                    color: Appearance.colors.colSubtext; elide: Text.ElideRight }
+                WorkbenchAction { visible: inspector.overlay; symbol: "close"; label: "Close";
+                    onClicked: root.inspectorOpen = false }
             }
-        }
-        MouseArea {
-            id: pointer
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.switchTab(metric.targetTab)
-        }
-    }
-
-    component RunwayEvent: Rectangle {
-        id: eventRow
-        required property var entry
-        Layout.fillWidth: true
-        implicitHeight: 54
-        radius: 9
-        color: pointer.containsMouse ? Appearance.colors.colLayer1Hover
-            : ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 10
-            Rectangle {
-                Layout.preferredWidth: 7
-                Layout.preferredHeight: 7
-                radius: 4
-                color: Appearance.colors.colPrimary
-            }
-            ColumnLayout {
+            ScrollView {
+                id: inspectorScroll
                 Layout.fillWidth: true
-                spacing: 1
-                StyledText {
-                    Layout.fillWidth: true
-                    text: eventRow.entry.name || eventRow.entry.kind || "Operation"
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer1
-                    elide: Text.ElideRight
+                Layout.fillHeight: true
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                ColumnLayout {
+                    width: inspectorScroll.availableWidth
+                    spacing: 16
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 5
+                        StyledText { Layout.fillWidth: true; text: inspector.entry ? inspector.entry.title : "No selection";
+                            font.pixelSize: 17; font.weight: Font.DemiBold;
+                            color: Appearance.colors.colOnLayer0; wrapMode: Text.WordWrap }
+                        StyledText { Layout.fillWidth: true; text: inspector.entry ? inspector.entry.detail : "Choose an item to inspect.";
+                            font.pixelSize: 12; color: Appearance.colors.colSubtext;
+                            wrapMode: Text.WordWrap }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 43
+                        radius: Appearance.radius.control
+                        color: ColorUtils.transparentize(inspector.statusColor, 0.88)
+                        border.width: 1
+                        border.color: ColorUtils.transparentize(inspector.statusColor, 0.70)
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 11
+                            anchors.rightMargin: 11
+                            spacing: 8
+                            MaterialSymbol { text: inspector.entry ? inspector.entry.icon : "info";
+                                iconSize: 17; color: inspector.statusColor }
+                            StyledText { Layout.fillWidth: true; text: root.inspectorStatus(inspector.entry);
+                                font.pixelSize: 12; color: inspector.statusColor;
+                                elide: Text.ElideRight }
+                        }
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        StyledText { text: "DETAILS"; font.pixelSize: 10;
+                            font.weight: Font.DemiBold; font.letterSpacing: 1.2;
+                            color: Appearance.colors.colSubtext; Layout.bottomMargin: 4 }
+                        Repeater {
+                            model: root.inspectorFields(inspector.entry)
+                            delegate: ColumnLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 0
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 31
+                                    spacing: 8
+                                    StyledText { Layout.fillWidth: true; text: modelData.label;
+                                        font.pixelSize: 12; color: Appearance.colors.colSubtext;
+                                        elide: Text.ElideRight }
+                                    StyledText { text: modelData.value; font.pixelSize: 12;
+                                        font.weight: Font.Medium; color: Appearance.colors.colOnLayer0;
+                                        Layout.maximumWidth: inspector.width * 0.52;
+                                        elide: Text.ElideMiddle }
+                                }
+                                Rectangle { Layout.fillWidth: true; implicitHeight: 1;
+                                    color: ColorUtils.transparentize(Appearance.colors.colLayer0Border, 0.45) }
+                            }
+                        }
+                    }
+                    StyledText {
+                        visible: root.inspectorHint(inspector.entry).length > 0
+                        Layout.fillWidth: true
+                        text: root.inspectorHint(inspector.entry)
+                        font.pixelSize: 12
+                        color: Appearance.colors.colSubtext
+                        wrapMode: Text.WordWrap
+                    }
                 }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: `${eventRow.entry.process_count || 1} processes · ${eventRow.entry.memory || "—"}`
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
-                }
             }
-            StyledText {
-                text: "RUNNING"
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colPrimary
-            }
-        }
-        MouseArea {
-            id: pointer
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.switchTab(2)
-        }
-    }
-
-    component RunwayIssue: Rectangle {
-        id: issueRow
-        required property var issue
-        Layout.fillWidth: true
-        implicitHeight: 63
-        radius: 9
-        color: pointer.containsMouse ? Appearance.colors.colLayer1Hover
-            : ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.82)
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 10
-            MaterialSymbol {
-                text: issueRow.issue.icon || "warning"
-                iconSize: 20
-                color: root.severityColor(issueRow.issue.severity)
-            }
-            ColumnLayout {
+            GridLayout {
                 Layout.fillWidth: true
-                spacing: 2
-                StyledText {
-                    Layout.fillWidth: true
-                    text: issueRow.issue.title || "Attention"
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer1
-                    elide: Text.ElideRight
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: issueRow.issue.detail || "Review diagnostics"
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
+                columns: 2
+                columnSpacing: 7
+                rowSpacing: 7
+                Repeater {
+                    model: root.inspectorActions(inspector.entry)
+                    delegate: WorkbenchAction {
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Layout.preferredWidth: (inspector.width - 43) / 2
+                        Layout.columnSpan: index === root.inspectorActions(inspector.entry).length - 1
+                            && root.inspectorActions(inspector.entry).length % 2 === 1 ? 2 : 1
+                        label: modelData.label
+                        symbol: modelData.icon
+                        danger: modelData.danger === true
+                        pinAction: modelData.action === "pin"
+                        enabled: !actionProcess.running
+                        onClicked: root.performInspectorAction(modelData.action, inspector.entry)
+                    }
                 }
             }
-        }
-        MouseArea {
-            id: pointer
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.switchTab(3)
         }
     }
 
     RowLayout {
         anchors.fill: parent
         spacing: 0
-
         Rectangle {
-            id: operationsRail
-            Layout.preferredWidth: root.width < 760 ? 58 : 183
+            id: navigationPane
+            Layout.preferredWidth: root.compactWorkbench ? 62 : root.wideWorkbench ? 202 : 170
             Layout.minimumWidth: Layout.preferredWidth
             Layout.maximumWidth: Layout.preferredWidth
             Layout.fillHeight: true
@@ -2022,937 +1393,282 @@ Item {
                 GradientStop {
                     position: 0
                     color: Config.options.bar.vertical || Config.options.bar.bottom
-                        ? Qt.rgba(0, 0, 0, 0.17) : "transparent"
+                        ? ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78)
+                        : "transparent"
                 }
-                GradientStop { position: 0.14; color: Qt.rgba(0, 0, 0, 0.17) }
-                GradientStop { position: 0.86; color: Qt.rgba(0, 0, 0, 0.17) }
+                GradientStop { position: 0.14; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78) }
+                GradientStop { position: 0.86; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78) }
                 GradientStop {
                     position: 1
                     color: !Config.options.bar.vertical && Config.options.bar.bottom
-                        ? "transparent" : Qt.rgba(0, 0, 0, 0.17)
+                        ? "transparent"
+                        : ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78)
                 }
             }
             ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: operationsRail.width < 70 ? 8 : 12
-                anchors.rightMargin: operationsRail.width < 70 ? 8 : 12
-                anchors.topMargin: 18
+                anchors.leftMargin: root.compactWorkbench ? 7 : 11
+                anchors.rightMargin: root.compactWorkbench ? 7 : 11
+                anchors.topMargin: root.compactWorkbench ? 15 : 22
                 anchors.bottomMargin: 15
-                spacing: 0
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: 16
-                    spacing: 9
-                    Rectangle {
-                        implicitWidth: 35
-                        implicitHeight: 35
-                        radius: 9
-                        color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.87)
-                        border.width: 1
-                        border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.72)
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "monitoring"
-                            iconSize: 19
-                            color: Appearance.colors.colPrimary
-                        }
-                    }
-                    ColumnLayout {
-                        visible: operationsRail.width >= 70
-                        spacing: 1
-                        StyledText {
-                            text: "Operations"
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer0
-                        }
-                        StyledText {
-                            text: "Work and system health"
-                            font.pixelSize: 10
-                            color: Appearance.colors.colSubtext
-                        }
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Appearance.colors.colLayer0Border
-                    Layout.bottomMargin: 18
-                }
-                StyledText {
-                    visible: operationsRail.width >= 70
-                    text: "WORKSPACE"
-                    font.pixelSize: 9
-                    font.weight: Font.DemiBold
-                    font.letterSpacing: 1.15
-                    color: Appearance.colors.colSubtext
-                    Layout.leftMargin: 10
-                    Layout.bottomMargin: 8
-                }
+                spacing: 5
+                StyledText { visible: !root.compactWorkbench; text: "WORKSPACE";
+                    Layout.leftMargin: 11; Layout.bottomMargin: 7;
+                    font.pixelSize: 10; font.letterSpacing: 1.1;
+                    color: Appearance.colors.colSubtext }
                 Repeater {
                     model: 4
-                    delegate: Rectangle {
-                        required property int index
+                    delegate: WorkbenchNavItem { required property int index; tabIndex: index }
+                }
+                StyledText { visible: !root.compactWorkbench; text: "AVAILABLE SOURCES";
+                    Layout.leftMargin: 11; Layout.topMargin: 14; Layout.bottomMargin: 3;
+                    font.pixelSize: 10; font.letterSpacing: 1.1;
+                    color: Appearance.colors.colSubtext }
+                Repeater {
+                    model: [
+                        {name:"This computer", icon:"computer", tab:1},
+                        {name:"Arch packages", icon:"inventory_2", tab:3},
+                        {name:"Activity archive", icon:"history", tab:2}
+                    ]
+                    delegate: WorkbenchAction {
+                        required property var modelData
+                        visible: !root.compactWorkbench
                         Layout.fillWidth: true
-                        Layout.bottomMargin: 4
-                        implicitHeight: 40
-                        radius: 9
-                        color: root.selectedTab === index
-                            ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.88) : "transparent"
-                        border.width: root.selectedTab === index ? 1 : 0
-                        border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.72)
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: operationsRail.width < 70 ? 0 : 11
-                            spacing: 10
-                            MaterialSymbol {
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.leftMargin: operationsRail.width < 70 ? 8 : 0
-                                Layout.preferredWidth: 18
-                                horizontalAlignment: Text.AlignHCenter
-                                text: root.tabIcon(index)
-                                iconSize: 17
-                                color: root.selectedTab === index
-                                    ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                            }
-                            StyledText {
-                                visible: operationsRail.width >= 70
-                                Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignLeft
-                                text: root.tabName(index)
-                                font.pixelSize: 11
-                                color: root.selectedTab === index
-                                    ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.switchTab(index)
-                        }
+                        label: modelData.name
+                        symbol: modelData.icon
+                        plain: true
+                        leftAligned: true
+                        onClicked: root.switchTab(modelData.tab)
                     }
                 }
                 Item { Layout.fillHeight: true }
                 Rectangle {
-                    visible: operationsRail.width >= 70
+                    visible: !root.compactWorkbench
                     Layout.fillWidth: true
-                    implicitHeight: 104
-                    radius: 13
-                    color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill,
-                                          Appearance.colors.colLayer1, 0.62)
+                    implicitHeight: 72
+                    radius: Appearance.radius.control
+                    color: Appearance.colors.colLayer1
                     border.width: 1
                     border.color: Appearance.colors.colLayer0Border
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 11
                         spacing: 5
-                        StyledText {
-                            text: root.attentionCount() > 0 ? "● Needs a look" : "● All clear"
-                            font.pixelSize: 11
-                            color: root.attentionCount() > 0
-                                ? Appearance.colors.colPrimary : "#9acaad"
-                        }
-                        StyledText {
-                            text: root.jobCount() + " active · " + root.runtimeCount() + " listening"
-                            font.pixelSize: 11
-                            font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer0
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
-                        StyledText {
-                            text: root.attentionCount() + " signal" + (root.attentionCount() === 1 ? "" : "s")
-                            font.pixelSize: 10
-                            color: Appearance.colors.colSubtext
-                        }
-                    }
-                }
-                GridLayout {
-                    columns: operationsRail.width < 70 ? 1 : 2
-                    Layout.fillWidth: true
-                    Layout.topMargin: 9
-                    HeaderIconButton {
-                        iconName: "refresh"
-                        tooltipText: "Refresh · Ctrl+R"
-                        onClicked: root.refreshAll()
-                    }
-                    HeaderIconButton {
-                        iconName: "close"
-                        tooltipText: "Close Operations"
-                        onClicked: GlobalStates.sidebarLeftOpen = false
+                        StyledText { text: !root.snapshotReady || !root.systemReady ? "● Checking system"
+                                : root.diagnosticCount() > 0 ? "● Needs attention" : "● System clear";
+                            color: root.diagnosticCount() > 0 ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0;
+                            font.pixelSize: 11 }
+                        StyledText { Layout.fillWidth: true;
+                            text: root.countText(root.systemData.failed_unit_count, "failed unit") + " · "
+                                + root.countText(root.attentionCount(), "signal");
+                            font.pixelSize: 10; color: Appearance.colors.colSubtext;
+                            elide: Text.ElideRight }
                     }
                 }
             }
         }
-
         Item {
-            id: contentViewport
+            id: centerPane
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: operationsRail.width < 70 ? 13 : 22
-            Layout.rightMargin: operationsRail.width < 70 ? 13 : 21
-            Layout.topMargin: 18
-            Layout.bottomMargin: 12
             clip: true
-            Item {
-                id: contentStage
+            readonly property int rowInset: width < 500 ? 12 : 24
+            readonly property int valueWidth: width < 500 ? 68 : 95
+            readonly property int scopeWidth: 80
+            readonly property bool showScopeColumn: width >= 440
+            ColumnLayout {
                 anchors.fill: parent
+                spacing: 0
                 opacity: root.contentShown ? 1 : 0
-                transform: Translate {
-                    x: root.contentShift
-                    Behavior on x { MotionAnim { type: MotionAnim.FastSpatial } }
-                }
                 Behavior on opacity { MotionAnim { type: MotionAnim.DefaultEffects } }
-                Loader {
-                    id: contentLoader
-                    anchors.fill: parent
-                    sourceComponent: root.activeView === 0 ? overviewPage
-                        : root.activeView === 1 ? runtimePage
-                        : root.activeView === 2 ? jobsPage : diagnosticsPage
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 76
+                    color: "transparent"
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;
+                        color: Appearance.colors.colLayer0Border }
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: centerPane.rowInset
+                        anchors.rightMargin: centerPane.rowInset
+                        spacing: 10
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            StyledText { Layout.fillWidth: true; text: root.headerTitle(root.activeView);
+                                font.pixelSize: 19; font.weight: Font.DemiBold;
+                                color: Appearance.colors.colOnLayer0; elide: Text.ElideRight }
+                            StyledText { Layout.fillWidth: true; text: root.headerDetail(root.activeView);
+                                font.pixelSize: 11; color: Appearance.colors.colSubtext;
+                                elide: Text.ElideRight }
+                        }
+                        WorkbenchAction { label: root.compactWorkbench ? "Options" : "View options";
+                            symbol: "tune"; onClicked: root.optionsOpen = !root.optionsOpen }
+                    }
+                }
+                Rectangle {
+                    visible: root.optionsOpen
+                    Layout.fillWidth: true
+                    implicitHeight: optionsContent.implicitHeight + 16
+                    color: Appearance.colors.colLayer1
+                    ColumnLayout {
+                        id: optionsContent
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.leftMargin: centerPane.rowInset
+                        anchors.rightMargin: centerPane.rowInset
+                        anchors.topMargin: 8
+                        spacing: 7
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 7
+                            TextField {
+                                visible: root.activeView === 1 || root.activeView === 2
+                                Layout.fillWidth: true
+                                implicitHeight: 32
+                                text: root.activeView === 1 ? root.runtimeQuery : root.jobQuery
+                                placeholderText: root.activeView === 1 ? "Search services…" : "Search jobs and history…"
+                                color: Appearance.colors.colOnLayer0
+                                placeholderTextColor: Appearance.colors.colSubtext
+                                font.pixelSize: 11
+                                leftPadding: 10
+                                background: Rectangle { radius: Appearance.radius.control;
+                                    color: Appearance.colors.colLayer0;
+                                    border.width: 1; border.color: Appearance.colors.colLayer0Border }
+                                onTextEdited: {
+                                    if (root.activeView === 1) root.runtimeQuery = text
+                                    else root.jobQuery = text
+                                }
+                            }
+                            WorkbenchAction { label: "Refresh"; symbol: "refresh";
+                                onClicked: root.refreshAll() }
+                            WorkbenchAction { visible: root.activeView === 3; label: "Scan AUR";
+                                symbol: "search"; onClicked: root.requestAurUpgrades() }
+                        }
+                        RowLayout {
+                            visible: root.activeView === 1
+                            Layout.fillWidth: true
+                            spacing: 3
+                            Repeater {
+                                model: ["all", "local", "exposed", "pinned"]
+                                delegate: WorkbenchAction {
+                                    required property var modelData
+                                    label: modelData[0].toUpperCase() + modelData.slice(1)
+                                    onClicked: root.runtimeFilter = modelData
+                                    background: Rectangle { radius: Appearance.radius.control;
+                                        color: root.runtimeFilter === modelData
+                                            ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.85) : "transparent" }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    visible: root.snapshotError.length > 0 || root.systemError.length > 0
+                    Layout.fillWidth: true
+                    implicitHeight: errorLabel.implicitHeight + 18
+                    color: ColorUtils.transparentize(Appearance.colors.colErrorContainer, 0.52)
+                    StyledText {
+                        id: errorLabel
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: centerPane.rowInset
+                        anchors.rightMargin: centerPane.rowInset
+                        text: root.snapshotError || root.systemError
+                        color: Appearance.colors.colOnErrorContainer
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 36
+                    color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.55)
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1;
+                        color: ColorUtils.transparentize(Appearance.colors.colLayer0Border, 0.45) }
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: centerPane.rowInset
+                        anchors.rightMargin: centerPane.rowInset
+                        spacing: 10
+                        StyledText { Layout.fillWidth: true; text: root.columnLabels(root.activeView)[0];
+                            font.pixelSize: 10; font.letterSpacing: 0.7;
+                            color: Appearance.colors.colSubtext }
+                        StyledText { Layout.preferredWidth: centerPane.valueWidth;
+                            text: root.columnLabels(root.activeView)[1];
+                            font.pixelSize: 10; font.letterSpacing: 0.7;
+                            color: Appearance.colors.colSubtext }
+                        StyledText { visible: centerPane.showScopeColumn;
+                            Layout.preferredWidth: centerPane.scopeWidth;
+                            text: root.columnLabels(root.activeView)[2];
+                            font.pixelSize: 10; font.letterSpacing: 0.7;
+                            color: Appearance.colors.colSubtext }
+                    }
+                }
+                ListView {
+                    id: workbenchList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: root.currentRows
+                    delegate: WorkbenchRow { required property var modelData; entry: modelData }
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    StyledText {
+                        anchors.centerIn: parent
+                        visible: workbenchList.count === 0
+                        text: root.loading || root.systemLoading || root.officialUpgradeLoading
+                            ? "Checking live system data…"
+                            : root.snapshotError || root.systemError
+                            ? "Live data is unavailable. Use View options to retry."
+                            : root.activeView === 1 ? "No matching services or endpoints."
+                            : root.activeView === 2 ? "No current or recent jobs."
+                            : "No diagnostics to review."
+                        color: Appearance.colors.colSubtext
+                        font.pixelSize: 12
+                    }
                 }
             }
+            SelectionInspector {
+                visible: !root.wideWorkbench && root.inspectorOpen
+                anchors.fill: parent
+                z: 5
+                overlay: true
+                entry: root.currentSelection
+            }
+        }
+        SelectionInspector {
+            visible: root.wideWorkbench
+            Layout.preferredWidth: root.wideWorkbench ? 265 : 0
+            Layout.minimumWidth: Layout.preferredWidth
+            Layout.maximumWidth: Layout.preferredWidth
+            Layout.fillHeight: true
+            entry: root.currentSelection
         }
     }
 
     Rectangle {
-        visible:
-            root.toastMessage.length > 0
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-            leftMargin: 18
-            rightMargin: 18
-            bottomMargin: 18
-        }
-        implicitHeight: 42
+        visible: root.toastMessage.length > 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 18
         z: 20
-
+        implicitHeight: 42
         radius: Appearance.radius.control
-        color:
-            root.toastError
-                ? Appearance.colors.colErrorContainer
-                : Appearance.colors.colSecondaryContainer
-        border.width: 0
-
+        color: root.toastError ? Appearance.colors.colErrorContainer : Appearance.colors.colSecondaryContainer
         RowLayout {
-            anchors {
-                fill: parent
-                leftMargin: 11
-                rightMargin: 11
-            }
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 11
             spacing: 7
-
-            MaterialSymbol {
-                text:
-                    root.toastError
-                        ? "error"
-                        : "check_circle"
-                iconSize: 17
-                color:
-                    root.toastError
-                        ? Appearance.colors.colOnErrorContainer
-                        : Appearance.colors.colOnSecondaryContainer
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: root.toastMessage
-                color:
-                    root.toastError
-                        ? Appearance.colors.colOnErrorContainer
-                        : Appearance.colors.colOnSecondaryContainer
-                font.pixelSize:
-                    Appearance.font.pixelSize.small
-                elide: Text.ElideRight
-            }
+            MaterialSymbol { text: root.toastError ? "error" : "check_circle"; iconSize: 17;
+                color: root.toastError ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnSecondaryContainer }
+            StyledText { Layout.fillWidth: true; text: root.toastMessage;
+                color: root.toastError ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnSecondaryContainer;
+                font.pixelSize: 12; elide: Text.ElideRight }
         }
     }
-
-    // Network Atlas rhythm: two primary surfaces, one compact route, two detail surfaces.
-    Component {
-        id: overviewPage
-        ScrollView {
-            id: overviewScroll
-            clip: true
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-            ColumnLayout {
-                width: overviewScroll.availableWidth
-                spacing: 12
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 148
-                    spacing: 12
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 510
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 17
-                            spacing: 4
-                            RowLayout {
-                                Layout.fillWidth: true
-                                OpsKicker { Layout.fillWidth: true; text: "CURRENT FLIGHT" }
-                                StyledText {
-                                    text: root.loading ? "REFRESHING" : "●  LIVE"
-                                    color: Appearance.colors.colPrimary
-                                    font.pixelSize: Appearance.font.pixelSize.smallest
-                                }
-                            }
-                            Item { Layout.fillHeight: true }
-                            StyledText {
-                                text: String(root.jobCount()).padStart(2, "0")
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 38
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Active operations"
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: root.countText(root.trackedProcessCount(), "tracked process")
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                    }
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 385
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 17
-                            spacing: 5
-                            OpsKicker { text: "SYSTEM SIGNALS" }
-                            Item { Layout.fillHeight: true }
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-                                MaterialSymbol {
-                                    text: root.attentionCount() > 0 ? "error_outline" : "check_circle"
-                                    iconSize: 29
-                                    color: root.attentionCount() > 0 ? Appearance.colors.colPrimary : "#9acaad"
-                                }
-                                StyledText {
-                                    text: String(root.attentionCount()).padStart(2, "0")
-                                    color: Appearance.colors.colOnLayer1
-                                    font.pixelSize: 34
-                                    font.weight: Font.DemiBold
-                                }
-                            }
-                            StyledText {
-                                text: root.attentionCount() > 0 ? "Needs a look" : "All clear"
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: root.systemData.failed_unit_count + " failed services · " + root.systemData.disk.percent + "% disk used"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                                elide: Text.ElideRight
-                            }
-                        }
-                    }
-                }
-
-                AtlasSurface {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 158
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 9
-                        RowLayout {
-                            Layout.fillWidth: true
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: "Work surfaces"
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                            }
-                            OpsKicker { text: "LOCAL · LIVE" }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            spacing: 9
-                            RunwayMetric {
-                                title: "Endpoints"
-                                value: String(root.localRuntimeCount()).padStart(2, "0")
-                                detail: "Listening locally"
-                                targetTab: 1
-                            }
-                            RunwayMetric {
-                                title: "Upgrades"
-                                value: root.updateCount() === "—" ? "—" : root.updateCount().padStart(2, "0")
-                                detail: "Pending review"
-                                targetTab: 3
-                            }
-                            RunwayMetric {
-                                title: "Incidents"
-                                value: String(root.attentionCount()).padStart(2, "0")
-                                detail: "Open diagnostics"
-                                targetTab: 3
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 237
-                    spacing: 12
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 535
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 5
-                            RowLayout {
-                                Layout.fillWidth: true
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: "Execution lane"
-                                    color: Appearance.colors.colOnLayer1
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    font.weight: Font.DemiBold
-                                }
-                                SmallAction { iconName: "arrow_forward"; label: "All jobs"; onClicked: root.switchTab(2) }
-                            }
-                            Repeater {
-                                model: root.runningWorkbenchJobs()
-                                delegate: RunwayEvent { required property var modelData; entry: modelData }
-                            }
-                            StyledText {
-                                visible: root.runningWorkbenchJobs().length === 0
-                                Layout.fillWidth: true
-                                text: "No tracked operations are running."
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.small
-                            }
-                            Item { Layout.fillHeight: true }
-                        }
-                    }
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 375
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 7
-                            RowLayout {
-                                Layout.fillWidth: true
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: "Needs a look"
-                                    color: Appearance.colors.colOnLayer1
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    font.weight: Font.DemiBold
-                                }
-                                OpsKicker { text: root.countText(root.attentionCount(), "signal") }
-                            }
-                            Repeater {
-                                model: root.urgentWorkbenchIssues().slice(0, 2)
-                                delegate: RunwayIssue { required property var modelData; issue: modelData }
-                            }
-                            StyledText {
-                                visible: root.urgentWorkbenchIssues().length === 0
-                                Layout.fillWidth: true
-                                text: "No urgent signals."
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.small
-                            }
-                            Item { Layout.fillHeight: true }
-                            SmallAction { iconName: "arrow_forward"; label: "Open diagnostics"; onClicked: root.switchTab(3) }
-                        }
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 30
-                    spacing: 7
-                    MaterialSymbol { text: "circle"; iconSize: 8; color: Appearance.colors.colPrimary }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.countText(root.localRuntimeCount(), "local service") + " listening"
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                    }
-                    SmallAction { iconName: "arrow_forward"; label: "Explore connections"; onClicked: root.openArchRemote() }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: runtimePage
-
-        ScrollView {
-            id: runtimeScroll
-            clip: true
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-            ColumnLayout {
-                width: runtimeScroll.availableWidth
-                spacing: 9
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 118
-                    spacing: 11
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 540
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 15
-                            spacing: 3
-                            OpsKicker { text: "RUNTIME / LOCAL" }
-                            Item { Layout.fillHeight: true }
-                            StyledText {
-                                text: root.countText(root.localRuntimes().length, "service")
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 25
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Listening on this device"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                    }
-                    AtlasSurface {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 370
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 15
-                            spacing: 3
-                            OpsKicker { text: "REMOTE-MANAGED" }
-                            Item { Layout.fillHeight: true }
-                            StyledText {
-                                text: root.countText(root.remoteManagedRuntimes().length, "service")
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 25
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Lifecycle handled by Arch Remote"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                    }
-                }
-
-                SectionTitle {
-                    title: "Local services"
-                    detail: `${root.localRuntimes().length} listening`
-                    iconName: "dns"
-                }
-
-                Repeater {
-                    model: root.localRuntimes()
-                    delegate: RuntimeCard {
-                        required property var modelData
-                        runtime: modelData
-                        expanded: root.runtimeExpanded(modelData)
-                        onExpansionToggleRequested: root.toggleRuntimeExpanded(modelData)
-                        onOpenRequested: root.runAction(["open", modelData.url])
-                        onTerminalRequested: root.runAction(["terminal", String(modelData.pid), String(modelData.start_ticks || 0)])
-                        onStopRequested: root.runAction(["stop", String(modelData.pid), String(modelData.start_ticks || 0), String(modelData.pin_key || "")])
-                        onPinRequested: root.runAction(["toggle-pin", modelData.pin_key])
-                        onRemoteRequested: root.openArchRemote()
-                        onCopyRequested: mode => root.runAction(["copy-runtime", String(modelData.pid), String(modelData.start_ticks || 0), mode])
-                        onFolderRequested: root.runAction(["open-folder", String(modelData.pid), String(modelData.start_ticks || 0)])
-                        onEditorRequested: root.runAction(["open-editor", String(modelData.pid), String(modelData.start_ticks || 0)])
-                    }
-                }
-
-                EmptyState {
-                    visible: root.localRuntimes().length === 0
-                    iconName: "dns"
-                    title: "No local listeners"
-                    subtitle:
-                        "Local development services will appear here automatically."
-                }
-
-                SectionTitle {
-                    visible: root.remoteManagedRuntimes().length > 0
-                    title: "Remote-managed"
-                    detail: `${root.remoteManagedRuntimes().length} managed`
-                    iconName: "shield"
-                }
-
-                StyledText {
-                    visible: root.remoteManagedRuntimes().length > 0
-                    Layout.fillWidth: true
-                    text: "Operations observes resource usage; Arch Remote owns remote lifecycle, reachability and security."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    wrapMode: Text.WordWrap
-                }
-
-                Repeater {
-                    model: root.remoteManagedRuntimes()
-                    delegate: RuntimeCard {
-                        required property var modelData
-                        runtime: modelData
-                        expanded: root.runtimeExpanded(modelData)
-                        onExpansionToggleRequested: root.toggleRuntimeExpanded(modelData)
-                        onOpenRequested: root.runAction(["open", modelData.url])
-                        onTerminalRequested: root.runAction(["terminal", String(modelData.pid), String(modelData.start_ticks || 0)])
-                        onStopRequested: root.runAction(["stop", String(modelData.pid), String(modelData.start_ticks || 0), String(modelData.pin_key || "")])
-                        onPinRequested: root.runAction(["toggle-pin", modelData.pin_key])
-                        onRemoteRequested: root.openArchRemote()
-                        onCopyRequested: mode => root.runAction(["copy-runtime", String(modelData.pid), String(modelData.start_ticks || 0), mode])
-                        onFolderRequested: root.runAction(["open-folder", String(modelData.pid), String(modelData.start_ticks || 0)])
-                        onEditorRequested: root.runAction(["open-editor", String(modelData.pid), String(modelData.start_ticks || 0)])
-                    }
-                }
-
-                Item { Layout.preferredHeight: 6 }
-            }
-        }
-    }
-
-    Component {
-        id: jobsPage
-
-        ScrollView {
-            id: jobsScroll
-            clip: true
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-            ColumnLayout {
-                width: jobsScroll.availableWidth
-                spacing: 8
-
-                AtlasSurface {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 115
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 20
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            OpsKicker { text: "ACTIVE OPERATIONS" }
-                            Item { Layout.fillHeight: true }
-                            StyledText {
-                                text: root.countText(root.jobCount(), "operation")
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 25
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Builds, tests, transfers, and agents"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: Appearance.colors.colLayer0Border }
-                        ColumnLayout {
-                            Layout.preferredWidth: 175
-                            spacing: 3
-                            OpsKicker { text: "TRACKED PROCESSES" }
-                            Item { Layout.fillHeight: true }
-                            StyledText {
-                                text: String(root.trackedProcessCount())
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 25
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Across current work"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                    }
-                }
-
-                SearchField {
-                    placeholderText: "Search jobs, projects, activity…"
-                    text: root.jobQuery
-                    onTextChanged: root.jobQuery = text
-                }
-
-                SectionTitle {
-                    title: "Running operations"
-                    detail:
-                        `${root.countText(root.jobCount(), "operation")} · ${root.countText(root.trackedProcessCount(), "process")}`
-                    iconName: "progress_activity"
-                }
-
-                Repeater {
-                    model: root.filteredJobGroups()
-                    delegate: JobGroupRow {
-                        required property var modelData
-                        job: modelData
-                        onStopRequested:
-                            root.runAction([
-                                "stop-operation",
-                                String(modelData.root_pid),
-                                String(modelData.root_start_ticks || 0)
-                            ])
-                    }
-                }
-
-                EmptyState {
-                    visible: root.filteredJobGroups().length === 0
-                    iconName: root.snapshotData.job_groups.length === 0 ? "check_circle" : "search_off"
-                    title: root.snapshotData.job_groups.length === 0 ? "No tracked operations running" : "No matching operations"
-                    subtitle: root.snapshotData.job_groups.length === 0 ? "Builds, tests, transfers, media tasks, agents and package work appear here." : "Change the search query."
-                }
-
-                SectionTitle {
-                    visible: root.filteredJobHistory().length > 0
-                    title: "Recent activity"
-                    detail:
-                        root.countText(root.filteredJobHistory().length, "operation")
-                    iconName: "history"
-                }
-
-                Rectangle {
-                    visible: root.filteredJobHistory().length > 0
-                    Layout.fillWidth: true
-                    implicitHeight: recentHistoryColumn.implicitHeight + 10
-                    radius: 13
-                    color: ColorUtils.mix(Appearance.barVisual.attachedSurfaceFill, Appearance.colors.colLayer1, 0.62)
-                    border.width: 1
-                    border.color: Appearance.colors.colLayer0Border
-
-                    ColumnLayout {
-                        id: recentHistoryColumn
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            top: parent.top
-                            margins: 5
-                        }
-                        spacing: 1
-
-                        Repeater {
-                            model: root.filteredJobHistory()
-                            delegate: JobGroupRow {
-                                required property var modelData
-                                job: modelData
-                                historical: true
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.preferredHeight: 6 }
-            }
-        }
-    }
-
-    // System Diagnostics: actionable issues, not a duplicate resource monitor.
-    Component {
-        id: diagnosticsPage
-        ScrollView {
-            id: diagnosticsScroll
-            clip: true
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-            ColumnLayout {
-                width: diagnosticsScroll.availableWidth
-                spacing: 9
-
-                AtlasSurface {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 99
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 15
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 5
-                            OpsKicker { text: "SYSTEM / DIAGNOSTICS" }
-                            StyledText {
-                                text: "Actionable signals"
-                                color: Appearance.colors.colOnLayer1
-                                font.pixelSize: 23
-                                font.weight: Font.DemiBold
-                            }
-                            StyledText {
-                                text: "Failed services and available upgrades"
-                                color: Appearance.colors.colSubtext
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                            }
-                        }
-                        SmallAction { iconName: "refresh"; label: "Check"; onClicked: root.refreshAll() }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    MetricTile {
-                        iconName: "error_outline"
-                        value: root.systemLoading ? "…" : String(root.systemData.failed_unit_count || 0)
-                        label: "Failed units"
-                        attention: root.systemData.failed_unit_count > 0
-                    }
-                    MetricTile {
-                        iconName: "system_update"
-                        value: root.updateCount()
-                        label: "Upgrades"
-                        attention: root.systemData.updates.total > 0
-                    }
-                    MetricTile {
-                        iconName: "warning_amber"
-                        value: String(root.attentionCount())
-                        label: "Signals"
-                        attention: root.attentionCount() > 0
-                    }
-                }
-
-                SectionTitle {
-                    title: "Failed user services"
-                    detail: root.systemLoading ? "Checking…"
-                        : root.countText(root.systemData.failed_unit_count, "unit")
-                    iconName: "error_outline"
-                }
-                Repeater {
-                    model: root.systemData.failed_units || []
-                    delegate: DiagnosticServiceRow {
-                        required property var modelData
-                        unitName: String(modelData)
-                    }
-                }
-                StyledText {
-                    visible: !root.systemLoading && (root.systemData.failed_units || []).length === 0
-                    Layout.fillWidth: true
-                    text: "No failed user services reported."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                }
-
-                SectionTitle {
-                    title: "Repository upgrades"
-                    detail: root.officialUpgradeLoading ? "Checking…"
-                        : root.officialUpgradeChecked
-                            ? root.countText(root.officialUpgradeRows.length, "package")
-                            : "Not checked"
-                    iconName: "inventory_2"
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: "Installed packages with upgrades in your local pacman sync databases."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    wrapMode: Text.WordWrap
-                }
-                Repeater {
-                    model: root.officialUpgradeRows
-                    delegate: DiagnosticPackageRow {
-                        required property var modelData
-                        packageInfo: modelData
-                    }
-                }
-                StyledText {
-                    visible: root.officialUpgradeChecked && root.officialUpgradeRows.length === 0
-                    Layout.fillWidth: true
-                    text: root.systemData.updates.official_count > 0
-                        ? "No local pacman upgrade rows. The cached update count may use fresher metadata."
-                        : "No repository upgrades listed by pacman -Qu."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    wrapMode: Text.WordWrap
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-                    SectionTitle {
-                        title: "AUR upgrades"
-                        iconName: "deployed_code"
-                        detail: root.aurUpgradeLoading ? "Checking…"
-                            : root.aurUpgradeChecked
-                                ? root.countText(root.aurUpgradeRows.length, "package")
-                                : "Optional"
-                    }
-                    SmallAction {
-                        iconName: "search"
-                        label: "Scan AUR"
-                        onClicked: root.requestAurUpgrades()
-                    }
-                }
-                StyledText {
-                    visible: !root.aurUpgradeChecked
-                    Layout.fillWidth: true
-                    text: "On-demand check with yay or paru; may require a network connection."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    wrapMode: Text.WordWrap
-                }
-                Repeater {
-                    model: root.aurUpgradeRows
-                    delegate: DiagnosticPackageRow {
-                        required property var modelData
-                        packageInfo: modelData
-                        aur: true
-                    }
-                }
-                StyledText {
-                    visible: root.aurUpgradeChecked && root.aurUpgradeRows.length === 0
-                    Layout.fillWidth: true
-                    text: root.aurUpgradeNote.length > 0
-                        ? root.aurUpgradeNote : "No AUR upgrades returned by the helper."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    wrapMode: Text.WordWrap
-                }
-
-                SectionTitle {
-                    title: "Attention signals"
-                    detail: root.countText(root.attentionCount(), "signal")
-                    iconName: "notification_important"
-                }
-                Repeater {
-                    model: (root.snapshotData.attention || []).filter(
-                        item => item.severity === "critical" || item.severity === "warning"
-                    )
-                    delegate: AttentionRow {
-                        required property var modelData
-                        issue: modelData
-                    }
-                }
-                StyledText {
-                    visible: root.attentionCount() === 0
-                    Layout.fillWidth: true
-                    text: "No attention signals in the current snapshot."
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                }
-                Item { Layout.preferredHeight: 6 }
-            }
-        }
-    }
-
-
 }
-

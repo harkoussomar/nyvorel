@@ -16,6 +16,7 @@ Item {
     id: root
     property bool vertical: false
     property bool borderless: Config.options.bar.borderless
+    property int previewWorkspaceId: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.QsWindow.window?.screen)
     readonly property int effectiveActiveWorkspaceId: monitor?.activeWorkspace?.id ?? 1
     readonly property var clients: HyprlandData.windowList
@@ -281,7 +282,12 @@ Item {
                 property int workspaceValue: workspaceGroup * root.workspacesShown + index + 1
                 implicitHeight: vertical ? Appearance.sizes.verticalBarWidth : Appearance.barLayout.persistentHeight
                 implicitWidth: vertical ? Appearance.sizes.verticalBarWidth : Appearance.sizes.verticalBarWidth
-                onPressed: HyprNative.workspace(workspaceValue)
+                onPressed: {
+                    HyprNative.workspace(workspaceValue)
+                    if (Config.options.bar.tooltips.clickToShow)
+                        root.previewWorkspaceId = root.previewWorkspaceId === workspaceValue
+                            ? 0 : workspaceValue
+                }
                 width: vertical ? undefined : workspaceButtonWidth
                 height: vertical ? workspaceButtonWidth : undefined
 
@@ -436,7 +442,11 @@ Item {
 
                 StyledPopup {
                     hoverTarget: workspaceHoverArea
-                    showOnHover: true
+                    showOnHover: !Config.options.bar.tooltips.clickToShow
+                    forceActive: Config.options.bar.tooltips.clickToShow
+                        && root.previewWorkspaceId === button.workspaceValue
+                    dismissOnOutsideClick: Config.options.bar.tooltips.clickToShow
+                    onDismissRequested: root.previewWorkspaceId = 0
                     irisAnimation: true
                     popupRadius: Appearance.radius.bar
                     contentMargin: 0

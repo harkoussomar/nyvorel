@@ -566,7 +566,7 @@ StyledPopup {
 
         // The battery state is the first content, without a separate heading.
         Card {
-            implicitHeight: 122
+            implicitHeight: 108
             color: root.surface
 
             ColumnLayout {
@@ -630,21 +630,6 @@ StyledPopup {
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 4
-                    radius: 2
-                    color: Appearance.colors.colLayer3
-                    clip: true
-                    Rectangle {
-                        height: parent.height
-                        width: parent.width * Math.max(0, Math.min(1, Battery.percentage))
-                        radius: parent.radius
-                        color: Battery.isLowAndNotCharging
-                            ? Appearance.colors.colError : root.accent
-                        Behavior on width { MotionAnim { type: MotionAnim.DefaultEffects } }
-                    }
-                }
             }
         }
 

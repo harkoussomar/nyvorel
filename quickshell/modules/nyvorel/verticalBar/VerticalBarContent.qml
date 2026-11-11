@@ -9,6 +9,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.nyvorel.bar as Bar
+import qs.modules.nyvorel.bar.weather as BarWeather
 import qs.modules.nyvorel.sidebarLeft
 import qs.modules.nyvorel.sidebarRight
 
@@ -271,6 +272,12 @@ Item { // Bar content region
                     iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                     color: Appearance.colors.colOnLayer0
                 }
+            }
+
+            BarWeather.WeatherBar {
+                vertical: true
+                visible: Config.options.bar.weather.enable
+                Layout.alignment: Qt.AlignHCenter
             }
 
             HorizontalBarSeparator {
