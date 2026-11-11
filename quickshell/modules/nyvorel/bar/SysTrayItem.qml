@@ -78,6 +78,7 @@ MouseArea {
 
     IconImage {
         id: trayIcon
+        visible: !Config.monochromeAppIcons
         source: root.item.icon
         anchors.centerIn: parent
         width: root.axiomMode ? Appearance.barVisual.axiomTrayIconSize : parent.width
@@ -85,12 +86,12 @@ MouseArea {
     }
 
     Loader {
-        active: Config.options.tray.monochromeIcons
+        active: Config.monochromeAppIcons
         anchors.fill: trayIcon
-        sourceComponent: ColorOverlay {
+        sourceComponent: Desaturate {
             anchors.fill: parent
             source: trayIcon
-            color: Appearance.colors.colOnLayer0
+            desaturation: 1.0
         }
     }
 

@@ -33,7 +33,9 @@ AbstractBackgroundWidget {
                 weight: Font.Medium
             }
             color: Appearance.colors.colPrimary
-            text: Weather.data?.temp.substring(0,Weather.data?.temp.length - 1) ?? "--°"
+            text: Weather.ready
+                ? Weather.data.temp.substring(0, Weather.data.temp.length - 2)
+                : "--"
             anchors {
                 right: parent.right
                 top: parent.top
@@ -45,7 +47,8 @@ AbstractBackgroundWidget {
         MaterialSymbol {
             iconSize: 80
             color: Appearance.colors.colOnPrimaryContainer
-            text: Icons.getWeatherIcon(Weather.data.wCode) ?? "cloud"
+            text: Weather.ready
+                ? (Icons.getWeatherIcon(Weather.data.wCode) ?? "cloud") : "cloud"
             anchors {
                 left: parent.left
                 bottom: parent.bottom

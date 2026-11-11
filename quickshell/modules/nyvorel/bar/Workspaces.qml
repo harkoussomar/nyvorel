@@ -377,6 +377,7 @@ Item {
                             visible: opacity > 0
                         Image {
                             id: mainAppIcon
+                            visible: !Config.monochromeAppIcons
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
                             anchors.bottomMargin: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? 
@@ -422,12 +423,12 @@ Item {
                         }
 
                         Loader {
-                            active: Config.options.bar.workspaces.monochromeIcons
+                            active: Config.monochromeAppIcons
                             anchors.fill: mainAppIcon
-                            sourceComponent: ColorOverlay {
+                            sourceComponent: Desaturate {
                                 anchors.fill: parent
                                 source: mainAppIcon
-                                color: wsDot.color
+                                desaturation: 1.0
                             }
                         }
                     }

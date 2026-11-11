@@ -14,7 +14,6 @@ StyledPopup {
         id: columnLayout
         anchors.centerIn: parent
         implicitWidth: Math.max(header.implicitWidth, gridLayout.implicitWidth)
-        implicitHeight: gridLayout.implicitHeight
         spacing: 5
 
         // Header
@@ -36,7 +35,7 @@ StyledPopup {
                 }
 
                 StyledText {
-                    text: Weather.data.city
+                    text: Weather.ready ? Weather.data.city : Translation.tr("Weather")
                     font {
                         weight: Font.Medium
                         pixelSize: Appearance.font.pixelSize.normal
@@ -48,20 +47,25 @@ StyledPopup {
                 id: temp
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 color: Appearance.colors.colOnSurfaceVariant
-                text: Weather.data.temp + " • " + Translation.tr("Feels like %1").arg(Weather.data.tempFeelsLike)
+                text: Weather.ready
+                    ? Weather.data.condition + " · " + Weather.data.temp + " · "
+                        + Translation.tr("Feels like %1").arg(Weather.data.tempFeelsLike)
+                    : Weather.loading ? Translation.tr("Checking current conditions…")
+                        : Weather.error || Translation.tr("Weather unavailable")
             }
         }
 
         // Metrics grid
         GridLayout {
             id: gridLayout
+            visible: Weather.ready
             columns: 2
             rowSpacing: 5
             columnSpacing: 5
             uniformCellWidths: true
 
             WeatherCard {
-                title: Translation.tr("UV Index")
+                title: Translation.tr("UV peak today")
                 symbol: "wb_sunny"
                 value: Weather.data.uv
             }
@@ -105,7 +109,15 @@ StyledPopup {
         // Footer: last refresh
         StyledText {
             Layout.alignment: Qt.AlignHCenter
-            text: Translation.tr("Last refresh: %1").arg(Weather.data.lastRefresh)
+            text: Weather.ready && Weather.error
+                ? Translation.tr("Last update failed · showing previous conditions")
+                : Weather.ready
+                ? Translation.tr("%1 · observed %2 · checked %3")
+                    .arg(Weather.locationSource)
+                    .arg(Weather.data.observedAt)
+                    .arg(Weather.data.lastRefresh)
+                : Weather.error
+                    ? Translation.tr("Check your connection or choose a city in Settings") : ""
             font {
                 weight: Font.Medium
                 pixelSize: Appearance.font.pixelSize.smaller

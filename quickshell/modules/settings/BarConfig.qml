@@ -697,13 +697,14 @@ ContentPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Monochrome tray icons")
-                    subtitle: Translation.tr("Replace original tray icon colors with the shell's themed tint.")
+                    title: Translation.tr("Monochrome app icons")
+                    subtitle: Translation.tr("Show tray and workspace icons in grayscale while preserving their detail.")
                     iconName: "colors"
-                    switchChecked: Config.options.tray.monochromeIcons
+                    switchChecked: Config.monochromeAppIcons
 
                     onUserToggled: checked => {
                         Config.options.tray.monochromeIcons = checked
+                        Config.options.bar.workspaces.monochromeIcons = checked
                     }
                 }
             }
@@ -744,13 +745,24 @@ ContentPage {
                     }
 
                     UtilityToggleTile {
-                        title: Translation.tr("Keyboard layout")
-                        subtitle: Translation.tr("Show the keyboard-layout toggle.")
+                        title: Translation.tr("On-screen keyboard")
+                        subtitle: Translation.tr("Show a button to open the virtual keyboard.")
                         iconName: "keyboard"
                         switchChecked: Config.options.bar.utilButtons.showKeyboardToggle
 
                         onUserToggled: checked => {
                             Config.options.bar.utilButtons.showKeyboardToggle = checked
+                        }
+                    }
+
+                    UtilityToggleTile {
+                        title: Translation.tr("Keyboard layout")
+                        subtitle: Translation.tr("Show the active typing layout and switch configured layouts.")
+                        iconName: "language"
+                        switchChecked: Config.options.bar.utilButtons.showKeyboardLayout
+
+                        onUserToggled: checked => {
+                            Config.options.bar.utilButtons.showKeyboardLayout = checked
                         }
                     }
 
@@ -874,20 +886,6 @@ ContentPage {
 
                     onUserToggled: checked => {
                         Config.options.bar.workspaces.showAppIcons = checked
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    enabled: Config.options.bar.workspaces.showAppIcons
-                    title: Translation.tr("Monochrome app icons")
-                    subtitle: Config.options.bar.workspaces.showAppIcons
-                        ? Translation.tr("Tint workspace app icons using the current workspace/theme color.")
-                        : Translation.tr("Enable app icons first to use themed icon tinting.")
-                    iconName: "colors"
-                    switchChecked: Config.options.bar.workspaces.monochromeIcons
-
-                    onUserToggled: checked => {
-                        Config.options.bar.workspaces.monochromeIcons = checked
                     }
                 }
 

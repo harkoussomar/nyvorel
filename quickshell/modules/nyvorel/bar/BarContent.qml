@@ -42,6 +42,7 @@ Item {
         || Config.options.bar.utilButtons.showScreenRecord
         || Config.options.bar.utilButtons.showColorPicker
         || Config.options.bar.utilButtons.showKeyboardToggle
+        || Config.options.bar.utilButtons.showKeyboardLayout
         || Config.options.bar.utilButtons.showMicToggle
         || Config.options.bar.utilButtons.showDarkModeToggle
         || Config.options.bar.utilButtons.showKeepAwakeToggle
@@ -999,6 +1000,16 @@ Item {
                     Config?.options.bar.bottom
             }
 
+            // Keep user actions distinct from background application icons.
+            Rectangle {
+                visible: root.axiomFluidRight && root.showRightTray
+                    && root.showRightUtilities && sysTray.implicitWidth > 0
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
+            }
+
 
             // ====================================================
             // Utility actions
@@ -1138,9 +1149,9 @@ Item {
 
                 sourceComponent:
                     BarGroup {
-                        padding:
-                      5
-                    WeatherBar {}
+                        quiet: Appearance.barLayout.axiomComponents
+                        padding: Appearance.barLayout.axiomComponents ? 0 : 5
+                        WeatherBar {}
                     }
             }
         }

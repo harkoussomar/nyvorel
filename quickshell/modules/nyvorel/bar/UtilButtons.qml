@@ -86,6 +86,32 @@ Item {
         }
 
         Loader {
+            active: Config.options.bar.utilButtons.showKeyboardLayout
+            visible: active
+            sourceComponent: CircleUtilButton {
+                Layout.alignment: Qt.AlignVCenter
+                Accessible.name: HyprlandXkb.layoutCodes.length > 1
+                    ? Translation.tr("Switch keyboard layout")
+                    : Translation.tr("Configure keyboard layout")
+                onClicked: {
+                    if (HyprlandXkb.layoutCodes.length > 1)
+                        Quickshell.execDetached(["hyprctl", "switchxkblayout", "all", "next"])
+                    else
+                        Quickshell.execDetached([`${Directories.home}/.local/bin/nyvorel-settings`])
+                }
+                StyledText {
+                    anchors.centerIn: parent
+                    text: (HyprlandXkb.currentLayoutCode
+                        || HyprlandXkb.layoutCodes[0] || "KB")
+                        .split(":")[0].slice(0, 2).toUpperCase()
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
+        }
+
+        Loader {
             active: Config.options.bar.utilButtons.showMicToggle
             visible: Config.options.bar.utilButtons.showMicToggle
             sourceComponent: CircleUtilButton {

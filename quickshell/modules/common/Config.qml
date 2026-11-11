@@ -9,6 +9,11 @@ Singleton {
     id: root
     property string filePath: Directories.shellConfigPath
     property alias options: configOptionsJsonAdapter
+    // Existing installations may have either preference enabled. The bar
+    // presents one setting while retaining both stored keys for migration.
+    readonly property bool monochromeAppIcons:
+        root.options.tray.monochromeIcons
+        || root.options.bar.workspaces.monochromeIcons
     property bool ready: false
     property int readWriteDelay: 50 // milliseconds
     property bool blockWrites: false
@@ -293,6 +298,7 @@ Singleton {
                     property bool showColorPicker: false
                     property bool showMicToggle: false
                     property bool showKeyboardToggle: false
+                    property bool showKeyboardLayout: false
                     property bool showDarkModeToggle: false
                     property bool showKeepAwakeToggle: false
                     property bool showNightLightToggle: false
