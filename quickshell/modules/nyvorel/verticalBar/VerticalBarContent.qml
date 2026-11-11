@@ -344,10 +344,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignHCenter
             }
 
-            HorizontalBarSeparator {
-                visible: root.axiomOrientation
-            }
-
             RippleButton { // Right sidebar button
                 id: rightSidebarButton
 

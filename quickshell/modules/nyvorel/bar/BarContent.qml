@@ -155,7 +155,8 @@ Item {
     // The right sidebar control remains visible at every width.
     readonly property real rightStatusWidth:
         rightSidebarButton.implicitWidth + Appearance.barLayout.rightStatusInset
-        + networkButton.implicitWidth + root.axiomFitGap
+        + networkButton.implicitWidth
+        + (root.axiomFluidRight ? 6 : Appearance.barLayout.rightSectionGap)
 
     readonly property bool showRightBattery:
         root.useShortenedForm < 2
@@ -1005,15 +1006,7 @@ Item {
             }
 
 
-            // Wi-Fi is an independent control; the remaining status area opens Controls.
-            Rectangle {
-                visible: root.axiomFluidRight
-                Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 1
-                implicitHeight: 20
-                color: Appearance.barVisual.axiomDivider
-            }
-
+            // Wi-Fi and notifications share one status group.
             RippleButton {
                 id: networkButton
                 Layout.alignment: Qt.AlignVCenter
@@ -1176,6 +1169,16 @@ Item {
                     alwaysShowAllResources:
                         false
                 }
+            }
+
+            // Separate weather from the resource-monitor group.
+            Rectangle {
+                visible: root.axiomFluidRight
+                    && root.showRightWeather && root.showRightResources
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 1
+                implicitHeight: 20
+                color: Appearance.barVisual.axiomDivider
             }
 
 

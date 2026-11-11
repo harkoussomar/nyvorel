@@ -57,14 +57,6 @@ MouseArea {
                     .memoryWarningThreshold
         }
 
-        Rectangle {
-            visible: root.axiomMode
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 1
-            implicitHeight: 20
-            color: Appearance.barVisual.axiomDivider
-        }
-
         Resource {
             axiomMode: root.axiomMode
             iconName: "developer_board"
@@ -77,14 +69,6 @@ MouseArea {
                     .bar
                     .resources
                     .cpuWarningThreshold
-        }
-
-        Rectangle {
-            visible: root.axiomMode && root.swapWarning
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: root.swapWarning ? 1 : 0
-            implicitHeight: 20
-            color: Appearance.barVisual.axiomDivider
         }
 
         Resource {
