@@ -604,5 +604,19 @@
   "Recognize music": "Musik erkennen",
   "Stroke width": "Strichstärke",
   "Use varying shapes for password characters": "Verschiedene Formen für Passwort-Zeichen verwenden",
-  "Battery full": "Batterie voll"
+  "Battery full": "Batterie voll",
+  "Shell language": "Shell-Sprache",
+  "Keyboard layout": "Tastaturbelegung",
+  "Applying layout…": "Tastaturbelegung wird angewendet…",
+  "Detecting layout…": "Tastaturbelegung wird ermittelt…",
+  "Choose keyboard layout": "Tastaturbelegung auswählen",
+  "Search layouts and variants…": "Belegungen und Varianten suchen…",
+  "No installed XKB layout matches this search.": "Keine installierte XKB-Belegung entspricht dieser Suche.",
+  "Welcome": "Willkommen",
+  "Welcome to\na desktop that feels like yours.": "Willkommen auf deinem persönlichen Desktop.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "Wähle die gewünschte Stimmung. Nyvorel passt die Oberfläche daran an.",
+  "A live preview, with a way back.": "Eine Live-Vorschau, die du rückgängig machen kannst.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Probiere Standard oder Fluid aus. Übernimm das Ergebnis, wenn es dir gefällt.",
+  "Get started": "Los geht’s",
+  "Skip setup": "Einrichtung überspringen"
 }

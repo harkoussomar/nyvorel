@@ -6,6 +6,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.widgets.widgetCanvas
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
@@ -37,9 +38,16 @@ Variants {
         }
         color: "transparent"
 
-        StyledImage {
+        WallpaperImage {
             anchors.fill: parent
-            source: Config.options.background.wallpaperPath
+            sourceSize: Qt.size(Math.ceil(width * Screen.devicePixelRatio),
+                                Math.ceil(height * Screen.devicePixelRatio))
+            fallbackResolution: Math.max(1024, Math.min(4096, 1024 * Math.ceil(
+                Math.max(width, height) * Screen.devicePixelRatio / 1024)))
+            wallpaperPath: !GlobalStates.screenLocked && GlobalStates.wallpaperPickerScreenName === panelRoot.screen?.name
+                && GlobalStates.wallpaperPreviewPath
+                ? GlobalStates.wallpaperPreviewPath
+                : Config.options.background.wallpaperPath
             fillMode: Image.PreserveAspectCrop
         }
     }

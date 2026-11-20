@@ -4,11 +4,14 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    property var appearanceEditor: null
+    sections: [
+        { id: "motion", label: Translation.tr("Background motion"), icon: "sync_alt" },
+        { id: "clock", label: Translation.tr("Desktop clock"), icon: "schedule" },
+        { id: "weather", label: Translation.tr("Desktop weather"), icon: "weather_mix" }
+    ]
 
     // Page-local spacing/sizing only. All corner geometry uses the project's
     // semantic Appearance.radius.* system.
@@ -699,10 +702,11 @@ ContentPage {
     // BACKGROUND MOTION
     // =========================================================================
 
-    ContentSection {
-        icon: "sync_alt"
-        title: Translation.tr("Background motion")
+    ColumnLayout {
+        visible: root.currentSection === "motion"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Parallax")
@@ -730,10 +734,11 @@ ContentPage {
                     title: Translation.tr("React to workspace changes")
                     subtitle: Translation.tr("Move the wallpaper as the active workspace changes.")
                     iconName: "workspaces"
-                    switchChecked: Config.options.background.parallax.enableWorkspace
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    switchChecked: root.appearanceEditor?.draftParallaxWorkspace ?? false
 
                     onUserToggled: checked => {
-                        Config.options.background.parallax.enableWorkspace = checked
+                        root.appearanceEditor.draftParallaxWorkspace = checked
                     }
                 }
 
@@ -741,10 +746,11 @@ ContentPage {
                     title: Translation.tr("React to sidebars")
                     subtitle: Translation.tr("Offset the wallpaper when shell sidebars are shown.")
                     iconName: "side_navigation"
-                    switchChecked: Config.options.background.parallax.enableSidebar
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    switchChecked: root.appearanceEditor?.draftParallaxSidebar ?? false
 
                     onUserToggled: checked => {
-                        Config.options.background.parallax.enableSidebar = checked
+                        root.appearanceEditor.draftParallaxSidebar = checked
                     }
                 }
 
@@ -769,10 +775,11 @@ ContentPage {
     // DESKTOP CLOCK
     // =========================================================================
 
-    ContentSection {
-        icon: "schedule"
-        title: Translation.tr("Desktop clock")
+    ColumnLayout {
+        visible: root.currentSection === "clock"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Clock widget")
@@ -1507,10 +1514,11 @@ ContentPage {
     // DESKTOP WEATHER
     // =========================================================================
 
-    ContentSection {
-        icon: "weather_mix"
-        title: Translation.tr("Desktop weather")
+    ColumnLayout {
+        visible: root.currentSection === "weather"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Weather widget")

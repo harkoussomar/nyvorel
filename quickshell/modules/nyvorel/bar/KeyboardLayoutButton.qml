@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import qs
@@ -14,21 +15,14 @@ Item {
     readonly property string activeCode: (KeyboardLayout.currentLayout
         || HyprlandXkb.currentLayoutCode || HyprlandXkb.layoutCodes[0]
         || "KB").split(":")[0].trim().toLowerCase()
-    readonly property var quickChoices: {
-        const codes = ["auto", KeyboardLayout.currentCode, "us", "gb", "it", "fr", "de", "es"]
-        const seen = new Set()
-        return codes.filter(code => {
-            if (!code || seen.has(code)) return false
-            seen.add(code)
-            return code === "auto" || KeyboardLayout.catalogue.some(choice => choice.value === code)
-        }).map(code => code === "auto"
-            ? { value: "auto", displayName: Translation.tr("Use Hyprland setting") }
-            : KeyboardLayout.catalogue.find(choice => choice.value === code))
-    }
     readonly property var layoutChoices: {
-        const quick = root.quickChoices
-        const used = new Set(quick.map(choice => choice.value))
-        return quick.concat(KeyboardLayout.choices.filter(choice => !used.has(choice.value)))
+        const current = KeyboardLayout.currentCode
+        const installed = KeyboardLayout.choices.filter(choice => choice.value !== "auto")
+        const quick = [...new Set([current, "us", "gb", "it", "fr", "de", "es"].filter(Boolean))]
+        const featured = quick.map(code => installed.find(choice => choice.value === code)
+            ?? (code === current ? { value: code, displayName: KeyboardLayout.currentDisplay, readOnly: true } : null))
+            .filter(Boolean)
+        return featured.concat(installed.filter(choice => !quick.includes(choice.value)))
     }
 
     implicitWidth: 30
@@ -67,39 +61,132 @@ Item {
         dismissOnOutsideClick: true
         irisAnimation: true
         popupRadius: Appearance.radius.bar
-        contentMargin: 10
+        contentMargin: 0
         onDismissRequested: GlobalStates.closeBarPopup("keyboardLayout", root.barScreenName)
 
         Item {
-            width: 220
-            implicitWidth: width
-            implicitHeight: KeyboardLayout.lastError.length > 0 ? 346 : 310
+            id: menu
+            implicitWidth: 240
+            implicitHeight: body.implicitHeight + 2 * padding
+            width: implicitWidth
+            height: implicitHeight
 
-            ListView {
-                id: layoutList
-                x: 12
-                width: parent.width
-                height: parent.height - (KeyboardLayout.lastError.length > 0 ? 80 : 42)
-                clip: true
-                spacing: 3
-                boundsBehavior: Flickable.StopAtBounds
-                model: root.layoutChoices
+            readonly property int padding: 10
+            readonly property int rowHeight: 36
+            readonly property int rowGap: 4
+            readonly property int visibleRows: Math.min(6, Math.max(1, Math.floor(
+                ((root.QsWindow?.window?.screen?.height ?? 720) - 152) / (rowHeight + rowGap))))
 
-                delegate: RippleButton {
-                    required property var modelData
-                    readonly property bool selected: Config.options.language.keyboardLayout === "auto"
-                        ? modelData.value === "auto"
-                        : modelData.value === KeyboardLayout.currentCode
-                    width: layoutList.width - 8
-                    implicitHeight: 38
-                    enabled: KeyboardLayout.catalogueReady && !KeyboardLayout.busy
+            ColumnLayout {
+                id: body
+                anchors.fill: parent
+                anchors.margins: menu.padding
+                spacing: 7
+
+                ListView {
+                    id: layoutList
+
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(menu.rowHeight,
+                        Math.min(count, menu.visibleRows) * (menu.rowHeight + menu.rowGap) - menu.rowGap)
+                    clip: true
+                    spacing: menu.rowGap
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: root.layoutChoices
+                    Accessible.name: Translation.tr("Keyboard layouts")
+
+                    ScrollBar.vertical: StyledScrollBar {
+                        policy: layoutList.count > menu.visibleRows ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                        topPadding: 2
+                        bottomPadding: 2
+                    }
+
+                    delegate: RippleButton {
+                        id: layoutOption
+                        required property var modelData
+                        readonly property bool selected: modelData.value === KeyboardLayout.currentCode
+                        width: layoutList.width - (layoutList.count > menu.visibleRows ? 8 : 0)
+                        height: menu.rowHeight
+                        enabled: !modelData.readOnly && KeyboardLayout.catalogueReady && !KeyboardLayout.busy
+                        buttonRadius: Appearance.radius.control
+                        toggled: selected
+                        colBackground: "transparent"
+                        colBackgroundToggled: Appearance.colors.colLayer1Base
+                        colBackgroundToggledHover: Appearance.colors.colLayer1Hover
+                        colBackgroundHover: Appearance.colors.colLayer1Hover
+                        Accessible.name: modelData.displayName
+                        Accessible.selected: selected
+                        onClicked: {
+                            if (!selected)
+                                KeyboardLayout.select(modelData.value)
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 8
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: layoutOption.modelData.displayName
+                                elide: Text.ElideRight
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colOnLayer1
+                            }
+                            MaterialSymbol {
+                                visible: layoutOption.selected
+                                text: "check"
+                                iconSize: 16
+                                color: Appearance.colors.colPrimary
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: 10
+                        visible: layoutList.count === 0
+                        text: KeyboardLayout.lastError.length > 0
+                            ? Translation.tr("No layouts available") : Translation.tr("Loading layouts…")
+                        color: Appearance.colors.colSubtext
+                        font.pixelSize: Appearance.font.pixelSize.small
+                    }
+                }
+
+                StyledText {
+                    visible: KeyboardLayout.lastError.length > 0
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 10
+                    Layout.rightMargin: 10
+                    text: KeyboardLayout.lastError
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                    color: Appearance.colors.colError
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Appearance.colors.colLayer0Border
+                }
+
+                RippleButton {
+                    id: oskButton
+                    readonly property string label: GlobalStates.oskOpen
+                        ? Translation.tr("Close virtual keyboard") : Translation.tr("Open virtual keyboard")
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
                     buttonRadius: Appearance.radius.control
-                    toggled: selected
                     colBackground: "transparent"
-                    colBackgroundToggled: Appearance.colors.colLayer1Base
-                    colBackgroundToggledHover: Appearance.colors.colLayer1Hover
                     colBackgroundHover: Appearance.colors.colLayer1Hover
-                    onClicked: KeyboardLayout.select(modelData.value)
+                    Accessible.name: label
+                    onClicked: {
+                        GlobalStates.oskOpen = !GlobalStates.oskOpen
+                        GlobalStates.closeBarPopup("keyboardLayout", root.barScreenName)
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -107,75 +194,17 @@ Item {
                         anchors.rightMargin: 10
                         spacing: 8
 
+                        MaterialSymbol {
+                            text: "keyboard"
+                            iconSize: 16
+                            color: Appearance.colors.colOnLayer1
+                        }
                         StyledText {
                             Layout.fillWidth: true
-                            text: modelData.displayName
-                            elide: Text.ElideRight
+                            text: oskButton.label
                             font.pixelSize: Appearance.font.pixelSize.small
                             color: Appearance.colors.colOnLayer1
                         }
-                        MaterialSymbol {
-                            visible: selected
-                            text: "check"
-                            iconSize: 16
-                            color: Appearance.colors.colPrimary
-                        }
-                    }
-                }
-            }
-
-            StyledText {
-                visible: KeyboardLayout.lastError.length > 0
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: oskButton.top
-                anchors.bottomMargin: 7
-                text: KeyboardLayout.lastError
-                wrapMode: Text.WordWrap
-                color: Appearance.colors.colError
-                font.pixelSize: Appearance.font.pixelSize.smaller
-            }
-
-            Rectangle {
-                x: 12
-                y: oskButton.y - 5
-                width: parent.width - 8
-                height: 1
-                color: Appearance.colors.colLayer0Border
-            }
-
-            RippleButton {
-                id: oskButton
-                x: 12
-                y: parent.height - 34
-                width: parent.width - 8
-                implicitHeight: 32
-                buttonRadius: Appearance.radius.control
-                colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                onClicked: {
-                    GlobalStates.oskOpen = !GlobalStates.oskOpen
-                    GlobalStates.closeBarPopup("keyboardLayout", root.barScreenName)
-                }
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    spacing: 8
-
-                    MaterialSymbol {
-                        text: "keyboard"
-                        iconSize: 16
-                        color: Appearance.colors.colOnLayer1
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: GlobalStates.oskOpen
-                            ? Translation.tr("Close virtual keyboard")
-                            : Translation.tr("Open virtual keyboard")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colOnLayer1
                     }
                 }
             }

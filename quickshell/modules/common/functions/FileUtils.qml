@@ -15,6 +15,14 @@ Singleton {
         return s.startsWith("file://") ? s.slice(7) : s;
     }
 
+    // Local paths must keep literal characters such as #, ? and %.
+    function localFileUrl(path) {
+        const value = String(path ?? "");
+        return value.startsWith("/")
+            ? "file://" + value.split("/").map(encodeURIComponent).join("/")
+            : value;
+    }
+
     /**
      * Extracts the file name from a file path
      * @param {string} str

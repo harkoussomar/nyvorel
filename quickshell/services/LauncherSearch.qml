@@ -322,7 +322,7 @@ Singleton {
             action: "wallpaper",
             execute: () => {
                 GlobalStates.openExclusiveSurface(
-                    "appearanceStudio"
+                    "wallpaperPicker"
                 );
             }
         },

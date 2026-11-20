@@ -517,94 +517,78 @@ LazyLoader {
                         ? popupWindow.morphScaleY : 1
                 }
 
-                // A single open-top outline joins the bar's lower edge.
-                // The shoulders curve into the panel instead of drawing a
-                // second rounded card underneath the navbar.
+                // Draw one contour with its open edge against the bar.
+                // Rotation maps that edge to the other bar positions.
                 Shape {
                     id: attachedSurface
-                    visible: popupWindow.joinedHorizontal
-                        && !popupWindow.joinedBottom
-                    anchors.fill: parent
-                    readonly property real shoulder: Math.min(
-                        popupWindow.joinedInset, height / 3)
-                    readonly property real lowerRadius: Math.min(
-                        popupBackground.joinedRadius,
-                        popupWindow.joinedInset, height / 4)
-                    ShapePath {
-                        strokeWidth: -1
-                        fillColor: popupBackground.joinedFill
-                        startX: 0
-                        startY: 0
-                        PathLine { x: attachedSurface.width; y: 0 }
-                        PathQuad { controlX: attachedSurface.width - attachedSurface.shoulder; controlY: 0; x: attachedSurface.width - attachedSurface.shoulder; y: attachedSurface.shoulder }
-                        PathLine { x: attachedSurface.width - attachedSurface.shoulder; y: attachedSurface.height - attachedSurface.lowerRadius }
-                        PathQuad { controlX: attachedSurface.width - attachedSurface.shoulder; controlY: attachedSurface.height; x: attachedSurface.width - attachedSurface.shoulder - attachedSurface.lowerRadius; y: attachedSurface.height }
-                        PathLine { x: attachedSurface.shoulder + attachedSurface.lowerRadius; y: attachedSurface.height }
-                        PathQuad { controlX: attachedSurface.shoulder; controlY: attachedSurface.height; x: attachedSurface.shoulder; y: attachedSurface.height - attachedSurface.lowerRadius }
-                        PathLine { x: attachedSurface.shoulder; y: attachedSurface.shoulder }
-                        PathQuad { controlX: attachedSurface.shoulder; controlY: 0; x: 0; y: 0 }
-                    }
-                    ShapePath {
-                        fillColor: "transparent"
-                        strokeColor: popupBackground.joinedBorder
-                        strokeWidth: popupBackground.joinedBorderWidth
-                        capStyle: ShapePath.FlatCap
-                        joinStyle: ShapePath.RoundJoin
-                        startX: 0
-                        startY: 0
-                        PathQuad { controlX: attachedSurface.shoulder; controlY: 0; x: attachedSurface.shoulder; y: attachedSurface.shoulder }
-                        PathLine { x: attachedSurface.shoulder; y: attachedSurface.height - attachedSurface.lowerRadius }
-                        PathQuad { controlX: attachedSurface.shoulder; controlY: attachedSurface.height; x: attachedSurface.shoulder + attachedSurface.lowerRadius; y: attachedSurface.height }
-                        PathLine { x: attachedSurface.width - attachedSurface.shoulder - attachedSurface.lowerRadius; y: attachedSurface.height }
-                        PathQuad { controlX: attachedSurface.width - attachedSurface.shoulder; controlY: attachedSurface.height; x: attachedSurface.width - attachedSurface.shoulder; y: attachedSurface.height - attachedSurface.lowerRadius }
-                        PathLine { x: attachedSurface.width - attachedSurface.shoulder; y: attachedSurface.shoulder }
-                        PathQuad { controlX: attachedSurface.width - attachedSurface.shoulder; controlY: 0; x: attachedSurface.width; y: 0 }
-                    }
-                }
 
-                // The same open seam faces the owning bar edge on bottom,
-                // left and right.
-                function joinedPath(outline) {
-                    const w = width
-                    const h = height
-                    const s = Math.min(popupWindow.joinedInset,
-                        popupWindow.joinedVertical ? w / 3 : h / 3)
-                    const r = Math.min(joinedRadius,
-                        popupWindow.joinedInset,
-                        popupWindow.joinedVertical ? w / 4 : h / 4)
-
-                    if (popupWindow.joinedBottom) {
-                        if (outline)
-                            return `M 0 ${h} Q ${s} ${h} ${s} ${h-s} L ${s} ${r+1} Q ${s} 1 ${s+r} 1 L ${w-s-r} 1 Q ${w-s} 1 ${w-s} ${r+1} L ${w-s} ${h-s} Q ${w-s} ${h} ${w} ${h}`
-                        return `M 0 ${h} L ${w} ${h} Q ${w-s} ${h} ${w-s} ${h-s} L ${w-s} ${r} Q ${w-s} 0 ${w-s-r} 0 L ${s+r} 0 Q ${s} 0 ${s} ${r} L ${s} ${h-s} Q ${s} ${h} 0 ${h} Z`
-                    }
-                    if (popupWindow.joinedRight) {
-                        if (outline)
-                            return `M ${w} ${h} Q ${w} ${h-s} ${w-s} ${h-s} L ${r+1} ${h-s} Q 1 ${h-s} 1 ${h-s-r} L 1 ${s+r} Q 1 ${s} ${r+1} ${s} L ${w-s} ${s} Q ${w} ${s} ${w} 0`
-                        return `M ${w} 0 L ${w} ${h} Q ${w} ${h-s} ${w-s} ${h-s} L ${r} ${h-s} Q 0 ${h-s} 0 ${h-s-r} L 0 ${s+r} Q 0 ${s} ${r} ${s} L ${w-s} ${s} Q ${w} ${s} ${w} 0 Z`
-                    }
-                    if (outline)
-                        return `M 0 0 Q 0 ${s} ${s} ${s} L ${w-r-1} ${s} Q ${w-1} ${s} ${w-1} ${s+r} L ${w-1} ${h-s-r} Q ${w-1} ${h-s} ${w-r-1} ${h-s} L ${s} ${h-s} Q 0 ${h-s} 0 ${h}`
-                    return `M 0 ${h} L 0 0 Q 0 ${s} ${s} ${s} L ${w-r} ${s} Q ${w} ${s} ${w} ${s+r} L ${w} ${h-s-r} Q ${w} ${h-s} ${w-r} ${h-s} L ${s} ${h-s} Q 0 ${h-s} 0 ${h} Z`
-                }
-
-                Shape {
                     visible: root.attachedToBar
-                        && (popupWindow.joinedBottom
-                            || popupWindow.joinedVertical)
-                    anchors.fill: parent
+                    preferredRendererType: Shape.CurveRenderer
+                    transformOrigin: Item.TopLeft
+                    width: popupWindow.joinedVertical ? popupBackground.height : popupBackground.width
+                    height: popupWindow.joinedVertical ? popupBackground.width : popupBackground.height
+                    x: popupWindow.joinedRight || popupWindow.joinedBottom ? popupBackground.width : 0
+                    y: popupWindow.joinedBottom || (popupWindow.joinedVertical && !popupWindow.joinedRight)
+                        ? popupBackground.height : 0
+                    rotation: popupWindow.joinedBottom ? 180
+                        : popupWindow.joinedVertical ? (popupWindow.joinedRight ? 90 : -90) : 0
+
+                    // Keep the full stroke inside the exposed edge of the clip.
+                    readonly property real outerEdge: Math.max(0, height - popupBackground.joinedBorderWidth / 2)
+                    readonly property real shoulder: Math.min(popupWindow.joinedInset, outerEdge / 3)
+                    readonly property real corner: Math.min(popupBackground.joinedRadius,
+                        popupWindow.joinedInset, outerEdge / 4)
+                    readonly property real rightSide: width - shoulder
+
                     ShapePath {
-                        strokeWidth: -1
                         fillColor: popupBackground.joinedFill
-                        PathSvg { path: popupBackground.joinedPath(false) }
-                    }
-                    ShapePath {
-                        fillColor: "transparent"
                         strokeColor: popupBackground.joinedBorder
                         strokeWidth: popupBackground.joinedBorderWidth
                         capStyle: ShapePath.FlatCap
                         joinStyle: ShapePath.RoundJoin
-                        PathSvg { path: popupBackground.joinedPath(true) }
+                        startX: 0
+                        startY: 0
+
+                        PathArc {
+                            x: attachedSurface.shoulder
+                            y: attachedSurface.shoulder
+                            radiusX: attachedSurface.shoulder
+                            radiusY: attachedSurface.shoulder
+                            direction: PathArc.Clockwise
+                        }
+                        PathLine {
+                            x: attachedSurface.shoulder
+                            y: attachedSurface.outerEdge - attachedSurface.corner
+                        }
+                        PathArc {
+                            x: attachedSurface.shoulder + attachedSurface.corner
+                            y: attachedSurface.outerEdge
+                            radiusX: attachedSurface.corner
+                            radiusY: attachedSurface.corner
+                            direction: PathArc.Counterclockwise
+                        }
+                        PathLine {
+                            x: attachedSurface.rightSide - attachedSurface.corner
+                            y: attachedSurface.outerEdge
+                        }
+                        PathArc {
+                            x: attachedSurface.rightSide
+                            y: attachedSurface.outerEdge - attachedSurface.corner
+                            radiusX: attachedSurface.corner
+                            radiusY: attachedSurface.corner
+                            direction: PathArc.Counterclockwise
+                        }
+                        PathLine {
+                            x: attachedSurface.rightSide
+                            y: attachedSurface.shoulder
+                        }
+                        PathArc {
+                            x: attachedSurface.width
+                            y: 0
+                            radiusX: attachedSurface.shoulder
+                            radiusY: attachedSurface.shoulder
+                            direction: PathArc.Clockwise
+                        }
                     }
                 }
 

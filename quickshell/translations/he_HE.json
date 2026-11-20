@@ -501,5 +501,19 @@
   "Fr": "Fr/*keep*/",
   "Tu": "Tu/*keep*/",
   "Th": "Th/*keep*/",
-  "We": "We/*keep*/"
+  "We": "We/*keep*/",
+  "Shell language": "שפת המעטפת",
+  "Keyboard layout": "פריסת מקלדת",
+  "Applying layout…": "מחיל את הפריסה…",
+  "Detecting layout…": "מזהה את הפריסה…",
+  "Choose keyboard layout": "בחירת פריסת מקלדת",
+  "Search layouts and variants…": "חיפוש פריסות וגרסאות…",
+  "No installed XKB layout matches this search.": "לא נמצאה פריסת XKB מותקנת שתואמת לחיפוש.",
+  "Welcome": "ברוך הבא",
+  "Welcome to\na desktop that feels like yours.": "ברוך הבא לשולחן עבודה שמרגיש שלך.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "בחר את האווירה הרצויה. Nyvorel יתאים את המעטפת לבחירה שלך.",
+  "A live preview, with a way back.": "תצוגה מקדימה בזמן אמת עם אפשרות לביטול.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "נסה את Default או Fluid. שמור את התוצאה אם היא מתאימה לך.",
+  "Get started": "התחלה",
+  "Skip setup": "דילוג על ההגדרה"
 }

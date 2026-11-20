@@ -604,5 +604,19 @@
   "Recognize music": "Müziği tanı",
   "Stroke width": "Çizgi genişliği",
   "Use varying shapes for password characters": "Şifre karakterleri için değişen şekiller kullan",
-  "Battery full": "Pil dolu"
+  "Battery full": "Pil dolu",
+  "Shell language": "Kabuk dili",
+  "Keyboard layout": "Klavye düzeni",
+  "Applying layout…": "Düzen uygulanıyor…",
+  "Detecting layout…": "Düzen algılanıyor…",
+  "Choose keyboard layout": "Klavye düzeni seç",
+  "Search layouts and variants…": "Düzenleri ve çeşitlerini ara…",
+  "No installed XKB layout matches this search.": "Aramaya uyan yüklü bir XKB düzeni bulunamadı.",
+  "Welcome": "Hoş geldiniz",
+  "Welcome to\na desktop that feels like yours.": "Kendinize ait hissedeceğiniz bir masaüstüne hoş geldiniz.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "İstediğiniz ortamı seçin. Nyvorel kabuğun görünümünü seçiminize göre düzenler.",
+  "A live preview, with a way back.": "Geri alınabilen canlı önizleme.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Varsayılan stili veya Fluid’i deneyin. Beğendiğiniz görünümü kaydedin.",
+  "Get started": "Başla",
+  "Skip setup": "Kurulumu atla"
 }

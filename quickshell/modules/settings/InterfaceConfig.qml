@@ -5,11 +5,15 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    sections: [
+        { id: "surfaces", label: Translation.tr("Shell surfaces"), icon: "dashboard_customize" },
+        { id: "lock-feedback", label: Translation.tr("Lock & feedback"), icon: "lock" },
+        { id: "overlays", label: Translation.tr("Tools & overlays"), icon: "select_window" },
+        { id: "sidebars", label: Translation.tr("Navigation & sidebars"), icon: "side_navigation" },
+        { id: "typography", label: Translation.tr("Typography"), icon: "text_format" }
+    ]
 
     // Page-local layout values only. Corner geometry always comes from the
     // project's semantic Appearance.radius.* system.
@@ -773,233 +777,15 @@ ContentPage {
         }
     }
 
-    ContentSection {
-        icon: "motion_photos_on"
-        title: Translation.tr("Motion & comfort")
-        Layout.fillWidth: true
-
-        SettingsCard {
-            title: Translation.tr("Animation")
-            subtitle: Translation.tr("Adjust movement throughout the shell. Changes take effect immediately.")
-            iconName: "animation"
-
-            PreferenceSwitchRow {
-                title: Translation.tr("Reduce motion")
-                subtitle: Translation.tr("Keep transitions brief and avoid decorative movement.")
-                iconName: "motion_photos_off"
-                switchChecked: Config.options.appearance.motion.reduced
-                onUserToggled: checked => Config.options.appearance.motion.reduced = checked
-            }
-
-            PreferenceSwitchRow {
-                enabled: !Config.options.appearance.motion.reduced
-                title: Translation.tr("Expressive motion")
-                subtitle: Translation.tr("Use the richer motion style for supported controls.")
-                iconName: "auto_awesome_motion"
-                switchChecked: Config.options.appearance.motion.expressive
-                onUserToggled: checked => Config.options.appearance.motion.expressive = checked
-            }
-
-            ColumnLayout {
-                enabled: !Config.options.appearance.motion.reduced
-                Layout.fillWidth: true
-                spacing: 7
-
-                FieldLabel {
-                    title: Translation.tr("Animation speed")
-                    subtitle: Translation.tr("Lower values are faster; higher values are slower.")
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    StyledSlider {
-                        Layout.fillWidth: true
-                        configuration: StyledSlider.Configuration.XS
-                        from: 0.5
-                        to: 1.5
-                        stepSize: 0.05
-                        value: Config.options.appearance.motion.scale
-                        stopIndicatorValues: [0.5, 0.75, 1, 1.25, 1.5]
-                        usePercentTooltip: false
-                        onMoved: Config.options.appearance.motion.scale = value
-                    }
-
-                    StyledText {
-                        text: Math.round(Config.options.appearance.motion.scale * 100) + "%"
-                        color: Appearance.colors.colSubtext
-                        font.family: Appearance.font.family.numbers
-                        font.pixelSize: Appearance.font.pixelSize.small
-                    }
-                }
-            }
-        }
-    }
-
-    // =========================================================================
-    // APPEARANCE & GEOMETRY
-    // =========================================================================
-
-    ContentSection {
-        icon: "rounded_corner"
-        title: Translation.tr("Appearance & geometry")
-        Layout.fillWidth: true
-
-        SettingsCard {
-            title: Translation.tr("Screen corners")
-            subtitle: Translation.tr("Choose when simulated screen corners appear.")
-            iconName: "rounded_corner"
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: 8
-
-                ChoiceChip {
-                    label: Translation.tr("Off")
-                    iconName: "close"
-                    selected: Config.options.appearance.fakeScreenRounding === 0
-                    onClicked: Config.options.appearance.fakeScreenRounding = 0
-                }
-
-                ChoiceChip {
-                    label: Translation.tr("Always")
-                    iconName: "check"
-                    selected: Config.options.appearance.fakeScreenRounding === 1
-                    onClicked: Config.options.appearance.fakeScreenRounding = 1
-                }
-
-                ChoiceChip {
-                    label: Translation.tr("Except fullscreen")
-                    iconName: "fullscreen_exit"
-                    selected: Config.options.appearance.fakeScreenRounding === 2
-                    onClicked: Config.options.appearance.fakeScreenRounding = 2
-                }
-            }
-        }
-
-        SettingsCard {
-            title: Translation.tr("Corner geometry")
-            subtitle: Translation.tr("Set one global corner radius, then override individual interface surfaces only where needed.")
-            iconName: "rounded_corner"
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                FieldLabel {
-                    title: Translation.tr("Global radius")
-                    subtitle: Translation.tr("Used by every semantic role configured to follow Global.")
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    StyledSlider {
-                        Layout.fillWidth: true
-                        configuration: StyledSlider.Configuration.XS
-                        from: 0
-                        to: 40
-                        value: Appearance.semanticRadiusStoredValue("global")
-                        stopIndicatorValues: [0, 8, 12, 17, 23, 30, 40]
-                        usePercentTooltip: false
-
-                        onMoved: {
-                            Appearance.setSemanticRadiusGlobal(value)
-
-                            if (Appearance.semanticRadiusFollowsGlobal("window"))
-                                root.queueWindowRadius(Appearance.radius.window)
-                        }
-                    }
-
-                    StyledText {
-                        text: Appearance.radius.global + " px"
-                        color: Appearance.colors.colSubtext
-                        font.family: Appearance.font.family.numbers
-                        font.pixelSize: Appearance.font.pixelSize.small
-                    }
-                }
-
-                RippleButtonWithIcon {
-                    Layout.fillWidth: true
-                    implicitHeight: root.compactControlHeight
-                    buttonRadius: Appearance.radius.control
-                    materialIcon: "restart_alt"
-                    mainText: Translation.tr("Reset Global to 17 px")
-
-                    colBackground: Appearance.colors.colLayer1
-                    colBackgroundHover: Appearance.colors.colLayer1Hover
-                    colRipple: Appearance.colors.colLayer1Active
-
-                    onClicked: {
-                        Appearance.setSemanticRadiusGlobal(17)
-
-                        if (Appearance.semanticRadiusFollowsGlobal("window"))
-                            root.queueWindowRadius(Appearance.radius.window)
-                    }
-                }
-
-                InfoBox {
-                    text: Translation.tr("Window radius changes are also synchronized with Hyprland through the semantic-radius bridge.")
-                    iconName: "info"
-                }
-
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: width >= 760 ? 2 : 1
-                    columnSpacing: 10
-                    rowSpacing: 10
-
-                    RadiusRoleEditor {
-                        role: "window"
-                        title: Translation.tr("Windows")
-                        iconName: "desktop_windows"
-                        resetValue: 8
-                    }
-
-                    RadiusRoleEditor {
-                        role: "bar"
-                        title: Translation.tr("Bar")
-                        iconName: "view_agenda"
-                        resetValue: 8
-                    }
-
-                    RadiusRoleEditor {
-                        role: "modal"
-                        title: Translation.tr("Modals")
-                        iconName: "select_window"
-                        resetValue: 23
-                    }
-
-                    RadiusRoleEditor {
-                        role: "card"
-                        title: Translation.tr("Cards")
-                        iconName: "dashboard"
-                        resetValue: 17
-                        resetFollowsGlobal: true
-                    }
-
-                    RadiusRoleEditor {
-                        role: "control"
-                        title: Translation.tr("Controls")
-                        iconName: "buttons_alt"
-                        resetValue: 12
-                    }
-                }
-
-            }
-        }
-    }
-
     // =========================================================================
     // SHELL SURFACES
     // =========================================================================
 
-    ContentSection {
-        icon: "dashboard_customize"
-        title: Translation.tr("Shell surfaces")
+    ColumnLayout {
+        visible: root.currentSection === "surfaces"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             Layout.fillWidth: true
@@ -1259,10 +1045,11 @@ ContentPage {
     // LOCK & FEEDBACK
     // =========================================================================
 
-    ContentSection {
-        icon: "lock"
-        title: Translation.tr("Lock & feedback")
+    ColumnLayout {
+        visible: root.currentSection === "lock-feedback"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Lock screen")
@@ -1494,10 +1281,11 @@ ContentPage {
     // TOOLS & OVERLAYS
     // =========================================================================
 
-    ContentSection {
-        icon: "select_window"
-        title: Translation.tr("Tools & overlays")
+    ColumnLayout {
+        visible: root.currentSection === "overlays"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Overlay behavior")
@@ -1783,10 +1571,11 @@ ContentPage {
     // NAVIGATION & SIDEBARS
     // =========================================================================
 
-    ContentSection {
-        icon: "side_navigation"
-        title: Translation.tr("Navigation & sidebars")
+    ColumnLayout {
+        visible: root.currentSection === "sidebars"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             Layout.fillWidth: true
@@ -2222,10 +2011,11 @@ ContentPage {
     // TYPOGRAPHY
     // =========================================================================
 
-    ContentSection {
-        icon: "text_format"
-        title: Translation.tr("Typography")
+    ColumnLayout {
+        visible: root.currentSection === "typography"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Interface fonts")

@@ -733,5 +733,19 @@
   "Tint app icons": "Colorir ícones de app",
   "Color picker": "Seletor de cores",
   "Night Light | Right-click to toggle Auto mode": "Luz Noturna | Botão direito para alternar modo Auto",
-  "Inactive": "Inativo"
+  "Inactive": "Inativo",
+  "Shell language": "Idioma do shell",
+  "Keyboard layout": "Layout do teclado",
+  "Applying layout…": "Aplicando layout…",
+  "Detecting layout…": "Detectando layout…",
+  "Choose keyboard layout": "Escolher layout do teclado",
+  "Search layouts and variants…": "Buscar layouts e variantes…",
+  "No installed XKB layout matches this search.": "Nenhum layout XKB instalado corresponde à busca.",
+  "Welcome": "Boas-vindas",
+  "Welcome to\na desktop that feels like yours.": "Boas-vindas a uma área de trabalho com a sua cara.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "Escolha o clima que você quer. O Nyvorel vai ajustar o visual do shell.",
+  "A live preview, with a way back.": "Uma prévia ao vivo que você pode desfazer.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Experimente Padrão ou Fluid. Mantenha o resultado se gostar.",
+  "Get started": "Começar",
+  "Skip setup": "Pular configuração"
 }

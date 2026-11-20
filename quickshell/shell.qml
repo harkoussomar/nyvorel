@@ -7,7 +7,7 @@
 ////@ pragma Env QT_SCALE_FACTOR=1
 
 import "modules/common"
-import "modules/appearanceStudio"
+import "modules/wallpaperPicker"
 import "services"
 import "panelFamilies"
 
@@ -23,69 +23,32 @@ ShellRoot {
     // Stuff for every panel family
     ReloadPopup {}
 
-    // memory-lazy-surfaces-v2
-    property bool appearanceStudioRetained: false
-
-    Timer {
-        id: appearanceStudioUnloadTimer
-        interval: 340
-        repeat: false
-
-        onTriggered: {
-            if (!GlobalStates.appearanceStudioOpen)
-                root.appearanceStudioRetained = false
-        }
-    }
-
-    Connections {
-        target: GlobalStates
-
-        function onAppearanceStudioOpenChanged() {
-            if (GlobalStates.appearanceStudioOpen) {
-                appearanceStudioUnloadTimer.stop()
-                root.appearanceStudioRetained = true
-            } else if (root.appearanceStudioRetained) {
-                appearanceStudioUnloadTimer.restart()
-            }
-        }
-    }
+    property bool wallpaperPickerRetained: false
 
     LazyLoader {
-        id: appearanceStudioLoader
-
-        active:
-            GlobalStates.appearanceStudioOpen
-            || root.appearanceStudioRetained
-
-        component: AppearanceStudio {}
+        active: GlobalStates.wallpaperPickerOpen || root.wallpaperPickerRetained
+        component: WallpaperPicker {
+            onRetainedChanged: {
+                const keep = retained
+                Qt.callLater(() => root.wallpaperPickerRetained = keep)
+            }
+            Component.onCompleted: root.wallpaperPickerRetained = retained
+        }
     }
 
     IpcHandler {
-        target: "appearanceStudio"
+        target: "wallpaperPicker"
 
-        function toggle(): void {
-            GlobalStates.appearanceStudioOpen =
-                !GlobalStates.appearanceStudioOpen
-        }
-
-        function open(): void {
-            GlobalStates.appearanceStudioOpen = true
-        }
-
-        function close(): void {
-            GlobalStates.appearanceStudioOpen = false
-        }
+        function open(): void { GlobalStates.openExclusiveSurface("wallpaperPicker") }
+        function close(): void { GlobalStates.closeExclusiveSurface("wallpaperPicker") }
+        function toggle(): void { GlobalStates.toggleExclusiveSurface("wallpaperPicker") }
     }
 
     GlobalShortcut {
-        name: "appearanceStudioToggle"
-        description: "Toggle Appearance Studio"
-
-        onPressed:
-            GlobalStates.appearanceStudioOpen =
-                !GlobalStates.appearanceStudioOpen
+        name: "wallpaperSelectorToggle"
+        description: "Change wallpaper"
+        onPressed: GlobalStates.toggleExclusiveSurface("wallpaperPicker")
     }
-
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()

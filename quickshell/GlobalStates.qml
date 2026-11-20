@@ -74,7 +74,7 @@ Singleton {
     property bool sessionOpen: false
     property bool superDown: false
     property bool superReleaseMightTrigger: true
-    property bool appearanceStudioOpen: false
+    property bool wallpaperPickerOpen: false
     property bool archRemoteOpen: false
     property bool backupRecoveryOpen: false
 
@@ -86,14 +86,13 @@ Singleton {
     property real archRemoteRegionWidth: 0
     property real archRemoteRegionHeight: 0
 
-    // Appearance Studio is a layer-shell surface rather than a normal
-    // Hyprland client. Publish the visible card rectangle so region snipping
-    // can treat it as a window-like target.
-    property string appearanceStudioScreenName: ""
-    property real appearanceStudioRegionX: 0
-    property real appearanceStudioRegionY: 0
-    property real appearanceStudioRegionWidth: 0
-    property real appearanceStudioRegionHeight: 0
+    // Track the wallpaper preview as a shell-owned capture surface.
+    property string wallpaperPickerScreenName: ""
+    property string wallpaperPreviewPath: ""
+    property real wallpaperPickerRegionX: 0
+    property real wallpaperPickerRegionY: 0
+    property real wallpaperPickerRegionWidth: 0
+    property real wallpaperPickerRegionHeight: 0
     property bool workspaceShowNumbers: false
 
     onSidebarRightOpenChanged: {
@@ -125,7 +124,7 @@ Singleton {
     // Settings is a native ApplicationWindow and is intentionally excluded.
     // Polkit is a system-blocking surface and is intentionally excluded.
     readonly property var exclusiveSurfaceIds: [
-        "appearanceStudio",
+        "wallpaperPicker",
         "archRemote",
         "backupRecovery",
         "cheatsheet",
@@ -145,7 +144,7 @@ Singleton {
 
     function exclusiveSurfaceLabel(id) {
         switch (id) {
-        case "appearanceStudio": return "Appearance Studio"
+        case "wallpaperPicker": return "Wallpaper picker"
         case "archRemote": return "Arch Remote"
         case "backupRecovery": return "Backup & Recovery"
         case "cheatsheet": return "Cheatsheet"
@@ -157,7 +156,7 @@ Singleton {
 
     function hasExclusiveBoolean(id) {
         return [
-            "appearanceStudio",
+            "wallpaperPicker",
             "archRemote",
             "backupRecovery",
             "overview",
@@ -167,8 +166,8 @@ Singleton {
 
     function setExclusiveBoolean(id, value) {
         switch (id) {
-        case "appearanceStudio":
-            root.appearanceStudioOpen = value
+        case "wallpaperPicker":
+            root.wallpaperPickerOpen = value
             break
         case "archRemote":
             root.archRemoteOpen = value
@@ -351,26 +350,26 @@ Singleton {
         root.captureRegions = next
     }
 
-    function syncAppearanceStudioCaptureRegion() {
+    function syncWallpaperPickerCaptureRegion() {
         if (
-            root.appearanceStudioOpen
-            && root.appearanceStudioScreenName.length > 0
-            && root.appearanceStudioRegionWidth > 0
-            && root.appearanceStudioRegionHeight > 0
+            root.wallpaperPickerOpen
+            && root.wallpaperPickerScreenName.length > 0
+            && root.wallpaperPickerRegionWidth > 0
+            && root.wallpaperPickerRegionHeight > 0
         ) {
             root.registerCaptureRegion(
-                "appearanceStudio",
-                root.appearanceStudioScreenName,
-                root.appearanceStudioRegionX,
-                root.appearanceStudioRegionY,
-                root.appearanceStudioRegionWidth,
-                root.appearanceStudioRegionHeight,
+                "wallpaperPicker",
+                root.wallpaperPickerScreenName,
+                root.wallpaperPickerRegionX,
+                root.wallpaperPickerRegionY,
+                root.wallpaperPickerRegionWidth,
+                root.wallpaperPickerRegionHeight,
                 160,
-                "Appearance Studio",
+                "Wallpaper picker",
                 4
             )
         } else {
-            root.clearCaptureRegion("appearanceStudio")
+            root.clearCaptureRegion("wallpaperPicker")
         }
     }
 
@@ -397,12 +396,12 @@ Singleton {
         }
     }
 
-    onAppearanceStudioOpenChanged: {
+    onWallpaperPickerOpenChanged: {
         root.handleExclusiveBooleanChanged(
-            "appearanceStudio",
-            root.appearanceStudioOpen
+            "wallpaperPicker",
+            root.wallpaperPickerOpen
         )
-        root.syncAppearanceStudioCaptureRegion()
+        root.syncWallpaperPickerCaptureRegion()
     }
 
     onArchRemoteOpenChanged: {
@@ -432,16 +431,16 @@ Singleton {
             root.sessionOpen
         )
 
-    onAppearanceStudioScreenNameChanged:
-        root.syncAppearanceStudioCaptureRegion()
-    onAppearanceStudioRegionXChanged:
-        root.syncAppearanceStudioCaptureRegion()
-    onAppearanceStudioRegionYChanged:
-        root.syncAppearanceStudioCaptureRegion()
-    onAppearanceStudioRegionWidthChanged:
-        root.syncAppearanceStudioCaptureRegion()
-    onAppearanceStudioRegionHeightChanged:
-        root.syncAppearanceStudioCaptureRegion()
+    onWallpaperPickerScreenNameChanged:
+        root.syncWallpaperPickerCaptureRegion()
+    onWallpaperPickerRegionXChanged:
+        root.syncWallpaperPickerCaptureRegion()
+    onWallpaperPickerRegionYChanged:
+        root.syncWallpaperPickerCaptureRegion()
+    onWallpaperPickerRegionWidthChanged:
+        root.syncWallpaperPickerCaptureRegion()
+    onWallpaperPickerRegionHeightChanged:
+        root.syncWallpaperPickerCaptureRegion()
 
     onArchRemoteScreenNameChanged:
         root.syncArchRemoteCaptureRegion()

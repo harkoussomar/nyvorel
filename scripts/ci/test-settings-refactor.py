@@ -30,10 +30,13 @@ def check_search() -> None:
             assert not entry["path"].endswith("Config"), entry
     assert {entry["pageIndex"] for entry in entries} == set(range(len(PAGES)))
     labels = {entry["label"] for entry in entries}
-    assert "Open Appearance Studio" in labels
+    assert "Open Appearance Studio" not in labels
+    assert "Change wallpaper" in labels
+    assert "Monochrome app icons" in labels
     assert "Keyboard layout" in labels
     assert "Shell language" in labels
-    assert "Screen corners" in labels
+    assert any(entry["label"] == "Screen edges" and entry.get("appearanceSection") == "screen"
+               for entry in entries)
     assert "Quick sliders" not in labels
     assert "Konachan" not in labels
 

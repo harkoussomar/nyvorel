@@ -9,10 +9,29 @@ Item {
     id: root
 
     property bool openUpward: false
-    implicitHeight: 42
+    property bool compact: false
+    property bool showCompositorDefault: true
+    implicitHeight: compact ? 40 : 42
     Layout.fillWidth: true
 
     Component.onCompleted: KeyboardLayout.load()
+
+    function choices(query: string): var {
+        const available = KeyboardLayout.filteredChoices(query).filter(choice =>
+            root.showCompositorDefault || choice.value !== "auto")
+        if (!root.compact || query.trim().length > 0)
+            return available
+
+        const quick = [...new Set([KeyboardLayout.currentCode, "us", "gb", "it", "fr", "de", "es"].filter(Boolean))]
+        const featured = quick.map(code => available.find(choice => choice.value === code)).filter(Boolean)
+        return featured.concat(available.filter(choice => !quick.includes(choice.value)))
+    }
+
+    function choose(code: string): void {
+        if (code !== KeyboardLayout.currentCode)
+            KeyboardLayout.select(code)
+        chooser.close()
+    }
 
     function openPicker(): void {
         if (!KeyboardLayout.catalogueReady || KeyboardLayout.busy)
@@ -42,7 +61,7 @@ Item {
         anchors.fill: parent
         activeFocusOnTab: true
         enabled: KeyboardLayout.catalogueReady && !KeyboardLayout.busy
-        Accessible.name: "Keyboard layout: " + KeyboardLayout.currentDisplay
+        Accessible.name: Translation.tr("Keyboard layout") + ": " + Translation.tr(KeyboardLayout.currentDisplay)
         buttonRadius: Appearance.radius.control
         buttonRadiusPressed: Appearance.radius.control
         colBackground: Appearance.colors.colSecondaryContainer
@@ -64,7 +83,7 @@ Item {
             StyledText {
                 Layout.fillWidth: true
                 text: KeyboardLayout.busy
-                    ? "Applying layout…" : KeyboardLayout.currentDisplay
+                    ? Translation.tr("Applying layout…") : Translation.tr(KeyboardLayout.currentDisplay)
                 color: Appearance.colors.colOnSecondaryContainer
                 font.pixelSize: Appearance.font.pixelSize.small
                 elide: Text.ElideRight
@@ -80,8 +99,17 @@ Item {
     Popup {
         id: chooser
         parent: Overlay.overlay
-        width: 370
-        height: Math.min(430, parent ? parent.height - 24 : 430)
+        readonly property int maxHeight: Math.max(0, (parent?.height ?? 454) - 24)
+        readonly property int rowHeight: root.compact ? 40 : 48
+        readonly property int visibleRows: Math.min(6, Math.max(1, Math.floor(
+            (maxHeight - 2 * padding - 48 + layoutList.spacing) / (rowHeight + layoutList.spacing))))
+
+        width: Math.min(root.compact ? 300 : 370, Math.max(0, (parent?.width ?? 394) - 24))
+        height: root.compact
+            ? Math.min(maxHeight, 2 * padding + 48
+                + Math.max(1, Math.min(layoutList.count, visibleRows)) * (rowHeight + layoutList.spacing)
+                - layoutList.spacing)
+            : Math.min(430, maxHeight)
         padding: 10
         focus: true
         modal: false
@@ -102,7 +130,8 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
-                text: "Choose keyboard layout"
+                visible: !root.compact
+                text: Translation.tr("Choose keyboard layout")
                 color: Appearance.colors.colOnLayer0
                 font.pixelSize: Appearance.font.pixelSize.normal
                 font.weight: Font.DemiBold
@@ -110,7 +139,8 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
-                text: "Current: " + KeyboardLayout.currentDisplay
+                visible: !root.compact
+                text: "Current: " + Translation.tr(KeyboardLayout.currentDisplay)
                 color: Appearance.colors.colSubtext
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 elide: Text.ElideRight
@@ -120,7 +150,7 @@ Item {
                 id: searchField
                 Layout.fillWidth: true
                 Layout.preferredHeight: 40
-                placeholderText: "Search layouts and variants…"
+                placeholderText: Translation.tr("Search layouts and variants…")
                 color: Appearance.colors.colOnLayer0
                 placeholderTextColor: Appearance.colors.colSubtext
                 font.family: Appearance.font.family.main
@@ -134,11 +164,9 @@ Item {
                         : Appearance.colors.colLayer0Border
                 }
                 onAccepted: {
-                    const matches = KeyboardLayout.filteredChoices(searchField.text)
-                    if (matches.length === 1) {
-                        KeyboardLayout.select(matches[0].value)
-                        chooser.close()
-                    }
+                    const matches = root.choices(searchField.text)
+                    if (matches.length === 1)
+                        root.choose(matches[0].value)
                 }
             }
 
@@ -149,19 +177,25 @@ Item {
                 clip: true
                 spacing: 2
                 boundsBehavior: Flickable.StopAtBounds
-                model: KeyboardLayout.filteredChoices(searchField.text)
-                ScrollBar.vertical: ScrollBar {}
+                model: root.choices(searchField.text)
+                ScrollBar.vertical: StyledScrollBar {
+                    policy: root.compact && layoutList.count > chooser.visibleRows
+                        ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
+                    topPadding: root.compact ? 2 : Appearance.rounding.normal
+                    bottomPadding: topPadding
+                }
 
                 delegate: ItemDelegate {
                     id: layoutChoice
                     required property var modelData
-                    width: ListView.view.width - 8
-                    implicitHeight: 48
-                    highlighted: Config.options.language.keyboardLayout === modelData.value
-                    onClicked: {
-                        KeyboardLayout.select(modelData.value)
-                        chooser.close()
-                    }
+                    width: layoutList.width - (root.compact && layoutList.count <= chooser.visibleRows ? 0 : 8)
+                    implicitHeight: chooser.rowHeight
+                    highlighted: root.showCompositorDefault
+                        ? Config.options.language.keyboardLayout === modelData.value
+                        : KeyboardLayout.currentCode === modelData.value
+                    Accessible.name: modelData.displayName
+                    Accessible.selected: highlighted
+                    onClicked: root.choose(modelData.value)
 
                     background: Rectangle {
                         radius: Appearance.radius.control
@@ -184,7 +218,7 @@ Item {
                             StyledText {
                                 Layout.fillWidth: true
                                 text: layoutChoice.modelData.value === "auto"
-                                    ? "Use Hyprland setting"
+                                    ? Translation.tr("Use Hyprland setting")
                                     : layoutChoice.modelData.displayName
                                 color: Appearance.colors.colOnLayer0
                                 font.pixelSize: Appearance.font.pixelSize.small
@@ -192,6 +226,7 @@ Item {
                             }
                             StyledText {
                                 Layout.fillWidth: true
+                                visible: !root.compact
                                 text: layoutChoice.modelData.value === "auto"
                                     ? "Restore the layout from Hyprland's config"
                                     : layoutChoice.modelData.value
@@ -212,7 +247,7 @@ Item {
                 footer: StyledText {
                     visible: layoutList.count === 0
                     width: layoutList.width
-                    text: "No installed XKB layout matches this search."
+                    text: Translation.tr("No installed XKB layout matches this search.")
                     color: Appearance.colors.colSubtext
                     horizontalAlignment: Text.AlignHCenter
                     font.pixelSize: Appearance.font.pixelSize.small
@@ -221,6 +256,7 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
+                visible: !root.compact
                 text: "Input methods such as Pinyin need a separate IME."
                 color: Appearance.colors.colSubtext
                 font.pixelSize: Appearance.font.pixelSize.smallest

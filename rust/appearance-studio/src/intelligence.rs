@@ -117,6 +117,8 @@ fn histogram(path: &Path) -> Result<String, String> {
                     "192x192".as_ref(),
                     "-colors".as_ref(),
                     "32".as_ref(),
+                    "-depth".as_ref(),
+                    "8".as_ref(),
                     "-format".as_ref(),
                     "%c".as_ref(),
                     "histogram:info:-".as_ref(),

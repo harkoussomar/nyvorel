@@ -428,5 +428,19 @@
   "Lap": "ラップ",
   "Horizontal": "水平",
   "Region width": "領域の幅",
-  "Vertical": "垂直"
+  "Vertical": "垂直",
+  "Shell language": "シェルの言語",
+  "Keyboard layout": "キーボード配列",
+  "Applying layout…": "配列を適用中…",
+  "Detecting layout…": "配列を検出中…",
+  "Choose keyboard layout": "キーボード配列を選択",
+  "Search layouts and variants…": "配列とバリエーションを検索…",
+  "No installed XKB layout matches this search.": "検索に一致するインストール済みの XKB 配列がありません。",
+  "Welcome": "ようこそ",
+  "Welcome to\na desktop that feels like yours.": "自分らしいデスクトップへようこそ。",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "好みの雰囲気を選んでください。Nyvorel がシェルの外観を調整します。",
+  "A live preview, with a way back.": "いつでも元に戻せるライブプレビュー。",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Default または Fluid を試してください。気に入ったら保存できます。",
+  "Get started": "始める",
+  "Skip setup": "設定をスキップ"
 }

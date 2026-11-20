@@ -333,12 +333,6 @@ hl.window_rule({["float"] = true, ["match"] = {["class"] = ".*bluedevilwizard"},
 hl.window_rule({["float"] = true, ["match"] = {["title"] = ".*Welcome"}, ["name"] = "nyvorel-36"})
 -- hyprland/rules.conf:44
 hl.window_rule({["float"] = true, ["match"] = {["title"] = "^(Nyvorel Settings)$"}, ["name"] = "nyvorel-37"})
--- hyprland/rules.conf:48
-hl.window_rule({["border_size"] = 0, ["match"] = {["title"] = "^(Nyvorel Settings)$"}, ["name"] = "nyvorel-38"})
--- hyprland/rules.conf:49
-hl.window_rule({["rounding"] = 0, ["match"] = {["title"] = "^(Nyvorel Settings)$"}, ["name"] = "nyvorel-39"})
--- hyprland/rules.conf:50
-hl.window_rule({["no_shadow"] = true, ["match"] = {["title"] = "^(Nyvorel Settings)$"}, ["name"] = "nyvorel-40"})
 -- hyprland/rules.conf:53
 hl.window_rule({["float"] = true, ["match"] = {["title"] = ".*Shell conflicts.*"}, ["name"] = "nyvorel-41"})
 -- hyprland/rules.conf:54
@@ -587,11 +581,7 @@ hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ tog
 -- hyprland/keybinds.conf:36
 hl.bind("SUPER+ALT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle mic"})
 -- hyprland/keybinds.conf:37
-hl.bind("CTRL+SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"), {["description"] = "Toggle wallpaper selector"})
--- hyprland/keybinds.conf:38
-hl.bind("CTRL+SUPER+ALT + T", hl.dsp.global("quickshell:wallpaperSelectorRandom"), {["description"] = "Select random wallpaper"})
--- hyprland/keybinds.conf:39
-hl.bind("CTRL+SUPER + T", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || ~/.config/quickshell/nyvorel/scripts/colors/switchwall.sh"), {["description"] = "Change wallpaper"})
+hl.bind("CTRL+SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"), {["description"] = "Change wallpaper"})
 -- hyprland/keybinds.conf:40
 hl.bind("CTRL+SUPER + R", hl.dsp.exec_cmd("sh -lc 'systemctl --user import-environment DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE >/dev/null 2>&1 || true; hyprctl reload; systemctl --user restart nyvorel-quickshell.service'"), {})
 -- hyprland/keybinds.conf:41
@@ -895,7 +885,7 @@ hl.bind("SUPER + X", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_fir
 -- hyprland/keybinds.conf:246
 hl.bind("CTRL+SUPER + V", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"pavucontrol-qt\" \"pavucontrol\""), {})
 -- hyprland/keybinds.conf:247
-hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings"), {})
+hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings --toggle"), {})
 -- hyprland/keybinds.conf:248
 hl.bind("CTRL+SHIFT + Escape", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"gnome-system-monitor\" \"plasma-systemmonitor --page-name Processes\" \"command -v btop && kitty -1 fish -c btop\""), {})
 -- hyprland/keybinds.conf:252
@@ -911,7 +901,6 @@ dofile(nyvorel_config_root .. "/custom/appearance-runtime.lua")
 hl.bind("SUPER + P", hl.dsp.window.pin(), {})
 hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true}), { ["description"] = "Move window to left display" })
 hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true}), { ["description"] = "Move window to right display" })
-hl.bind("SUPER+ALT + T", hl.dsp.global("quickshell:appearanceStudioToggle"), { ["description"] = "Appearance Studio" })
 hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Arch Remote Control Center" })
 hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Backup & Recovery Center" })
 -- custom/nyvorel-super-scroll.conf:15

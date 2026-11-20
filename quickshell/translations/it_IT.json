@@ -359,5 +359,19 @@
   "**Instructions**: Log into Mistral account, go to Keys on the sidebar, click Create new key": "**Istruzioni**: Accedi al tuo account Mistral, vai nella sezione \"Keys\" dal menu laterale, clicca \"Create new key\"",
   "Gives the model search capabilities (immediately)": "Abilita modalità ricerca del modello (immediatamente)",
   "Commands, edit configs, search.\nTakes an extra turn to switch to search mode if that's needed": "Comanda, modifica la richiesta, cerca.\nRichiede un turno in più per attivare la modalità ricerca se richiesta",
-  "Online | %1's model | Delivers fast, responsive and well-formatted answers. Disadvantages: not very eager to do stuff; might make up unknown function calls": "Online | Modello di %1 | Ritorna risposte veloci e formattate correttamente. Svantaggi: poca voglia di svolgere compiti; potrebbe fare chiamate di funzioni inesistenti"
+  "Online | %1's model | Delivers fast, responsive and well-formatted answers. Disadvantages: not very eager to do stuff; might make up unknown function calls": "Online | Modello di %1 | Ritorna risposte veloci e formattate correttamente. Svantaggi: poca voglia di svolgere compiti; potrebbe fare chiamate di funzioni inesistenti",
+  "Shell language": "Lingua della shell",
+  "Keyboard layout": "Layout della tastiera",
+  "Applying layout…": "Applicazione del layout…",
+  "Detecting layout…": "Rilevamento del layout…",
+  "Choose keyboard layout": "Scegli il layout della tastiera",
+  "Search layouts and variants…": "Cerca layout e varianti…",
+  "No installed XKB layout matches this search.": "Nessun layout XKB installato corrisponde alla ricerca.",
+  "Welcome": "Benvenuto",
+  "Welcome to\na desktop that feels like yours.": "Benvenuto in un desktop che senti tuo.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "Scegli l’atmosfera che preferisci. Nyvorel adatterà l’interfaccia alla tua scelta.",
+  "A live preview, with a way back.": "Un’anteprima dal vivo che puoi annullare.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Prova Predefinito o Fluid. Mantieni il risultato se ti piace.",
+  "Get started": "Inizia",
+  "Skip setup": "Salta la configurazione"
 }

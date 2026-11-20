@@ -52,10 +52,8 @@ ApplicationWindow {
     property bool noticeError: false
 
     readonly property bool busy: previewProc.running || controlProc.running
-    readonly property string stepTitle:
-        currentStep === 0 ? "Welcome"
-        : currentStep === 1 ? "Make it yours"
-        : "Ready"
+    readonly property string stepTitle: Translation.tr(
+        currentStep === 0 ? "Welcome" : currentStep === 1 ? "Make it yours" : "Ready")
 
     function fitToScreen() {
         if (!root.screen)
@@ -94,7 +92,7 @@ ApplicationWindow {
 
         const patch = profilePatch(selectedProfile)
         if (!patch) {
-            notice = "Appearance profiles are unavailable. You can set them in Appearance Studio."
+            notice = "Appearance profiles are unavailable. You can set them in Settings → Appearance."
             noticeError = true
             return
         }
@@ -537,7 +535,7 @@ ApplicationWindow {
                                         }
                                     }
                                     Text {
-                                        text: modelData.title
+                                        text: Translation.tr(modelData.title)
                                         color: index === root.currentStep
                                             ? Appearance.colors.colOnLayer0
                                             : Appearance.colors.colSubtext
@@ -598,7 +596,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                             }
                             WelcomeButton {
-                                label: "Skip setup"
+                                label: Translation.tr("Skip setup")
                                 quiet: true
                                 compact: true
                                 onClicked: root.requestClose()
@@ -683,7 +681,7 @@ ApplicationWindow {
                             Layout.topMargin: 16
                             spacing: 10
                             WelcomeButton {
-                                label: "Back"
+                                label: Translation.tr("Back")
                                 iconName: "arrow_back"
                                 quiet: true
                                 visible: root.currentStep > 0
@@ -691,10 +689,10 @@ ApplicationWindow {
                             }
                             Item { Layout.fillWidth: true }
                             WelcomeButton {
-                                label: root.currentStep === 2 ? "Enter Nyvorel"
+                                label: Translation.tr(root.currentStep === 2 ? "Enter Nyvorel"
                                     : root.currentStep === 1
                                     ? (root.previewActive ? "Keep this look" : "Continue")
-                                    : "Get started"
+                                    : "Get started")
                                 iconName: root.currentStep === 2 ? "arrow_forward"
                                     : "arrow_forward"
                                 primary: true
@@ -732,7 +730,7 @@ ApplicationWindow {
                     spacing: 0
                     Item { Layout.fillHeight: true }
                     Text {
-                        text: "Welcome to\na desktop that feels like yours."
+                        text: Translation.tr("Welcome to\na desktop that feels like yours.")
                         color: Appearance.colors.colOnLayer0
                         font.family: Appearance.font.family.title
                         font.pixelSize: root.width >= 830 ? 36
@@ -743,7 +741,7 @@ ApplicationWindow {
                         wrapMode: Text.WordWrap
                     }
                     Text {
-                        text: "Choose the atmosphere you want. Nyvorel will shape the shell around it."
+                        text: Translation.tr("Choose the atmosphere you want. Nyvorel will shape the shell around it.")
                         color: Appearance.colors.colSubtext
                         font.family: Appearance.font.family.main
                         font.pixelSize: root.height >= 600 ? 15 : 13
@@ -792,14 +790,14 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 spacing: 5
                                 Text {
-                                    text: "A live preview, with a way back."
+                                    text: Translation.tr("A live preview, with a way back.")
                                     color: Appearance.colors.colOnLayer0
                                     font.family: Appearance.font.family.main
                                     font.pixelSize: 15
                                     font.weight: Font.DemiBold
                                 }
                                 Text {
-                                    text: "Try Default or Fluid. Keep the result only when it feels right."
+                                    text: Translation.tr("Try Default or Fluid. Keep the result only when it feels right.")
                                     color: Appearance.colors.colSubtext
                                     font.family: Appearance.font.family.main
                                     font.pixelSize: 12
@@ -825,8 +823,10 @@ ApplicationWindow {
                                 color: Appearance.colors.colSubtext
                             }
                             Text {
-                                text: "Shell language"
-                                Layout.preferredWidth: 125
+                                text: Translation.tr("Shell language")
+                                Layout.preferredWidth: 146
+                                Layout.minimumWidth: 0
+                                elide: Text.ElideRight
                                 color: Appearance.colors.colOnLayer0
                                 font.family: Appearance.font.family.main
                                 font.pixelSize: 13
@@ -837,37 +837,25 @@ ApplicationWindow {
                                 Layout.maximumWidth: 260
                                 buttonRadius: Appearance.radius.control
                                 openUpward: true
+                                showSelectionMark: true
+                                visiblePopupRows: 6
+                                Accessible.name: Translation.tr("Shell language")
                                 textRole: "displayName"
-                                model: [
-                                    { displayName: Translation.tr("System language"), value: "auto" },
-                                    ...Translation.allAvailableLanguages.map(lang => {
-                                        return {
-                                            displayName: Translation.displayLanguage(lang),
-                                            value: lang
-                                        }
-                                    })
-                                ]
+                                model: Translation.allAvailableLanguages.map(lang => ({
+                                    displayName: Translation.displayLanguage(lang),
+                                    value: lang
+                                }))
                                 currentIndex: {
-                                    const index = model.findIndex(
-                                        item => item.value === Config.options.language.ui
-                                    )
-                                    return index >= 0 ? index : 0
+                                    const effective = Translation.languageCode
+                                    const index = model.findIndex(item => item.value === effective)
+                                    return index >= 0 ? index : model.findIndex(item => item.value === "en_US")
                                 }
                                 onActivated: index => {
-                                    Config.options.language.ui = model[index].value
+                                    const code = model[index]?.value
+                                    if (code && code !== Translation.languageCode)
+                                        Config.options.language.ui = code
                                 }
                             }
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Current shell language: "
-                                + (Translation.allAvailableLanguages.includes(Translation.languageCode)
-                                    ? Translation.displayLanguage(Translation.languageCode)
-                                    : "English (fallback)")
-                            color: Appearance.colors.colSubtext
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: 11
                         }
 
                         RowLayout {
@@ -879,8 +867,10 @@ ApplicationWindow {
                                 color: Appearance.colors.colSubtext
                             }
                             Text {
-                                text: "Keyboard layout"
-                                Layout.preferredWidth: 125
+                                text: Translation.tr("Keyboard layout")
+                                Layout.preferredWidth: 146
+                                Layout.minimumWidth: 0
+                                elide: Text.ElideRight
                                 color: Appearance.colors.colOnLayer0
                                 font.family: Appearance.font.family.main
                                 font.pixelSize: 13
@@ -889,6 +879,8 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 Layout.maximumWidth: 260
                                 openUpward: true
+                                compact: true
+                                showCompositorDefault: false
                             }
                         }
 

@@ -17,7 +17,7 @@ Singleton {
             return "quickshell:bar"
 
         switch (id) {
-        case "appearanceStudio": return "quickshell:appearanceStudio"
+        case "wallpaperPicker": return "quickshell:wallpaperPicker"
         case "archRemote": return "quickshell:archRemote"
         case "backupRecovery": return "quickshell:backupRecovery"
         case "cheatsheet": return "quickshell:cheatsheet"
@@ -36,7 +36,7 @@ Singleton {
             return "bar:*"
 
         switch (namespace) {
-        case "quickshell:appearanceStudio": return "appearanceStudio"
+        case "quickshell:wallpaperPicker": return "wallpaperPicker"
         case "quickshell:archRemote": return "archRemote"
         case "quickshell:backupRecovery": return "backupRecovery"
         case "quickshell:cheatsheet": return "cheatsheet"
@@ -55,7 +55,7 @@ Singleton {
             return true
 
         switch (id) {
-        case "appearanceStudio": return GlobalStates.appearanceStudioOpen
+        case "wallpaperPicker": return GlobalStates.wallpaperPickerOpen
         case "archRemote": return GlobalStates.archRemoteOpen
         case "backupRecovery": return GlobalStates.backupRecoveryOpen
         case "cheatsheet": return GlobalStates.exclusiveSurfaceActive("cheatsheet")

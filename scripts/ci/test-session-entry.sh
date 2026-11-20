@@ -66,13 +66,15 @@ legacy_power = re.findall(r'^\s*render_power\s*=\s*(\d+)\s*$', legacy, re.M)
 assert len(lua_power) == len(legacy_power) == 1
 assert lua_power == legacy_power and 1 <= int(lua_power[0]) <= 4
 required = {
-    '"SUPER+ALT + T"': "quickshell:appearanceStudioToggle",
+    '"CTRL+SUPER + T"': "quickshell:wallpaperSelectorToggle",
     '"SUPER + Y"': "quickshell:archRemoteToggle",
     '"SUPER + U"': "quickshell:backupRecoveryToggle",
 }
 for keys, target in required.items():
     assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
 assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' in lua
+assert 'hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings --toggle")' in lua
+assert "quickshell:appearanceStudioToggle" not in lua
 assert 'hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true})' in lua
 assert 'hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true})' in lua
 assert 'hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle")' in lua
@@ -82,7 +84,7 @@ helper = (root / "bin/nyvorel-super-scroll").read_text()
 assert 'hyprctl dispatch \'hl.dsp.global("quickshell:searchToggle")\'' in helper
 assert 'hyprctl dispatch global quickshell:searchToggle' not in helper
 for target, path in (
-    ("appearanceStudioToggle", "quickshell/shell.qml"),
+    ("wallpaperSelectorToggle", "quickshell/shell.qml"),
     ("archRemoteToggle", "quickshell/modules/nyvorel/archRemote/ArchRemote.qml"),
     ("backupRecoveryToggle", "quickshell/modules/nyvorel/backupRecovery/BackupRecovery.qml"),
 ):

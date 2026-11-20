@@ -7,11 +7,15 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    sections: [
+        { id: "system", label: Translation.tr("System"), icon: "tune" },
+        { id: "input", label: Translation.tr("Input"), icon: "touchpad" },
+        { id: "locale-time", label: Translation.tr("Locale & time"), icon: "language" },
+        { id: "feedback", label: Translation.tr("Feedback"), icon: "notifications" },
+        { id: "privacy-content", label: Translation.tr("Privacy & content"), icon: "shield" }
+    ]
 
     // Layout values belong to this page. Corner geometry does not:
     // every corner uses the project's semantic Appearance.radius.* system.
@@ -452,10 +456,11 @@ ContentPage {
     // SYSTEM
     // =========================================================================
 
-    ContentSection {
-        icon: "tune"
-        title: Translation.tr("System")
+    ColumnLayout {
+        visible: root.currentSection === "system"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             id: systemGrid
@@ -667,10 +672,11 @@ ContentPage {
     // =========================================================================
 
     // >>> TOUCHPAD-SCROLL-UI-V1 >>>
-    ContentSection {
-        icon: "touchpad"
-        title: Translation.tr("Input")
+    ColumnLayout {
+        visible: root.currentSection === "input"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Touchpad scrolling")
@@ -805,10 +811,11 @@ ContentPage {
     // LOCALE & TIME
     // =========================================================================
 
-    ContentSection {
-        icon: "language"
-        title: Translation.tr("Locale & time")
+    ColumnLayout {
+        visible: root.currentSection === "locale-time"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             id: localeGrid
@@ -1051,10 +1058,11 @@ ContentPage {
     // FEEDBACK
     // =========================================================================
 
-    ContentSection {
-        icon: "notification_sound"
-        title: Translation.tr("Feedback")
+    ColumnLayout {
+        visible: root.currentSection === "feedback"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Sounds")
@@ -1089,10 +1097,11 @@ ContentPage {
     // PRIVACY & CONTENT
     // =========================================================================
 
-    ContentSection {
-        icon: "shield"
-        title: Translation.tr("Privacy & content")
+    ColumnLayout {
+        visible: root.currentSection === "privacy-content"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Content policies")

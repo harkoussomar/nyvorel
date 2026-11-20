@@ -38,8 +38,13 @@ Variants {
         property int firstWorkspaceId: relevantWindows[0]?.workspace.id || 1
         property int lastWorkspaceId: relevantWindows[relevantWindows.length - 1]?.workspace.id || 10
         // Wallpaper
-        property bool wallpaperIsVideo: Config.options.background.wallpaperPath.endsWith(".mp4") || Config.options.background.wallpaperPath.endsWith(".webm") || Config.options.background.wallpaperPath.endsWith(".mkv") || Config.options.background.wallpaperPath.endsWith(".avi") || Config.options.background.wallpaperPath.endsWith(".mov")
-        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
+        readonly property string previewWallpaper:
+            !GlobalStates.screenLocked && GlobalStates.wallpaperPickerScreenName === screen?.name
+                ? GlobalStates.wallpaperPreviewPath : ""
+        property bool wallpaperIsVideo: !previewWallpaper
+            && /\.(mp4|webm|mkv|avi|mov)$/i.test(Config.options.background.wallpaperPath)
+        property string wallpaperPath: previewWallpaper || (wallpaperIsVideo
+            ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath)
         property bool wallpaperSafetyTriggered: {
             const enabled = Config.options.workSafety.enable.wallpaper;
             const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));
@@ -108,6 +113,8 @@ Variants {
 
         // Wallpaper zoom scale
         function updateZoomScale() {
+            if (getWallpaperSizeProc.running || !bgRoot.wallpaperPath)
+                return;
             getWallpaperSizeProc.path = bgRoot.wallpaperPath;
             getWallpaperSizeProc.running = true;
         }
@@ -115,11 +122,19 @@ Variants {
             id: getWallpaperSizeProc
             property string path: bgRoot.wallpaperPath
             command: ["magick", "identify", "-format", "%w %h", path]
+            onExited: {
+                if (path !== bgRoot.wallpaperPath)
+                    Qt.callLater(bgRoot.updateZoomScale)
+            }
             stdout: StdioCollector {
                 id: wallpaperSizeOutputCollector
                 onStreamFinished: {
+                    if (getWallpaperSizeProc.path !== bgRoot.wallpaperPath || !bgRoot.screen)
+                        return;
                     const output = wallpaperSizeOutputCollector.text;
                     const [width, height] = output.split(" ").map(Number);
+                    if (!(width > 0 && height > 0))
+                        return;
                     const [screenWidth, screenHeight] = [bgRoot.screen.width, bgRoot.screen.height];
                     bgRoot.wallpaperWidth = width;
                     bgRoot.wallpaperHeight = height;
@@ -140,7 +155,7 @@ Variants {
             clip: true
 
             // Wallpaper
-            StyledImage {
+            WallpaperImage {
                 id: wallpaper
                 visible: opacity > 0 && !blurLoader.active
                 opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
@@ -172,7 +187,9 @@ Variants {
                 property real effectiveValueY: Math.max(0, Math.min(1, valueY))
                 x: -(bgRoot.movableXSpace) - (effectiveValueX - 0.5) * 2 * bgRoot.movableXSpace
                 y: -(bgRoot.movableYSpace) - (effectiveValueY - 0.5) * 2 * bgRoot.movableYSpace
-                source: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                wallpaperPath: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                fallbackResolution: Math.max(1024, Math.min(4096, 1024 * Math.ceil(
+                    Math.max(bgRoot.screen.width, bgRoot.screen.height) * (bgRoot.monitor?.scale ?? 1) / 1024)))
                 fillMode: Image.PreserveAspectCrop
                 Behavior on x {
                     NumberAnimation {
@@ -187,8 +204,8 @@ Variants {
                     }
                 }
                 sourceSize {
-                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * (bgRoot.monitor?.scale ?? 1)
+                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * (bgRoot.monitor?.scale ?? 1)
                 }
                 width: bgRoot.wallpaperWidth / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
                 height: bgRoot.wallpaperHeight / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale

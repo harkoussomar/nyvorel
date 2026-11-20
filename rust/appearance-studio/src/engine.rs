@@ -894,6 +894,46 @@ fn apply_committed(request: &Value, record_history: bool) -> Result<Value, Strin
     }
 }
 
+fn shell_preview_colors(resolved: &Value) -> Result<Value, String> {
+    let colors = if resolved["source"] == "hybrid" {
+        let base = &resolved["hybridBase"];
+        let base_colors = crate::palette::generate(
+            string_at(base, "seed"),
+            string_at(base, "scheme"),
+            string_at(resolved, "baseMode"),
+        )?;
+        merge_hybrid(&base_colors, &request::generate_palette(resolved)?)
+    } else {
+        request::generate_palette(resolved)?
+    };
+    Ok(crate::modes::apply(&colors, string_at(resolved, "mode")))
+}
+
+pub fn wallpaper_preview(path: &str) -> Result<Value, String> {
+    if path.is_empty() || !local_path(path).is_file() {
+        return Err("The wallpaper file is unavailable.".into());
+    }
+    let status = crate::status()?;
+    if is_truthy(&status["preview"]) {
+        return Err("Keep or revert the appearance preview in Settings first.".into());
+    }
+    let active = &status["active"];
+    let source = string_at(active, "source");
+    let follows_wallpaper = ["wallpaper", "hybrid"].contains(&source)
+        && status["targets"]["shell"].as_bool().unwrap_or(true);
+    if !follows_wallpaper {
+        return Ok(json!({"ok": true, "colors": null}));
+    }
+
+    let mut draft = active.clone();
+    draft["wallpaper"] = json!(path);
+    let resolved = request::resolve(&draft, &read_json(&config_path()?), &catalog()?)?;
+    Ok(json!({
+        "ok": true,
+        "colors": shell_preview_colors(&resolved)?
+    }))
+}
+
 fn render_preview(draft: &Value, state: &Value, catalog: &Value) -> Result<Value, String> {
     let mut cfg = read_json(&config_path()?);
     let runtime_before = runtime_mode(&cfg, catalog);
@@ -919,20 +959,7 @@ fn render_preview(draft: &Value, state: &Value, catalog: &Value) -> Result<Value
     }
     if targets["shell"].as_bool().unwrap_or(true) {
         palette_settings(&mut cfg, &resolved);
-        let mut colors = if resolved["source"] == "hybrid" {
-            let base = &resolved["hybridBase"];
-            let base_colors = crate::palette::generate(
-                string_at(base, "seed"),
-                string_at(base, "scheme"),
-                string_at(&resolved, "baseMode"),
-            )?;
-            let accent_colors = request::generate_palette(&resolved)?;
-            merge_hybrid(&base_colors, &accent_colors)
-        } else {
-            request::generate_palette(&resolved)?
-        };
-        colors = crate::modes::apply(&colors, string_at(&resolved, "mode"));
-        atomic_json_write(&colors_path()?, &colors)?;
+        atomic_json_write(&colors_path()?, &shell_preview_colors(&resolved)?)?;
     }
     ensure_radius(&mut cfg, catalog);
     atomic_json_write(&config_path()?, &cfg)?;

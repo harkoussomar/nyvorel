@@ -718,5 +718,19 @@
   "No applications": "没有应用",
   "Creativity": "创意",
   "Move left": "左移",
-  "Pin to Start": "固定到“开始”屏幕"
+  "Pin to Start": "固定到“开始”屏幕",
+  "Shell language": "界面语言",
+  "Keyboard layout": "键盘布局",
+  "Applying layout…": "正在应用布局…",
+  "Detecting layout…": "正在检测布局…",
+  "Choose keyboard layout": "选择键盘布局",
+  "Search layouts and variants…": "搜索布局和变体…",
+  "No installed XKB layout matches this search.": "已安装的 XKB 布局中没有匹配项。",
+  "Welcome": "欢迎",
+  "Welcome to\na desktop that feels like yours.": "欢迎使用属于你自己的桌面。",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "选择你想要的风格，Nyvorel 会相应调整界面外观。",
+  "A live preview, with a way back.": "实时预览，随时可以撤销。",
+  "Try Default or Fluid. Keep the result only when it feels right.": "试用默认风格或 Fluid，满意后再保存。",
+  "Get started": "开始",
+  "Skip setup": "跳过设置"
 }

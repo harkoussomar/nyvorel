@@ -13,6 +13,8 @@ ComboBox {
     property string buttonIcon: ""
     property real buttonRadius: height / 2
     property bool openUpward: false
+    property bool showSelectionMark: false
+    property int visiblePopupRows: 0
     property color colBackground: Appearance.colors.colSecondaryContainer
     property color colBackgroundHover: Appearance.colors.colSecondaryContainerHover
     property color colBackgroundActive: Appearance.colors.colSecondaryContainerActive
@@ -95,6 +97,7 @@ ComboBox {
         id: itemDelegate
         width: ListView.view ? ListView.view.width : root.width
         implicitHeight: 40
+        Accessible.selected: root.currentIndex === index
 
         required property var model
         required property int index
@@ -162,13 +165,23 @@ ComboBox {
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
             }
+
+            MaterialSymbol {
+                visible: root.showSelectionMark && root.currentIndex === itemDelegate.index
+                text: "check"
+                iconSize: 16
+                color: Appearance.colors.colPrimary
+            }
         }
     }
 
     popup: Popup {
         y: root.openUpward ? -height - 4 : root.height + 4
         width: root.width
-        height: Math.min(listView.contentHeight + topPadding + bottomPadding, 300)
+        height: root.visiblePopupRows > 0
+            ? topPadding + bottomPadding + Math.max(0,
+                Math.min(root.count, root.visiblePopupRows) * (40 + listView.spacing) - listView.spacing)
+            : Math.min(listView.contentHeight + topPadding + bottomPadding, 300)
         padding: 8
 
         enter: Transition {

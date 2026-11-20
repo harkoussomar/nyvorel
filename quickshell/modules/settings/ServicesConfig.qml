@@ -4,11 +4,14 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    sections: [
+        { id: "recognition", label: Translation.tr("AI & recognition"), icon: "neurology" },
+        { id: "search-web", label: Translation.tr("Search & web"), icon: "search" },
+        { id: "weather-network", label: Translation.tr("Weather & network"), icon: "weather_mix" },
+        { id: "storage-performance", label: Translation.tr("Storage & performance"), icon: "folder_managed" }
+    ]
 
     // Layout-only values. Corner geometry always uses Appearance.radius.*.
     readonly property int wideBreakpoint: 700
@@ -560,10 +563,11 @@ ContentPage {
     // AI & RECOGNITION
     // =========================================================================
 
-    ContentSection {
-        icon: "neurology"
-        title: Translation.tr("AI & recognition")
+    ColumnLayout {
+        visible: root.currentSection === "recognition"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             id: aiRecognitionGrid
@@ -793,10 +797,11 @@ ContentPage {
     // SEARCH & WEB
     // =========================================================================
 
-    ContentSection {
-        icon: "search"
-        title: Translation.tr("Search & web")
+    ColumnLayout {
+        visible: root.currentSection === "search-web"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         SettingsCard {
             title: Translation.tr("Search & launcher")
@@ -932,10 +937,11 @@ ContentPage {
     // WEATHER & NETWORK
     // =========================================================================
 
-    ContentSection {
-        icon: "weather_mix"
-        title: Translation.tr("Weather & network")
+    ColumnLayout {
+        visible: root.currentSection === "weather-network"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             Layout.fillWidth: true
@@ -1086,10 +1092,11 @@ ContentPage {
     // STORAGE & PERFORMANCE
     // =========================================================================
 
-    ContentSection {
-        icon: "folder_managed"
-        title: Translation.tr("Storage & performance")
+    ColumnLayout {
+        visible: root.currentSection === "storage-performance"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             Layout.fillWidth: true

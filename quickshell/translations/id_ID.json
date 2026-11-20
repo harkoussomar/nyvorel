@@ -488,5 +488,19 @@
   "Colors": "Warna",
   "Monitors": "Monitor",
   "Fuzzy": "Fuzzy",
-  "Discord": "Discord"
+  "Discord": "Discord",
+  "Shell language": "Bahasa shell",
+  "Keyboard layout": "Tata letak papan ketik",
+  "Applying layout…": "Menerapkan tata letak…",
+  "Detecting layout…": "Mendeteksi tata letak…",
+  "Choose keyboard layout": "Pilih tata letak papan ketik",
+  "Search layouts and variants…": "Cari tata letak dan varian…",
+  "No installed XKB layout matches this search.": "Tidak ada tata letak XKB terpasang yang cocok.",
+  "Welcome": "Selamat datang",
+  "Welcome to\na desktop that feels like yours.": "Selamat datang di desktop yang terasa milikmu.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "Pilih suasana yang kamu inginkan. Nyvorel akan menyesuaikan tampilan shell.",
+  "A live preview, with a way back.": "Pratinjau langsung yang bisa dibatalkan.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Coba Default atau Fluid. Simpan hasilnya jika kamu menyukainya.",
+  "Get started": "Mulai",
+  "Skip setup": "Lewati penyiapan"
 }

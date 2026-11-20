@@ -40,8 +40,12 @@ def catalog():
     return entries
 
 
+def request(*args):
+    return subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=5, check=False)
+
+
 def hyprctl(*args):
-    result = subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=5, check=False)
+    result = request(*args)
     if result.returncode:
         message = (result.stderr or result.stdout).strip()
         raise RuntimeError(message or f"hyprctl failed ({result.returncode})")
@@ -54,42 +58,92 @@ def option(name):
     return "" if raw in EMPTY else raw
 
 
+def configured_options():
+    return option("kb_layout"), option("kb_variant")
+
+
+def main_keyboard():
+    devices = json.loads(hyprctl("devices", "-j"))
+    keyboards = devices.get("keyboards", [])
+    return next((device for device in keyboards if device.get("main")),
+                keyboards[0] if keyboards else {})
+
+
+def keyboard_status(configured, device):
+    layouts = (device.get("layout") or configured[0]).split(",")
+    variants = (device.get("variant", configured[1]) or "").split(",")
+    active_keymap = device.get("active_keymap", "")
+    index = device.get("active_layout_index")
+    if not isinstance(index, int) or not 0 <= index < len(layouts):
+        index = 0
+        if len(layouts) > 1 and active_keymap:
+            by_name = {item["value"]: item["displayName"] for item in catalog()}
+            for candidate, layout in enumerate(layouts):
+                variant = variants[candidate].strip() if candidate < len(variants) else ""
+                code = f"{layout.strip()}:{variant}" if variant else layout.strip()
+                if by_name.get(code) == active_keymap:
+                    index = candidate
+                    break
+    return {
+        "ok": True,
+        "layout": layouts[index].strip(),
+        "variant": variants[index].strip() if index < len(variants) else "",
+        "activeKeymap": active_keymap,
+    }
+
+
 def status():
-    layout = option("kb_layout")
-    variant = option("kb_variant")
-    active_keymap = ""
+    configured = configured_options()
     try:
-        devices = json.loads(hyprctl("devices", "-j"))
-        keyboards = devices.get("keyboards", [])
-        current = next((item for item in keyboards if item.get("main")), None)
-        if current is None and keyboards:
-            current = keyboards[0]
-        if current:
-            active_keymap = current.get("active_keymap", "")
+        device = main_keyboard()
     except (ValueError, RuntimeError, subprocess.TimeoutExpired):
-        pass
-    return {"ok": True, "layout": layout, "variant": variant, "activeKeymap": active_keymap}
+        device = {}
+    return keyboard_status(configured, device)
+
+
+def write_options(layout, variant):
+    lua = "hl.config({input={kb_layout=%s,kb_variant=%s}})" % (
+        json.dumps(layout, ensure_ascii=False), json.dumps(variant, ensure_ascii=False)
+    )
+    result = request("eval", lua)
+    reply = (result.stdout or result.stderr).strip()
+    if result.returncode == 0 and reply == "ok":
+        return
+    unsupported = reply.lower() in {"unknown request", "invalid command", "unknown command"}
+    if not unsupported and not (result.returncode == 2 and not reply):
+        raise RuntimeError(reply or "Hyprland could not update keyboard settings")
+
+    # Older Hyprland configurations use the legacy keyword command.
+    for name, value in (("kb_layout", layout), ("kb_variant", variant)):
+        reply = hyprctl("keyword", f"input:{name}", value).strip()
+        if reply != "ok":
+            raise RuntimeError(reply or f"Hyprland could not set {name}")
 
 
 def set_layout(code):
     entry = next((item for item in catalog() if item["value"] == code), None)
     if entry is None:
         raise ValueError(f"This layout is not installed: {code}")
-    before = status()
+    before = configured_options()
+    requested = entry["layout"], entry["variant"]
     try:
-        hyprctl("keyword", "input:kb_layout", entry["layout"])
-        hyprctl("keyword", "input:kb_variant", entry["variant"])
-        after = status()
-        if after["layout"] != entry["layout"] or after["variant"] != entry["variant"]:
-            raise RuntimeError("Hyprland did not activate the selected layout")
-    except (RuntimeError, subprocess.TimeoutExpired):
+        write_options(*requested)
+        configured = configured_options()
+        if configured != requested:
+            raise RuntimeError("Hyprland did not accept the selected layout")
+        for attempt in range(5):
+            after = keyboard_status(configured, main_keyboard())
+            if (after["layout"], after["variant"]) == requested:
+                return {**after, "selected": code}
+            if attempt < 4:
+                time.sleep(0.06)
+        raise RuntimeError("The active keyboard did not switch to the selected layout")
+    except (ValueError, RuntimeError, subprocess.TimeoutExpired):
         try:
-            hyprctl("keyword", "input:kb_layout", before["layout"])
-            hyprctl("keyword", "input:kb_variant", before["variant"])
+            write_options(*before)
         except (RuntimeError, subprocess.TimeoutExpired):
             pass
         raise
-    return {**after, "selected": code}
 
 
 def restore():

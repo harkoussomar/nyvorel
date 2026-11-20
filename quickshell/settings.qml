@@ -6,6 +6,7 @@
 //@ pragma Env QT_SCALE_FACTOR=1
 
 import QtQuick
+import QtQuick.Shapes
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
@@ -16,30 +17,30 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions as CF
 import qs.modules.nyvorel.settingsControlRail
-import Quickshell.Hyprland
+import "modules/settings"
+import "modules/nyvorel/settingsControlRail/SettingsSearchIndex.js" as SettingsIndex
 
 ApplicationWindow {
     id: root
 
-    function reopen(): void {
-        closeAnimation.stop()
-        openAnimation.stop()
-        root.allowImmediateClose = false
-        root.closing = false
-        frameSurface.opacity = 1
-        frameSurface.scale = 1
-        frameTranslate.y = 0
-        root.show()
-        root.fitInitialSizeToScreen()
+    function focusSettings(): void {
+        if (root.closing)
+            return
         root.raise()
         root.requestActivate()
-        frameFocus.forceActiveFocus()
     }
 
-    FileView {
-        path: `${Quickshell.env("XDG_RUNTIME_DIR")}/nyvorel/settings-open`
-        watchChanges: true
-        onFileChanged: root.reopen()
+    IpcHandler {
+        target: "settings"
+
+        function open(): void { root.focusSettings() }
+        function toggle(): void { root.requestClose() }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+K"
+        context: Qt.WindowShortcut
+        onActivated: root.focusInlineSearch()
     }
 
     property string firstRunFilePath:
@@ -69,26 +70,21 @@ ApplicationWindow {
     property bool closing: false
     property bool allowImmediateClose: false
 
-    readonly property bool pageScrolled:
-        pageLoader.item
-        && pageLoader.item.contentY !== undefined
-        && pageLoader.item.contentY > 1
-
     property var pages: [
         {
             name: Translation.tr("Appearance"),
-            description: Translation.tr("Wallpaper, color and transparency"),
+            description: Translation.tr("Themes, surfaces, motion and saved looks"),
             group: Translation.tr("Make it yours"),
             icon: "palette",
-            sections: [Translation.tr("Theme"), Translation.tr("Color style"), Translation.tr("Transparency")],
-            component: "modules/settings/QuickConfig.qml"
+            sections: [Translation.tr("Theme"), Translation.tr("Surfaces & motion"), Translation.tr("Corners"), Translation.tr("App theming"), Translation.tr("Saved looks")],
+            component: ""
         },
         {
             name: Translation.tr("Bar & workspaces"),
             description: Translation.tr("Layout, indicators and workspace display"),
             group: Translation.tr("Make it yours"),
             icon: "view_agenda",
-            sections: [Translation.tr("Bar layout"), Translation.tr("Bar content"), Translation.tr("Workspace indicator")],
+            sections: [Translation.tr("Bar layout"), Translation.tr("Bar content"), Translation.tr("System tray"), Translation.tr("Workspaces")],
             component: "modules/settings/BarConfig.qml"
         },
         {
@@ -101,10 +97,10 @@ ApplicationWindow {
         },
         {
             name: Translation.tr("Windows & controls"),
-            description: Translation.tr("Corners, sidebars, overlays and lock screen"),
+            description: Translation.tr("Dock, sidebars, overlays and lock screen"),
             group: Translation.tr("Everyday use"),
             icon: "dashboard_customize",
-            sections: [Translation.tr("Motion & comfort"), Translation.tr("Appearance & geometry"), Translation.tr("Shell surfaces"), Translation.tr("Lock & feedback"), Translation.tr("Tools & overlays"), Translation.tr("Navigation & sidebars"), Translation.tr("Typography")],
+            sections: [Translation.tr("Shell surfaces"), Translation.tr("Lock & feedback"), Translation.tr("Tools & overlays"), Translation.tr("Navigation & sidebars"), Translation.tr("Typography")],
             component: "modules/settings/InterfaceConfig.qml"
         },
         {
@@ -125,10 +121,10 @@ ApplicationWindow {
         },
         {
             name: Translation.tr("Advanced"),
-            description: Translation.tr("Color generation and terminal theming"),
+            description: Translation.tr("Configuration file"),
             group: Translation.tr("More"),
             icon: "construction",
-            sections: [Translation.tr("Color generation"), Translation.tr("Configuration file")],
+            sections: [Translation.tr("Configuration file")],
             component: "modules/settings/AdvancedConfig.qml"
         },
         {
@@ -136,12 +132,44 @@ ApplicationWindow {
             description: Translation.tr("Version, diagnostics and project links"),
             group: Translation.tr("More"),
             icon: "info",
-            sections: [Translation.tr("Runtime"), Translation.tr("System & project"), Translation.tr("About this page")],
+            sections: [Translation.tr("Overview"), Translation.tr("Runtime"), Translation.tr("System & project")],
             component: "modules/settings/About.qml"
         }
     ]
 
     property int currentPage: 0
+    property var settingsSectionSelections: ({})
+    readonly property var appearanceEditor: appearancePageLoader.item
+    readonly property var currentPageItem:
+        root.currentPage === 0 ? root.appearanceEditor : pageLoader.item
+
+    function openWallpaperPicker(): void {
+        Quickshell.execDetached(["qs", "ipc", "-c", "nyvorel", "call", "wallpaperPicker", "open"])
+    }
+
+    function prepareSearchPage(entry): void {
+        if (!entry)
+            return
+
+        if (entry.pageSection) {
+            root.settingsSectionSelections[entry.pageIndex] = entry.pageSection
+            if (root.currentPage === entry.pageIndex && pageLoader.item?.currentSection !== undefined)
+                pageLoader.item.currentSection = entry.pageSection
+        }
+        if (!root.appearanceEditor || entry.appearanceTab === undefined)
+            return
+        root.appearanceEditor.currentPage = entry.appearanceTab
+        if (entry.appearanceSection)
+            root.appearanceEditor.interfaceFineTuneSection = entry.appearanceSection
+        if (entry.appearanceTab === 3 && entry.path === "Terminal appearance")
+            root.appearanceEditor.expandTerminalTuning()
+    }
+
+    Timer {
+        id: finishAppearanceEdits
+        interval: 120
+        onTriggered: root.requestClose()
+    }
 
 
     // -------------------------------------------------------------------------
@@ -161,7 +189,7 @@ ApplicationWindow {
     }
 
     function findSearchTextNode(node, needle) {
-        if (!node || needle.length === 0)
+        if (!node || !node.visible || needle.length === 0)
             return null
 
         try {
@@ -243,13 +271,13 @@ ApplicationWindow {
 
         if (
             needle.length === 0
-            || !pageLoader.item
+            || !root.currentPageItem
         ) {
             return
         }
 
         const target =
-            root.findSearchTextNode(pageLoader.item, needle)
+            root.findSearchTextNode(root.currentPageItem, needle)
 
         if (!target) {
             root.searchTargetAttempts += 1
@@ -290,9 +318,25 @@ ApplicationWindow {
             }
         }
 
-        Qt.callLater(
-            () => root.highlightSearchNode(target)
-        )
+        Qt.callLater(() => {
+            root.highlightSearchNode(target)
+            let control = target
+            while (control && control !== root.currentPageItem) {
+                const name = root.normalizedSearchText(control.Accessible?.name)
+                if (control.activeFocusOnTab && control.enabled && name === needle) {
+                    control.forceActiveFocus(Qt.TabFocusReason)
+                    break
+                }
+                const interactive = control.children?.find(child =>
+                    child.visible && child.enabled && child.activeFocusOnTab
+                    && root.normalizedSearchText(child.Accessible?.name) === needle)
+                if (interactive) {
+                    interactive.forceActiveFocus(Qt.TabFocusReason)
+                    break
+                }
+                control = control.parent
+            }
+        })
 
         root.pendingSearchLabel = ""
         root.searchTargetAttempts = 0
@@ -302,6 +346,80 @@ ApplicationWindow {
         root.pendingSearchLabel = label
         root.searchTargetAttempts = 0
         root.revealPendingSearchTarget()
+    }
+
+    // Inline global search: reuse the same generated settings index as the
+    // original search surface, without opening a second search dialog.
+    property var inlineSearchMatches: []
+    property int inlineSearchSelected: 0
+
+    function focusInlineSearch() {
+        headerSearchInput.forceActiveFocus()
+        headerSearchInput.selectAll()
+        if (headerSearchInput.text.trim().length > 0)
+            root.refreshInlineSearch()
+    }
+
+    function refreshInlineSearch() {
+        const query = root.normalizedSearchText(headerSearchInput.text)
+        if (!query.length) {
+            root.inlineSearchMatches = []
+            root.inlineSearchSelected = 0
+            headerSearchResults.close()
+            return
+        }
+
+        const terms = query.split(/\s+/).filter(t => t.length > 0)
+        const entries = SettingsIndex.entries || []
+        const candidates = []
+        for (let i = 0; i < entries.length; ++i) {
+            const entry = entries[i]
+            if (!entry || entry.pageIndex === undefined || !entry.label)
+                continue
+
+            const label = root.normalizedSearchText(entry.label)
+            const path = root.normalizedSearchText(entry.page + " " + (entry.path || ""))
+            const keywords = root.normalizedSearchText(entry.keywords || "")
+            const allText = label + " " + path + " " + keywords
+            if (!terms.every(term => allText.indexOf(term) !== -1))
+                continue
+
+            let score = 0
+            if (label === query) score += 100
+            if (label.startsWith(query)) score += 50
+            if (label.indexOf(query) >= 0) score += 35
+            if (path.indexOf(query) >= 0) score += 12
+            if ((entry.path || "") === "Page") score += 4
+            if (keywords.indexOf(query) >= 0) score += 2
+            candidates.push({ entry: entry, score: score, order: i })
+        }
+        candidates.sort((a, b) => (b.score - a.score) || (a.order - b.order))
+        root.inlineSearchMatches = candidates.slice(0, 9).map(match => match.entry)
+        root.inlineSearchSelected = 0
+        if (!headerSearchResults.opened)
+            headerSearchResults.open()
+    }
+
+    function navigateInlineSearch(entry) {
+        if (!entry || entry.pageIndex === undefined)
+            return
+        headerSearchResults.close()
+        headerSearchInput.clear()
+        const pageIndex = Number(entry.pageIndex)
+        if (pageIndex < 0 || pageIndex >= root.pages.length)
+            return
+        if ((entry.path || "") !== "Page") {
+            root.pendingSearchLabel = String(entry.searchLabel ?? entry.label ?? "")
+            root.searchTargetAttempts = 0
+        } else {
+            root.pendingSearchLabel = ""
+        }
+        root.prepareSearchPage(entry)
+        root.switchToPage(pageIndex)
+        if (root.pendingSearchLabel.length)
+            searchTargetTimer.restart()
+        else
+            frameFocus.forceActiveFocus()
     }
 
     property bool keyboardNavigationActive: false
@@ -478,16 +596,6 @@ ApplicationWindow {
     title: "Nyvorel Settings"
     color: "transparent"
 
-    // glass-system-v2.4-settings-ready-mask
-    Region {
-        id: glassSettingsReadyMask
-        item: Config.ready ? settingsModalShell : null
-    }
-    HyprlandWindow.visibleMask:
-        Config.options.appearance.transparency.enable
-            ? glassSettingsReadyMask
-            : null
-
     minimumWidth: 680
     minimumHeight: 500
     width: preferredWindowWidth
@@ -518,11 +626,13 @@ ApplicationWindow {
         if (root.closing || root.allowImmediateClose)
             return
 
+        if (root.appearanceEditor && !root.appearanceEditor.canClose) {
+            root.appearanceEditor.prepareToClose()
+            finishAppearanceEdits.restart()
+            return
+        }
+
         root.closing = true
-
-        if (openAnimation.running)
-            openAnimation.stop()
-
         closeAnimation.restart()
     }
 
@@ -532,6 +642,8 @@ ApplicationWindow {
         if (index === root.currentPage)
             return
 
+        if (pageLoader.item && pageLoader.item.contentY !== undefined)
+            root.pageScrollPositions[root.currentPage] = pageLoader.item.contentY
         root.currentPage = index
     }
 
@@ -553,86 +665,27 @@ ApplicationWindow {
         // authoritative afterwards.
         root.fitInitialSizeToScreen()
 
-        Qt.callLater(() => {
-            frameFocus.forceActiveFocus()
-            openAnimation.restart()
-        })
+        Qt.callLater(() => frameFocus.forceActiveFocus())
     }
 
     // -------------------------------------------------------------------------
     // Presentation lifecycle
     // -------------------------------------------------------------------------
 
-    Item {
+    Rectangle {
         id: frameSurface
 
+        // Hyprland owns the outer window border, rounding and shadow.
         anchors.fill: parent
-        transformOrigin: Item.Center
-
-        // Stable visible state. Opening motion must never be required for
-        // Settings to become visible.
-        opacity: 1
-        scale: 1
+        color: Appearance.colors.colLayer0Base
         enabled: !root.closing
 
-        transform: Translate {
-            id: frameTranslate
-            y: 0
-        }
-
-        ParallelAnimation {
-            id: openAnimation
-
-            MotionAnim {
-                target: frameSurface
-                property: "opacity"
-                from: frameSurface.opacity
-                to: 1
-                type: MotionAnim.DefaultEffects
-            }
-
-            MotionAnim {
-                target: frameSurface
-                property: "scale"
-                from: frameSurface.scale
-                to: 1
-                type: MotionAnim.FastSpatial
-            }
-
-            MotionAnim {
-                target: frameTranslate
-                property: "y"
-                from: frameTranslate.y
-                to: 0
-                type: MotionAnim.FastSpatial
-            }
-
-            onFinished: frameFocus.forceActiveFocus()
-        }
-
-        ParallelAnimation {
+        MotionAnim {
             id: closeAnimation
-
-            MotionAnim {
-                target: frameSurface
-                property: "opacity"
-                to: 0
-                type: MotionAnim.FastEffects
-            }
-
-            MotionAnim {
-                target: frameSurface
-                property: "scale"
-                to: 0.985
-                type: MotionAnim.FastEffects
-            }
-
-            MotionAnim {
-                target: frameTranslate
-                property: "y"
-                to: 6
-                type: MotionAnim.FastEffects
-            }
+            target: frameSurface
+            property: "opacity"
+            to: 0
+            type: MotionAnim.FastEffects
 
             onFinished: {
                 root.allowImmediateClose = true
@@ -644,24 +697,51 @@ ApplicationWindow {
             }
         }
 
-        Rectangle {
-            id: settingsModalShell
+        Shape {
+            id: settingsSidebarSurface
+            width: root.navigationWidth + root.contentPadding
+            height: frameSurface.height
 
-            anchors.fill: parent
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillGradient: LinearGradient {
+                    x1: 0
+                    y1: 0
+                    x2: settingsSidebarSurface.width * 0.6
+                    y2: settingsSidebarSurface.height
 
-            radius: Appearance.radius.modal
-            antialiasing: true
-            color: Appearance.colors.colLayer0Base
-            border.width: 1
-            border.color: Appearance.fluidMode
-                ? Appearance.colors.fluidBorderStrong
-                : Appearance.colors.colLayer0Border
-
-            // fluid-refinement-v1.2
-            Behavior on radius {
-                MotionAnim {
-                    type: MotionAnim.DefaultEffects
+                    // Very soft, theme-aware milky material, with gentle depth.
+                    // A dark theme lightens; a light theme subtly darkens.
+                    GradientStop {
+                        position: 0
+                        color: Qt.rgba(
+                            Appearance.colors.colOnLayer0.r,
+                            Appearance.colors.colOnLayer0.g,
+                            Appearance.colors.colOnLayer0.b, 0.065)
+                    }
+                    GradientStop {
+                        position: 0.52
+                        color: Qt.rgba(
+                            Appearance.colors.colOnLayer0.r,
+                            Appearance.colors.colOnLayer0.g,
+                            Appearance.colors.colOnLayer0.b, 0.042)
+                    }
+                    GradientStop {
+                        position: 1
+                        color: Qt.rgba(
+                            Appearance.colors.colOnLayer0.r,
+                            Appearance.colors.colOnLayer0.g,
+                            Appearance.colors.colOnLayer0.b, 0.055)
+                    }
                 }
+
+                startX: 0
+                startY: 0
+                PathLine { x: settingsSidebarSurface.width; y: 0 }
+                PathLine { x: settingsSidebarSurface.width; y: settingsSidebarSurface.height }
+                PathLine { x: 0; y: settingsSidebarSurface.height }
+                PathLine { x: 0; y: 0 }
             }
         }
 
@@ -792,7 +872,7 @@ ApplicationWindow {
                     return
 
                 if (event.key === Qt.Key_K) {
-                    settingsControlSurface.open("search")
+                    root.focusInlineSearch()
                     event.accepted = true
                     return
                 }
@@ -846,24 +926,273 @@ ApplicationWindow {
                     Layout.fillHeight: false
                     implicitHeight: 44
 
-                    StyledText {
-                        id: titleText
-                        visible: Config.options?.windows.showTitlebar
-
+                    // nyvorel-settings-responsive-rail-v1
+                    // The title is part of the navigation rail's visual column.
+                    // On compact windows, use an icon rather than clipped text.
+                    Item {
+                        id: settingsRailHeading
                         anchors {
                             left: parent.left
                             verticalCenter: parent.verticalCenter
-                            leftMargin: 8
+                        }
+                        width: root.navigationWidth
+                        height: parent.height
+                        visible: Config.options?.windows.showTitlebar
+
+                        StyledText {
+                            id: titleText
+                            anchors.centerIn: parent
+                            visible: root.navigationExpanded && Config.options?.windows.showTitlebar
+                            color: Appearance.colors.colOnLayer0
+                            text: Translation.tr("Settings")
+                            font {
+                                family: Appearance.font.family.title
+                                pixelSize: Appearance.font.pixelSize.title
+                                variableAxes: Appearance.font.variableAxes.title
+                            }
                         }
 
-                        color: Appearance.colors.colOnLayer0
-                        text: Translation.tr("Settings")
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            visible: !root.navigationExpanded
+                            text: "settings"
+                            iconSize: 22
+                            color: Appearance.colors.colOnLayer0
+                            Accessible.name: Translation.tr("Settings")
+                        }
+                    }
 
-                        font {
-                            family: Appearance.font.family.title
-                            pixelSize: Appearance.font.pixelSize.title
-                            variableAxes:
-                                Appearance.font.variableAxes.title
+                    // One native search field. Results appear immediately below
+                    // this field; no second dialog or duplicated search input.
+                    Rectangle {
+                        id: headerSearch
+                        // nyvorel-window-centered-header-search-v1
+                        // Center across the entire Settings window, not a
+                        // layout lane; preserve the existing field and results.
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: titleBar.mapFromItem(
+                            frameSurface,
+                            (frameSurface.width - width) / 2,
+                            0
+                        ).x
+                        width: Math.max(
+                            160,
+                            Math.min(
+                                520,
+                                frameSurface.width
+                                    - 2 * (root.navigationWidth + 18)
+                            )
+                        )
+                        height: 36
+                        radius: Appearance.radius.control
+                        color: headerSearchInput.activeFocus
+                            ? Appearance.colors.colLayer1Hover
+                            : Appearance.colors.colLayer1
+                        border.width: 1
+                        border.color: headerSearchInput.activeFocus
+                            ? Appearance.colors.colPrimary
+                            : Appearance.colors.colLayer0Border
+
+                        MaterialSymbol {
+                            id: headerSearchIcon
+                            anchors {
+                                left: parent.left
+                                leftMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            text: "search"
+                            iconSize: 18
+                            color: Appearance.colors.colSubtext
+                        }
+
+                        TextField {
+                            id: headerSearchInput
+                            anchors {
+                                left: headerSearchIcon.right
+                                leftMargin: 10
+                                right: headerSearchHint.left
+                                rightMargin: 8
+                                top: parent.top
+                                bottom: parent.bottom
+                            }
+                            background: Item {}
+                            leftPadding: 0
+                            rightPadding: 0
+                            topPadding: 0
+                            bottomPadding: 0
+                            color: Appearance.colors.colOnLayer0
+                            selectionColor: Appearance.colors.colPrimary
+                            selectedTextColor: Appearance.colors.colOnPrimary
+                            font.family: Appearance.font.family.title
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            placeholderText: Translation.tr("Search settings")
+                            placeholderTextColor: Appearance.colors.colSubtext
+                            verticalAlignment: TextInput.AlignVCenter
+                            selectByMouse: true
+                            activeFocusOnTab: true
+                            Accessible.name: Translation.tr("Search settings")
+                            Accessible.description: Translation.tr("Search every settings page. Ctrl+K to focus")
+
+                            onTextChanged: root.refreshInlineSearch()
+                            onActiveFocusChanged: {
+                                if (activeFocus && text.trim().length > 0)
+                                    root.refreshInlineSearch()
+                            }
+                            Keys.priority: Keys.BeforeItem
+                            Keys.onPressed: event => {
+                                if (event.key === Qt.Key_Escape) {
+                                    if (headerSearchResults.opened || text.length > 0) {
+                                        headerSearchResults.close()
+                                        clear()
+                                        event.accepted = true
+                                    }
+                                } else if (headerSearchResults.opened &&
+                                           event.key === Qt.Key_Down &&
+                                           root.inlineSearchMatches.length > 0) {
+                                    root.inlineSearchSelected = Math.min(
+                                        root.inlineSearchMatches.length - 1,
+                                        root.inlineSearchSelected + 1)
+                                    inlineResultList.positionViewAtIndex(root.inlineSearchSelected, ListView.Contain)
+                                    event.accepted = true
+                                } else if (headerSearchResults.opened &&
+                                           event.key === Qt.Key_Up &&
+                                           root.inlineSearchMatches.length > 0) {
+                                    root.inlineSearchSelected = Math.max(0, root.inlineSearchSelected - 1)
+                                    inlineResultList.positionViewAtIndex(root.inlineSearchSelected, ListView.Contain)
+                                    event.accepted = true
+                                } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                           && text.trim().length > 0) {
+                                    if (root.inlineSearchMatches.length > 0)
+                                        root.navigateInlineSearch(root.inlineSearchMatches[root.inlineSearchSelected])
+                                    event.accepted = true
+                                }
+                            }
+                        }
+
+                        StyledText {
+                            id: headerSearchHint
+                            anchors {
+                                right: parent.right
+                                rightMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            visible: headerSearchInput.text.length === 0 && headerSearch.width >= 340
+                            text: "Ctrl+K"
+                            color: Appearance.colors.colSubtext
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                        }
+
+                        MaterialSymbol {
+                            id: clearSearchIcon
+                            anchors {
+                                right: parent.right
+                                rightMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            visible: headerSearchInput.text.length > 0
+                            text: "close"
+                            iconSize: 17
+                            color: Appearance.colors.colSubtext
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    headerSearchInput.clear()
+                                    headerSearchInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        Popup {
+                            id: headerSearchResults
+                            x: 0
+                            y: headerSearch.height + 7
+                            width: headerSearch.width
+                            height: Math.min(440,
+                                             Math.max(90, root.height - 110),
+                                             root.inlineSearchMatches.length === 0
+                                                 ? 66
+                                                 : root.inlineSearchMatches.length * 57 + 12)
+                            padding: 6
+                            z: 125
+                            modal: false
+                            focus: false
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                            background: Rectangle {
+                                color: Appearance.colors.colLayer0
+                                border.color: Appearance.colors.colLayer0Border
+                                border.width: 1
+                                radius: Appearance.radius.control
+                            }
+
+                            contentItem: Item {
+                                ListView {
+                                    id: inlineResultList
+                                    anchors.fill: parent
+                                    visible: root.inlineSearchMatches.length > 0
+                                    model: root.inlineSearchMatches
+                                    clip: true
+                                    spacing: 2
+                                    boundsBehavior: Flickable.StopAtBounds
+
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        width: inlineResultList.width
+                                        height: 55
+                                        radius: Appearance.radius.control
+                                        color: root.inlineSearchSelected === index || resultHover.containsMouse
+                                            ? Appearance.colors.colLayer2Hover
+                                            : "transparent"
+
+                                        Column {
+                                            anchors {
+                                                left: parent.left
+                                                right: parent.right
+                                                leftMargin: 12
+                                                rightMargin: 12
+                                                verticalCenter: parent.verticalCenter
+                                            }
+                                            spacing: 3
+
+                                            StyledText {
+                                                width: parent.width
+                                                text: String(modelData.label || "")
+                                                color: Appearance.colors.colOnLayer0
+                                                font.pixelSize: Appearance.font.pixelSize.small
+                                                elide: Text.ElideRight
+                                            }
+                                            StyledText {
+                                                width: parent.width
+                                                text: String(modelData.page || "") +
+                                                    ((modelData.path || "") === "Page" ? "" : "  ›  " + String(modelData.path || ""))
+                                                color: Appearance.colors.colSubtext
+                                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: resultHover
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onEntered: root.inlineSearchSelected = index
+                                            onClicked: root.navigateInlineSearch(modelData)
+                                        }
+                                    }
+                                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                }
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    visible: root.inlineSearchMatches.length === 0
+                                    text: Translation.tr("No matching settings")
+                                    color: Appearance.colors.colSubtext
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                }
+                            }
                         }
                     }
 
@@ -939,23 +1268,7 @@ ApplicationWindow {
                         }
                     }
 
-                    Rectangle {
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            bottom: parent.bottom
-                        }
 
-                        height: 1
-                        color: Appearance.colors.colLayer0Border
-                        opacity: root.pageScrolled ? 1 : 0
-
-                        Behavior on opacity {
-                            MotionAnim {
-                                type: MotionAnim.FastEffects
-                            }
-                        }
-                    }
                 }
 
                 // -------------------------------------------------------------
@@ -981,10 +1294,7 @@ ApplicationWindow {
                         currentPage: root.currentPage
                         expanded: root.navigationExpanded
 
-                        onSearchRequested:
-                            settingsControlSurface.open("search")
-                        onPageRequested:
-                            index => root.switchToPage(index)
+                        onPageRequested: index => root.switchToPage(index)
                     }
 
                     Item {
@@ -1028,71 +1338,61 @@ ApplicationWindow {
                             anchors.fill: parent
                             spacing: 4
 
-                            Item {
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: root.width < 780 ? 84 : 92
+                                Layout.leftMargin: 12
+                                Layout.rightMargin: 12
+                                visible: (root.appearanceEditor?.previewToken.length ?? 0) > 0
+                                    || (root.currentPage <= 2 && (root.appearanceEditor?.feedback.length ?? 0) > 0)
 
-                                ColumnLayout {
-                                    anchors {
-                                        fill: parent
-                                        leftMargin: 18
-                                        rightMargin: 8
-                                    }
-                                    spacing: 2
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: (root.appearanceEditor?.previewToken.length ?? 0) > 0
+                                        ? Translation.tr("Live preview · %1 seconds left").arg(root.appearanceEditor.previewSeconds)
+                                        : (root.appearanceEditor?.feedback ?? "")
+                                    color: root.appearanceEditor?.actionFailed
+                                        ? Appearance.m3colors.m3error
+                                        : Appearance.colors.colOnLayer1
+                                    wrapMode: Text.Wrap
+                                }
 
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: root.pages[root.currentPage]?.name ?? ""
-                                        color: Appearance.colors.colOnLayer0
-                                        font.family: Appearance.font.family.title
-                                        font.pixelSize: root.width < 780 ? 18 : 22
-                                        font.weight: Font.DemiBold
-                                        elide: Text.ElideRight
-                                    }
+                                RippleButtonWithIcon {
+                                    visible: (root.appearanceEditor?.previewToken.length ?? 0) > 0
+                                    enabled: root.appearanceEditor ? !root.appearanceEditor.pending : false
+                                    implicitHeight: 36
+                                    materialIcon: "undo"
+                                    mainText: Translation.tr("Revert")
+                                    onClicked: root.appearanceEditor.revertPreview()
+                                }
 
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: root.pages[root.currentPage]?.description ?? ""
-                                        color: Appearance.colors.colSubtext
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Flickable {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 30
-                                        clip: true
-                                        contentWidth: sectionShortcuts.width
-                                        contentHeight: height
-                                        interactive: contentWidth > width
-                                        boundsBehavior: Flickable.StopAtBounds
-
-                                        Row {
-                                            id: sectionShortcuts
-                                            width: childrenRect.width
-                                            height: parent.height
-                                            spacing: 6
-
-                                            Repeater {
-                                                model: root.pages[root.currentPage]?.sections ?? []
-
-                                                delegate: RippleButtonWithIcon {
-                                                    required property string modelData
-                                                    implicitHeight: 28
-                                                    implicitWidth: Math.max(90, modelData.length * 7 + 34)
-                                                    buttonRadius: Appearance.radius.control
-                                                    materialIcon: "arrow_forward"
-                                                    mainText: modelData
-                                                    colBackground: Appearance.colors.colLayer1
-                                                    colBackgroundHover: Appearance.colors.colLayer1Hover
-                                                    colRipple: Appearance.colors.colLayer1Active
-                                                    onClicked: root.jumpToSection(modelData)
-                                                }
-                                            }
-                                        }
-                                    }
+                                RippleButtonWithIcon {
+                                    visible: (root.appearanceEditor?.previewToken.length ?? 0) > 0
+                                    enabled: root.appearanceEditor ? !root.appearanceEditor.pending : false
+                                    implicitHeight: 36
+                                    materialIcon: "check"
+                                    mainText: Translation.tr("Keep")
+                                    onClicked: root.appearanceEditor.keepPreview()
                                 }
                             }
+
+                            Loader {
+                                id: appearancePageLoader
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                visible: root.currentPage === 0
+                                asynchronous: true
+                                active: false
+                                sourceComponent: AppearanceConfig {
+                                    onWallpaperRequested: root.openWallpaperPicker()
+                                }
+                                Component.onCompleted: Qt.callLater(() => appearancePageLoader.active = true)
+                                onLoaded: {
+                                    if (pageLoader.item && pageLoader.item.appearanceEditor !== undefined)
+                                        pageLoader.item.appearanceEditor = item
+                                }
+                            }
+
                             Loader {
                                 id: pageLoader
 
@@ -1100,14 +1400,24 @@ ApplicationWindow {
                                 Layout.fillHeight: true
                                 opacity: 1
 
-                                active: Config.ready
+                                visible: root.currentPage !== 0
+                                active: Config.ready && visible
+                                source: root.pages[root.currentPage].component
 
-                                Component.onCompleted: {
-                                    source =
-                                        root.pages[root.currentPage].component
+                                Connections {
+                                    target: pageLoader.item?.currentSection !== undefined
+                                        ? pageLoader.item : null
+                                    function onCurrentSectionChanged() {
+                                        root.settingsSectionSelections[root.currentPage] = target.currentSection
+                                    }
                                 }
 
                                 onLoaded: {
+                                    const section = root.settingsSectionSelections[root.currentPage]
+                                    if (section && item?.currentSection !== undefined)
+                                        item.currentSection = section
+                                    if (item && item.appearanceEditor !== undefined)
+                                        item.appearanceEditor = root.appearanceEditor
                                     if (
                                         item
                                         && item.contentY !== undefined
@@ -1119,52 +1429,7 @@ ApplicationWindow {
                                     }
                                 }
 
-                                Connections {
-                                    target: pageLoader.item
-                                    ignoreUnknownSignals: true
-                                    function onAppearanceStudioOpened() {
-                                        root.requestClose()
-                                    }
-                                }
 
-                                Connections {
-                                    target: root
-
-                                    function onCurrentPageChanged() {
-                                        if (
-                                            pageLoader.item
-                                            && pageLoader.item.contentY
-                                                !== undefined
-                                        ) {
-                                            root.pageScrollPositions[
-                                                root.previousPage
-                                            ] = pageLoader.item.contentY
-                                        }
-
-                                        root.previousPage =
-                                            root.currentPage
-
-                                        pageSwitchAnimation.stop()
-                                        pageLoader.source =
-                                            root.pages[root.currentPage].component
-                                        pageLoader.opacity = 0
-                                        pageSwitchAnimation.restart()
-                                    }
-                                }
-
-                                NumberAnimation {
-                                    id: pageSwitchAnimation
-                                    target: pageLoader
-                                    property: "opacity"
-                                    from: 0
-                                    to: 1
-                                    duration: Appearance.reducedMotion
-                                        ? 1
-                                        : Math.round(
-                                            Appearance.animation.elementMoveFast.duration * 0.55
-                                        )
-                                    easing.type: Easing.OutCubic
-                                }
                             }
                         }
                     }
@@ -1225,11 +1490,15 @@ ApplicationWindow {
             pages: root.pages
             currentPage: root.currentPage
 
-            helperPath: Quickshell.shellPath("scripts/system/nyvorel-settings-control")
+            helperPath: `${Directories.home}/.local/bin/nyvorel-settings-control`
 
             onNavigateRequested: (pageIndex, label) => {
-                root.pendingSearchLabel = label
+                const entry = SettingsIndex.entries.find(
+                    candidate => candidate.pageIndex === pageIndex && candidate.label === label)
+                root.pendingSearchLabel = entry?.searchLabel ?? label
                 root.searchTargetAttempts = 0
+                if (entry)
+                    root.prepareSearchPage(entry)
                 root.switchToPage(pageIndex)
                 searchTargetTimer.restart()
             }

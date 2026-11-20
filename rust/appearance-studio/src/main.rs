@@ -1310,6 +1310,9 @@ fn main() {
             )
         }
         Some("status") if args.len() == 1 => print_result(status()),
+        Some("wallpaper-preview") if args.len() == 3 && args[1] == "--wallpaper" => {
+            print_result(engine::wallpaper_preview(&args[2]))
+        }
         Some("clear-history" | "favorite-remove") => print_result(simple_mutation(&args[0], &args)),
         Some("favorite-add") => {
             if args.len() != 1 && (args.len() != 3 || args[1] != "--label") {

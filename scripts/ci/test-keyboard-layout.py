@@ -18,8 +18,8 @@ RULES = """<xkbConfigRegistry><layoutList>
 <description>English (Dvorak)</description></configItem></variant></variantList></layout>
 </layoutList></xkbConfigRegistry>"""
 
-MOCK_HYPRCTL = """#!/usr/bin/env python3
-import json, os, sys
+MOCK_HYPRCTL = r"""#!/usr/bin/env python3
+import json, os, re, sys
 from pathlib import Path
 path = Path(os.environ['MOCK_HYPR_STATE'])
 state = json.loads(path.read_text())
@@ -28,7 +28,20 @@ if args[:1] == ['getoption']:
     key = 'layout' if args[1].endswith('kb_layout') else 'variant'
     print(json.dumps({'str': state[key] or '[[EMPTY]]'}))
 elif args == ['devices', '-j']:
-    print(json.dumps({'keyboards': [{'main': True, 'active_keymap': state['layout']}]}))
+    print(json.dumps({'keyboards': [{
+        'main': True, 'layout': state.get('device_layout', state['layout']),
+        'variant': state['variant'], 'active_layout_index': state.get('index', 0),
+    }]}))
+elif args[:1] == ['eval'] and state.get('lua'):
+    match = re.fullmatch(r'hl.config\(\{input=\{kb_layout=(.*),kb_variant=(.*)\}\}\)', args[1])
+    if not match:
+        sys.exit('Invalid Lua command')
+    layout, variant = map(json.loads, match.groups())
+    state.update(layout=layout, variant=variant, index=0)
+    path.write_text(json.dumps(state))
+    print('ok')
+elif args[:1] == ['keyword'] and state.get('lua'):
+    sys.exit('Legacy keyword is unavailable')
 elif args[:2] == ['keyword', 'input:kb_layout']:
     state['layout'] = args[2]
     path.write_text(json.dumps(state))
@@ -90,7 +103,22 @@ def main():
         code, response = call("restore")
         assert code == 0 and response["layout"] == "it" and response["variant"] == ""
 
-    print("Keyboard catalogue, live status, apply, rollback and restore passed")
+        state_path.write_text(json.dumps({
+            "lua": True, "layout": "it,us", "variant": ",dvorak", "index": 1,
+        }))
+        code, response = call("status")
+        assert code == 0 and (response["layout"], response["variant"]) == ("us", "dvorak")
+        code, response = call("set", "us")
+        assert code == 0 and (response["layout"], response["variant"]) == ("us", "")
+
+        state_path.write_text(json.dumps({
+            "lua": True, "layout": "it", "variant": "", "device_layout": "it",
+        }))
+        code, response = call("set", "us")
+        assert code != 0 and not response["ok"]
+        assert json.loads(state_path.read_text())["layout"] == "it"
+
+    print("Keyboard catalogue, active groups, Lua and legacy switching, rollback and restore passed")
 
 
 if __name__ == "__main__":

@@ -145,9 +145,8 @@ Real Nyvorel surfaces running on the desktop — no mockups.
   <sub><b>Nyvorel Settings</b> — shell behavior, wallpaper, interface and service configuration in one place.</sub>
 </td>
 <td width="50%" valign="top">
-  <img src="./assets/showcase/appearance-studio.webp" alt="Nyvorel Appearance Studio" width="100%" />
-  <br />
-  <sub><b>Appearance Studio</b> — wallpaper-aware palettes, appearance modes and integrated desktop styling.</sub>
+  <p>Open Settings with <kbd>Super</kbd> + <kbd>I</kbd>. The Appearance page contains theme sources, surfaces and motion, corners, app theming, and saved looks.</p>
+  <p>Open the wallpaper picker with <kbd>Ctrl</kbd> + <kbd>Super</kbd> + <kbd>T</kbd> to preview a wallpaper and its generated theme before applying it.</p>
 </td>
 </tr>
 </table>

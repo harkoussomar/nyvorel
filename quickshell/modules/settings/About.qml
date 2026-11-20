@@ -7,11 +7,13 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    sections: [
+        { id: "overview", label: Translation.tr("Overview"), icon: "info" },
+        { id: "runtime", label: Translation.tr("Runtime"), icon: "deployed_code" },
+        { id: "system-project", label: Translation.tr("System & project"), icon: "box" }
+    ]
 
     readonly property int wideBreakpoint: 700
     readonly property int cardPadding: 16
@@ -363,6 +365,7 @@ ContentPage {
     }
 
     Rectangle {
+        visible: root.currentSection === "overview"
         Layout.fillWidth: true
         implicitHeight: heroColumn.implicitHeight + root.cardPadding * 2
 
@@ -496,10 +499,11 @@ ContentPage {
         }
     }
 
-    ContentSection {
-        icon: "deployed_code"
-        title: Translation.tr("Runtime")
+    ColumnLayout {
+        visible: root.currentSection === "runtime"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         InfoCard {
             title: Translation.tr("Runtime versions")
@@ -596,10 +600,11 @@ ContentPage {
         }
     }
 
-    ContentSection {
-        icon: "info"
-        title: Translation.tr("System & project")
+    ColumnLayout {
+        visible: root.currentSection === "system-project"
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
 
         GridLayout {
             Layout.fillWidth: true
@@ -717,10 +722,10 @@ ContentPage {
         }
     }
 
-    ContentSection {
-        icon: "verified"
-        title: Translation.tr("About this page")
+    ColumnLayout {
+        visible: root.currentSection === "overview"
         Layout.fillWidth: true
+        spacing: 12
 
         InfoCard {
             title: Translation.tr("Useful, privacy-conscious diagnostics")

@@ -4,22 +4,23 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentPage {
+SettingsTabbedPage {
     id: root
-    forceWidth: true
-    maxContentWidth: 960
-    horizontalPadding: width < 760 ? 16 : 24
+    property var appearanceEditor: null
+    sections: [
+        { id: "layout", label: Translation.tr("Bar layout"), icon: "toolbar" },
+        { id: "content", label: Translation.tr("Bar content"), icon: "dashboard_customize" },
+        { id: "tray", label: Translation.tr("System tray"), icon: "shelf_auto_hide" },
+        { id: "workspaces", label: Translation.tr("Workspaces"), icon: "workspaces" }
+    ]
 
     // Page-local layout metrics only. Corner geometry always comes from
     // Appearance.radius.* so this page follows the global radius system.
-    readonly property int wideBreakpoint: 700
-    readonly property int cardPadding: 14
+    readonly property int wideBreakpoint: 620
     readonly property int sectionGap: 12
     readonly property int rowGap: 8
     readonly property int controlHeight: 42
     readonly property int compactControlHeight: 38
-
-    property bool workspaceNumberingExpanded: false
 
     readonly property var hanNumberMap: [
         "一", "二", "三", "四", "五",
@@ -51,13 +52,12 @@ ContentPage {
     }
 
     function currentBarPosition(): int {
-        return (Config.options.bar.bottom ? 1 : 0)
-            | (Config.options.bar.vertical ? 2 : 0)
+        return (root.appearanceEditor?.draftBarBottom ? 1 : 0)
+            | (root.appearanceEditor?.draftBarVertical ? 2 : 0)
     }
 
     function setBarPosition(value: int): void {
-        Config.options.bar.bottom = (value & 1) !== 0
-        Config.options.bar.vertical = (value & 2) !== 0
+        root.appearanceEditor?.applyBarPosition(["top", "bottom", "left", "right"][value])
     }
 
     function setWorkspaceNumberStyle(style: string): void {
@@ -74,88 +74,40 @@ ContentPage {
     // Reusable page-local primitives
     // -------------------------------------------------------------------------
 
-    component SettingsCard: Rectangle {
-        id: card
+    component SettingGroup: ColumnLayout {
+        id: group
 
-        property string title: ""
+        required property string title
         property string subtitle: ""
         property string iconName: ""
-        property bool showHeader: true
-
-        readonly property real naturalHeight:
-            cardColumn.implicitHeight + root.cardPadding * 2
-
-        default property alias content: contentColumn.data
+        default property alias content: groupControls.data
 
         Layout.fillWidth: true
-        Layout.alignment: Qt.AlignTop
-        Layout.preferredHeight: card.naturalHeight
-        implicitHeight: card.naturalHeight
+        Layout.minimumWidth: 0
+        spacing: root.sectionGap
 
-        radius:
-             Appearance.radius.card
-        color:
-             Appearance.colors.colLayer2
-        border.width: 0
-        border.color:
-             Appearance.colors.colLayer0Border
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            MaterialSymbol {
+                visible: group.iconName.length > 0
+                text: group.iconName
+                iconSize: 20
+                color: Appearance.colors.colPrimary
+            }
+
+            FieldLabel {
+                title: group.title
+                subtitle: group.subtitle
+            }
+        }
 
         ColumnLayout {
-            id: cardColumn
+            id: groupControls
 
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-                topMargin: root.cardPadding
-                leftMargin: root.cardPadding
-                rightMargin: root.cardPadding
-            }
-
-            spacing: root.sectionGap
-
-            RowLayout {
-                visible: card.showHeader
-                Layout.fillWidth: true
-                spacing: 8
-
-                MaterialSymbol {
-                    visible: card.iconName.length > 0
-                    text: card.iconName
-                    iconSize: 20
-                    color: Appearance.colors.colPrimary
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: card.title
-                        color: Appearance.colors.colOnLayer2
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.DemiBold
-                        wrapMode: Text.Wrap
-                    }
-
-                    StyledText {
-                        visible: card.subtitle.length > 0
-                        Layout.fillWidth: true
-                        text: card.subtitle
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
-                    }
-                }
-            }
-
-            ColumnLayout {
-                id: contentColumn
-
-                Layout.fillWidth: true
-                spacing: root.rowGap
-            }
+            Layout.fillWidth: true
+            spacing: root.rowGap
         }
     }
 
@@ -206,6 +158,7 @@ ContentPage {
         colBackgroundHover: Appearance.colors.colLayer1Hover
         colRipple: Appearance.colors.colLayer1Active
 
+        activeFocusOnTab: true
         Accessible.role: Accessible.CheckBox
         Accessible.name: title
         Accessible.description: subtitle
@@ -258,6 +211,8 @@ ContentPage {
             StyledSwitch {
                 checked: row.switchChecked
                 enabled: row.enabled
+                activeFocusOnTab: false
+                Accessible.ignored: true
 
                 onToggled: row.userToggled(checked)
             }
@@ -354,6 +309,7 @@ ContentPage {
         Accessible.name: label
         Accessible.description: Translation.tr("Place the bar on the %1 edge of the screen.").arg(label.toLowerCase())
 
+        enabled: root.appearanceEditor?.initialized ?? false
         onClicked: root.setBarPosition(value)
 
         contentItem: ColumnLayout {
@@ -415,314 +371,267 @@ ContentPage {
         }
     }
 
-    component UtilityToggleTile: RippleButton {
-        id: tile
-
-        required property string title
-        required property string iconName
-
-        property string subtitle: ""
-        property bool switchChecked: false
-
-        signal userToggled(bool checked)
-
+    Loader {
         Layout.fillWidth: true
-        implicitHeight: Math.max(58, utilityContent.implicitHeight + 18)
-
-        buttonRadius: Appearance.radius.control
-        buttonRadiusPressed: Appearance.radius.control
-
-        colBackground: Appearance.colors.colLayer1
-        colBackgroundHover: Appearance.colors.colLayer1Hover
-        colRipple: Appearance.colors.colLayer1Active
-
-        Accessible.role: Accessible.CheckBox
-        Accessible.name: title
-        Accessible.description: subtitle
-        Accessible.checked: switchChecked
-
-        onClicked: tile.userToggled(!tile.switchChecked)
-
-        contentItem: RowLayout {
-            id: utilityContent
-
-            anchors.fill: parent
-            anchors.leftMargin: 11
-            anchors.rightMargin: 11
-            spacing: 10
-
-            MaterialSymbol {
-                text: tile.iconName
-                iconSize: 18
-                color: Appearance.colors.colPrimary
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: tile.title
-                    color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Medium
-                    wrapMode: Text.Wrap
-                }
-
-                StyledText {
-                    visible: tile.subtitle.length > 0
-                    Layout.fillWidth: true
-                    text: tile.subtitle
-                    color: Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            StyledSwitch {
-                checked: tile.switchChecked
-                onToggled: tile.userToggled(checked)
+        Layout.minimumWidth: 0
+        sourceComponent: {
+            switch (root.currentSection) {
+            case "content": return contentSection
+            case "tray": return traySection
+            case "workspaces": return workspacesSection
+            default: return layoutSection
             }
         }
     }
 
-    // =========================================================================
-    // BAR LAYOUT
-    // =========================================================================
+    Component {
+        id: layoutSection
 
-    ContentSection {
-        icon: "toolbar"
-        title: Translation.tr("Bar layout")
-        Layout.fillWidth: true
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 10
 
-        SettingsCard {
-            showHeader: false
+            FieldLabel {
+                title: Translation.tr("Position")
+                subtitle: Translation.tr("Choose which screen edge holds the bar.")
+            }
 
-            ColumnLayout {
+            GridLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                columns: width >= 520 ? 4 : 2
+                uniformCellWidths: true
+                columnSpacing: 8
+                rowSpacing: 8
 
-                FieldLabel {
-                    title: Translation.tr("Position")
-                    subtitle: Translation.tr("Choose which screen edge holds the bar.")
+                PositionChoice {
+                    label: Translation.tr("Top")
+                    value: 0
                 }
+
+                PositionChoice {
+                    label: Translation.tr("Left")
+                    value: 2
+                }
+
+                PositionChoice {
+                    label: Translation.tr("Bottom")
+                    value: 1
+                }
+
+                PositionChoice {
+                    label: Translation.tr("Right")
+                    value: 3
+                }
+            }
+
+            FieldLabel {
+                Layout.topMargin: 2
+                title: Translation.tr("Bar style")
+                subtitle: Translation.tr("Change the bar's outer geometry without changing its contents.")
+            }
+
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ChoiceChip {
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    label: Translation.tr("Compact")
+                    iconName: "line_curve"
+                    description: Translation.tr("Keep the bar attached to the screen edge with the existing compact treatment.")
+                    selected: root.appearanceEditor?.draftBarCornerStyle === 0
+
+                    onClicked: root.appearanceEditor.draftBarCornerStyle = 0
+                }
+
+                ChoiceChip {
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    label: Translation.tr("Floating")
+                    iconName: "page_header"
+                    description: Translation.tr("Add an outer gap, rounded bar geometry, and a border.")
+                    selected: root.appearanceEditor?.draftBarCornerStyle === 1
+
+                    onClicked: root.appearanceEditor.draftBarCornerStyle = 1
+                }
+
+                ChoiceChip {
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    label: Translation.tr("Full width")
+                    iconName: "toolbar"
+                    description: Translation.tr("Use the plain rectangular bar style.")
+                    selected: root.appearanceEditor?.draftBarCornerStyle === 2
+
+                    onClicked: root.appearanceEditor.draftBarCornerStyle = 2
+                }
+            }
+
+            FieldLabel {
+                Layout.topMargin: 2
+                title: Translation.tr("Group style")
+                subtitle: Translation.tr("Show widgets in pills or as separated controls.")
+            }
+
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ChoiceChip {
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    label: Translation.tr("Pills")
+                    iconName: "location_chip"
+                    selected: !root.appearanceEditor?.draftBarBorderless
+
+                    onClicked: root.appearanceEditor.draftBarBorderless = false
+                }
+
+                ChoiceChip {
+                    enabled: root.appearanceEditor?.initialized ?? false
+                    label: Translation.tr("Separated")
+                    iconName: "split_scene"
+                    selected: root.appearanceEditor?.draftBarBorderless ?? false
+
+                    onClicked: root.appearanceEditor.draftBarBorderless = true
+                }
+            }
+            PreferenceSwitchRow {
+                enabled: root.appearanceEditor?.draftBarCornerStyle === 1
+                title: Translation.tr("Floating shadow")
+                subtitle: enabled
+                    ? Translation.tr("Add a shadow below the floating bar.")
+                    : Translation.tr("Available with the Floating bar style.")
+                iconName: "shadow"
+                switchChecked: root.appearanceEditor?.draftBarFloatStyleShadow ?? false
+                onUserToggled: checked => root.appearanceEditor.draftBarFloatStyleShadow = checked
+            }
+
+            PreferenceSwitchRow {
+                enabled: root.appearanceEditor?.initialized ?? false
+                title: Translation.tr("Bar background")
+                subtitle: Translation.tr("Show the surface behind the bar contents.")
+                iconName: "toolbar"
+                switchChecked: root.appearanceEditor?.draftBarShowBackground ?? false
+                onUserToggled: checked => root.appearanceEditor.draftBarShowBackground = checked
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                implicitHeight: 1
+                color: Appearance.colors.colLayer0Border
+            }
+
+            FieldLabel {
+                title: Translation.tr("Interaction")
+            }
+
+            PreferenceSwitchRow {
+                title: Translation.tr("Automatically hide bar")
+                subtitle: Translation.tr("Reveal the bar by moving the pointer to its screen edge.")
+                iconName: "shelf_auto_hide"
+                switchChecked: Config.options.bar.autoHide.enable
+
+                onUserToggled: checked => {
+                    Config.options.bar.autoHide.enable = checked
+                }
+            }
+
+            PreferenceSwitchRow {
+                title: Translation.tr("Require click for supported popups")
+                subtitle: Translation.tr("Open weather details and workspace previews on click instead of hover.")
+                iconName: "ads_click"
+                switchChecked: Config.options.bar.tooltips.clickToShow
+
+                onUserToggled: checked => {
+                    Config.options.bar.tooltips.clickToShow = checked
+                }
+            }
+        }
+    }
+
+    Component {
+        id: contentSection
+
+        ColumnLayout {
+            spacing: 16
+
+            SettingGroup {
+                title: Translation.tr("Information & indicators")
+                subtitle: Translation.tr("Choose which information appears in the bar.")
+                iconName: "notifications"
 
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: width >= 620 ? 4 : 2
-                    columnSpacing: 8
-                    rowSpacing: 8
+                    columns: width >= root.wideBreakpoint ? 2 : 1
+                    uniformCellWidths: true
+                    uniformCellHeights: true
+                    columnSpacing: root.rowGap
+                    rowSpacing: root.rowGap
 
-                    PositionChoice {
-                        label: Translation.tr("Top")
-                        value: 0
+                    PreferenceSwitchRow {
+                        title: Translation.tr("Show unread notification count")
+                        subtitle: Translation.tr("Show the unread number instead of only the compact notification dot.")
+                        iconName: "counter_2"
+                        switchChecked: Config.options.bar.indicators.notifications.showUnreadCount
+
+                        onUserToggled: checked => {
+                            Config.options.bar.indicators.notifications.showUnreadCount = checked
+                        }
                     }
 
-                    PositionChoice {
-                        label: Translation.tr("Left")
-                        value: 2
+                    PreferenceSwitchRow {
+                        title: Translation.tr("Show weather in bar")
+                        subtitle: Translation.tr("Display the current weather icon and temperature when the active bar layout supports it.")
+                        iconName: "cloud"
+                        switchChecked: Config.options.bar.weather.enable
+
+                        onUserToggled: checked => {
+                            Config.options.bar.weather.enable = checked
+                        }
                     }
 
-                    PositionChoice {
-                        label: Translation.tr("Bottom")
-                        value: 1
+                    PreferenceSwitchRow {
+                        title: Translation.tr("Clock")
+                        subtitle: Translation.tr("Show the current time directly in the bar.")
+                        iconName: "schedule"
+                        switchChecked: Config.options.bar.visibility.clock
+
+                        onUserToggled: checked => {
+                            Config.options.bar.visibility.clock = checked
+                        }
                     }
+                    PreferenceSwitchRow {
+                        title: Translation.tr("Resource usage")
+                        subtitle: Translation.tr("Show RAM / CPU usage directly in the bar.")
+                        iconName: "monitoring"
+                        switchChecked: Config.options.bar.visibility.resources
 
-                    PositionChoice {
-                        label: Translation.tr("Right")
-                        value: 3
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    Layout.topMargin: 2
-                    title: Translation.tr("Automatically hide bar")
-                    subtitle: Translation.tr("Slide the bar off-screen until its edge is hovered or it is explicitly shown.")
-                    iconName: "shelf_auto_hide"
-                    switchChecked: Config.options.bar.autoHide.enable
-
-                    onUserToggled: checked => {
-                        Config.options.bar.autoHide.enable = checked
-                    }
-                }
-
-                FieldLabel {
-                    Layout.topMargin: 2
-                    title: Translation.tr("Bar style")
-                    subtitle: Translation.tr("Change the bar's outer geometry without changing its contents.")
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    ChoiceChip {
-                        label: Translation.tr("Compact")
-                        iconName: "line_curve"
-                        description: Translation.tr("Keep the bar attached to the screen edge with the existing compact treatment.")
-                        selected: Config.options.bar.cornerStyle === 0
-
-                        onClicked: Config.options.bar.cornerStyle = 0
-                    }
-
-                    ChoiceChip {
-                        label: Translation.tr("Floating")
-                        iconName: "page_header"
-                        description: Translation.tr("Add an outer gap, rounded bar geometry, and a border.")
-                        selected: Config.options.bar.cornerStyle === 1
-
-                        onClicked: Config.options.bar.cornerStyle = 1
-                    }
-
-                    ChoiceChip {
-                        label: Translation.tr("Full width")
-                        iconName: "toolbar"
-                        description: Translation.tr("Use the plain rectangular bar style.")
-                        selected: Config.options.bar.cornerStyle === 2
-
-                        onClicked: Config.options.bar.cornerStyle = 2
-                    }
-                }
-
-                FieldLabel {
-                    Layout.topMargin: 2
-                    title: Translation.tr("Group style")
-                    subtitle: Translation.tr("Choose whether bar widgets appear as grouped pills or as a borderless separated layout.")
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    ChoiceChip {
-                        label: Translation.tr("Pills")
-                        iconName: "location_chip"
-                        selected: !Config.options.bar.borderless
-
-                        onClicked: Config.options.bar.borderless = false
-                    }
-
-                    ChoiceChip {
-                        label: Translation.tr("Separated")
-                        iconName: "split_scene"
-                        selected: Config.options.bar.borderless
-
-                        onClicked: Config.options.bar.borderless = true
-                    }
-                }
-            }
-        }
-    }
-
-    // =========================================================================
-    // BAR CONTENT
-    // =========================================================================
-
-    ContentSection {
-        icon: "dashboard_customize"
-        title: Translation.tr("Bar content")
-        Layout.fillWidth: true
-
-        GridLayout {
-            id: contentGrid
-
-            Layout.fillWidth: true
-            columns: width >= root.wideBreakpoint ? 2 : 1
-            columnSpacing: 14
-            rowSpacing: 14
-
-            SettingsCard {
-                id: indicatorsCard
-
-
-                title: Translation.tr("Indicators & interaction")
-                subtitle: Translation.tr("Control lightweight information and popup behavior in the bar.")
-                iconName: "notifications"
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Show unread notification count")
-                    subtitle: Translation.tr("Show the unread number instead of only the compact notification dot.")
-                    iconName: "counter_2"
-                    switchChecked: Config.options.bar.indicators.notifications.showUnreadCount
-
-                    onUserToggled: checked => {
-                        Config.options.bar.indicators.notifications.showUnreadCount = checked
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Show weather in bar")
-                    subtitle: Translation.tr("Display the current weather icon and temperature when the active bar layout supports it.")
-                    iconName: "cloud"
-                    switchChecked: Config.options.bar.weather.enable
-
-                    onUserToggled: checked => {
-                        Config.options.bar.weather.enable = checked
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Require click for supported popups")
-                    subtitle: Translation.tr("Open weather details and workspace previews on click instead of hover.")
-                    iconName: "ads_click"
-                    switchChecked: Config.options.bar.tooltips.clickToShow
-
-                    onUserToggled: checked => {
-                        Config.options.bar.tooltips.clickToShow = checked
+                        onUserToggled: checked => {
+                            Config.options.bar.visibility.resources = checked
+                        }
                     }
                 }
             }
 
-            SettingsCard {
-                id: trayCard
-
-
-                title: Translation.tr("System tray")
-                subtitle: Translation.tr("Control how tray applications are grouped and colored.")
-                iconName: "shelf_auto_hide"
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Invert tray pinning")
-                    subtitle: Translation.tr("Treat apps outside the pinned list as pinned, and listed apps as unpinned.")
-                        + "  " + Translation.tr("%1 in bar · %2 in overflow")
-                            .arg(TrayService.pinnedItems.length)
-                            .arg(TrayService.unpinnedItems.length)
-                    iconName: "keep"
-                    switchChecked: Config.options.tray.invertPinnedItems
-
-                    onUserToggled: checked => {
-                        Config.options.tray.invertPinnedItems = checked
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Monochrome app icons")
-                    subtitle: Translation.tr("Show tray and workspace icons in grayscale while preserving their detail.")
-                    iconName: "colors"
-                    switchChecked: Config.monochromeAppIcons
-
-                    onUserToggled: checked => {
-                        Config.options.tray.monochromeIcons = checked
-                        Config.options.bar.workspaces.monochromeIcons = checked
-                    }
-                }
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 1
+                color: Appearance.colors.colLayer0Border
             }
 
-            SettingsCard {
-                Layout.columnSpan: contentGrid.columns
-
-                title: Translation.tr("Bar content & utility actions")
-                subtitle: Translation.tr("Choose visible bar content and optional quick-action buttons.")
+            SettingGroup {
+                title: Translation.tr("Quick actions")
+                subtitle: Translation.tr("Choose which utility actions appear in the bar.")
                 iconName: "widgets"
 
                 GridLayout {
                     Layout.fillWidth: true
                     columns: width >= root.wideBreakpoint ? 2 : 1
+                    uniformCellWidths: true
+                    uniformCellHeights: true
                     columnSpacing: 8
                     rowSpacing: 8
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Screen snip")
                         subtitle: Translation.tr("Show the screenshot selection action.")
                         iconName: "content_cut"
@@ -733,7 +642,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Color picker")
                         subtitle: Translation.tr("Show the on-screen color sampling action.")
                         iconName: "colorize"
@@ -744,7 +653,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Keyboard")
                         subtitle: Translation.tr("Switch layouts and open the virtual keyboard from one bar control.")
                         iconName: "keyboard"
@@ -757,7 +666,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Microphone")
                         subtitle: Translation.tr("Show the microphone mute toggle.")
                         iconName: "mic"
@@ -768,7 +677,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Light / dark")
                         subtitle: Translation.tr("Show the light/dark appearance toggle.")
                         iconName: "dark_mode"
@@ -779,29 +688,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
-                        title: Translation.tr("Resource usage")
-                        subtitle: Translation.tr("Show RAM / CPU usage directly in the bar.")
-                        iconName: "monitoring"
-                        switchChecked: Config.options.bar.visibility.resources
-
-                        onUserToggled: checked => {
-                            Config.options.bar.visibility.resources = checked
-                        }
-                    }
-
-                    UtilityToggleTile {
-                        title: Translation.tr("Clock")
-                        subtitle: Translation.tr("Show the current time directly in the bar.")
-                        iconName: "schedule"
-                        switchChecked: Config.options.bar.visibility.clock
-
-                        onUserToggled: checked => {
-                            Config.options.bar.visibility.clock = checked
-                        }
-                    }
-
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Keep awake")
                         subtitle: Translation.tr("Show a quick toggle that prevents automatic idle / sleep.")
                         iconName: "coffee"
@@ -812,7 +699,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Night light")
                         subtitle: Translation.tr("Show a quick display-warmth / night-light toggle.")
                         iconName: "brightness_4"
@@ -823,7 +710,7 @@ ContentPage {
                         }
                     }
 
-                    UtilityToggleTile {
+                    PreferenceSwitchRow {
                         title: Translation.tr("Screen recording")
                         subtitle: Translation.tr("Show the screen-recording action.")
                         iconName: "videocam"
@@ -838,23 +725,69 @@ ContentPage {
         }
     }
 
-    // =========================================================================
-    // WORKSPACES
-    // =========================================================================
+    Component {
+        id: traySection
 
-    ContentSection {
-        icon: "workspaces"
-        title: Translation.tr("Workspace indicator")
-        Layout.fillWidth: true
+        SettingGroup {
+            title: Translation.tr("Tray options")
+            subtitle: Translation.tr("Choose which tray icons are pinned and how they look.")
+            iconName: "shelf_auto_hide"
 
-        SettingsCard {
+            PreferenceSwitchRow {
+                title: Translation.tr("Invert tray pinning")
+                subtitle: Translation.tr("Treat apps outside the pinned list as pinned, and listed apps as unpinned.")
+                    + "  " + Translation.tr("%1 in bar · %2 in overflow")
+                        .arg(TrayService.pinnedItems.length)
+                        .arg(TrayService.unpinnedItems.length)
+                iconName: "keep"
+                switchChecked: Config.options.tray.invertPinnedItems
+
+                onUserToggled: checked => {
+                    Config.options.tray.invertPinnedItems = checked
+                }
+            }
+
+            PreferenceSwitchRow {
+                title: Translation.tr("Monochrome app icons")
+                subtitle: Translation.tr("Show tray and workspace icons in grayscale while preserving their detail.")
+                iconName: "colors"
+                switchChecked: Config.monochromeAppIcons
+
+                onUserToggled: checked => {
+                    Config.options.tray.monochromeIcons = checked
+                    Config.options.bar.workspaces.monochromeIcons = checked
+                }
+            }
+        }
+    }
+
+    Component {
+        id: workspacesSection
+
+        SettingGroup {
             title: Translation.tr("Workspace appearance")
             subtitle: Translation.tr("Control what each workspace button shows and how many workspaces are represented.")
             iconName: "workspaces"
 
+            ConfigSpinBox {
+                Layout.fillWidth: true
+                icon: "view_column"
+                text: Translation.tr("Visible workspaces")
+                value: Config.options.bar.workspaces.shown
+                from: 1
+                to: 30
+                stepSize: 1
+
+                onValueChanged: {
+                    Config.options.bar.workspaces.shown = value
+                }
+            }
+
             GridLayout {
                 Layout.fillWidth: true
                 columns: width >= root.wideBreakpoint ? 2 : 1
+                uniformCellWidths: true
+                uniformCellHeights: true
                 columnSpacing: 8
                 rowSpacing: 8
 
@@ -879,47 +812,9 @@ ContentPage {
                         Config.options.bar.workspaces.showAppIcons = checked
                     }
                 }
-
-                ConfigSpinBox {
-                    Layout.fillWidth: true
-                    icon: "view_column"
-                    text: Translation.tr("Visible workspaces")
-                    value: Config.options.bar.workspaces.shown
-                    from: 1
-                    to: 30
-                    stepSize: 1
-
-                    onValueChanged: {
-                        Config.options.bar.workspaces.shown = value
-                    }
-                }
-            }
-
-            RippleButtonWithIcon {
-                Layout.fillWidth: true
-                implicitHeight: root.compactControlHeight
-                buttonRadius: Appearance.radius.control
-
-                materialIcon: root.workspaceNumberingExpanded
-                    ? "expand_less"
-                    : "format_list_numbered"
-
-                mainText: root.workspaceNumberingExpanded
-                    ? Translation.tr("Hide workspace numbering")
-                    : Translation.tr("Workspace numbering")
-
-                colBackground: Appearance.colors.colLayer1
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                colRipple: Appearance.colors.colLayer1Active
-
-                onClicked: {
-                    root.workspaceNumberingExpanded =
-                        !root.workspaceNumberingExpanded
-                }
             }
 
             ColumnLayout {
-                visible: root.workspaceNumberingExpanded
                 Layout.fillWidth: true
                 spacing: 8
 

@@ -387,5 +387,19 @@
   "When enabled keeps the content of the right sidebar loaded to reduce the delay when opening,\nat the cost of around 15MB of consistent RAM usage. Delay significance depends on your system's performance.\nUsing a custom kernel like linux-cachyos might help": "При включении этого параметра содержимое правой боковой панели сохраняется загруженным, что сокращает задержку при открытии,\nзатрачивая около 15 МБ постоянного использования оперативной памяти. Длительность задержки зависит от производительности вашей системы.\nИспользование пользовательского ядра, например, linux-cachyos, может помочь.",
   "High": "Высокий",
   "Focus": "Фокус",
-  "Load:": "Load:"
+  "Load:": "Load:",
+  "Shell language": "Язык оболочки",
+  "Keyboard layout": "Раскладка клавиатуры",
+  "Applying layout…": "Применение раскладки…",
+  "Detecting layout…": "Определение раскладки…",
+  "Choose keyboard layout": "Выбор раскладки клавиатуры",
+  "Search layouts and variants…": "Поиск раскладок и вариантов…",
+  "No installed XKB layout matches this search.": "По запросу не найдено ни одной установленной раскладки XKB.",
+  "Welcome": "Добро пожаловать",
+  "Welcome to\na desktop that feels like yours.": "Добро пожаловать на рабочий стол, который подходит вам.",
+  "Choose the atmosphere you want. Nyvorel will shape the shell around it.": "Выберите оформление. Nyvorel подстроит под него внешний вид оболочки.",
+  "A live preview, with a way back.": "Предпросмотр в реальном времени с возможностью отмены.",
+  "Try Default or Fluid. Keep the result only when it feels right.": "Попробуйте стандартный стиль или Fluid. Сохраните результат, если он вам нравится.",
+  "Get started": "Начать",
+  "Skip setup": "Пропустить настройку"
 }
