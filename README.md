@@ -267,6 +267,26 @@ released build. Software-rendered VMs can show high compositor CPU use. See
 See [`INSTALL.md`](./INSTALL.md) for the complete installation and recovery
 model.
 
+## Keyboard shortcuts
+
+Press **Super + /** to open the searchable guide. It reads the shortcuts
+currently loaded by Hyprland, including custom bindings with descriptions.
+Click a shortcut to edit its description. To rebind it, click the key field, press the new combination, then select Save. Press Esc to cancel recording.
+Nyvorel checks the running bindings for conflicts before applying the change.
+**Restore defaults** clears edits made in the guide and restores the bindings
+defined in your configuration files.
+
+| Shortcut | Action |
+| --- | --- |
+| Tap Super | Search and launch |
+| Super + I | Open Settings |
+| Ctrl + Super + T | Change wallpaper |
+| Super + A | Open Operations |
+| Super + N | Open notifications and controls |
+| Super + L | Lock the desktop |
+| Super + Y | Open Arch Remote |
+| Super + U | Open Backup & Recovery |
+
 ## First-run guide
 
 After setup, use the read-only onboarding command:

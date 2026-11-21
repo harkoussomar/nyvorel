@@ -7,8 +7,12 @@
 local config_home = os.getenv("XDG_CONFIG_HOME") or ((os.getenv("HOME") or "") .. "/.config")
 local nyvorel_config_root = NYVOREL_CONFIG_ROOT or (config_home .. "/hypr")
 local super_scroll = "~/.local/bin/nyvorel-super-scroll"
-local function load_optional(path)
-  local chunk = loadfile(path)
+local keybind_editor = loadfile(nyvorel_config_root .. "/custom/keybind-editor.lua")
+local hl, publish_keybinds = _G.hl, function() end
+if keybind_editor then hl, publish_keybinds = keybind_editor()(_G.hl, config_home) end
+local function load_optional(path, editable_bindings)
+  local environment = editable_bindings and setmetatable({hl = hl}, {__index = _G, __newindex = _G}) or _G
+  local chunk = loadfile(path, "t", environment)
   if chunk then chunk() end
 end
 -- hyprland.conf:4
@@ -529,31 +533,31 @@ hl.window_rule({["no_blur"] = false, ["match"] = {["class"] = "^(kitty)$"}, ["na
 load_optional(nyvorel_config_root .. "/hyprland/colors.lua")
 -- hyprland.conf:17
 -- hyprland/keybinds.conf:10
-hl.bind("SUPER + Tab", hl.dsp.global("quickshell:overviewWorkspacesToggle"), {})
+hl.bind("SUPER + Tab", hl.dsp.global("quickshell:overviewWorkspacesToggle"), {["description"] = "Workspace overview"})
 -- hyprland/keybinds.conf:11
-hl.bind("SUPER + V", hl.dsp.global("quickshell:overviewClipboardToggle"), {["description"] = "Clipboard history >> clipboard"})
+hl.bind("SUPER + V", hl.dsp.global("quickshell:overviewClipboardToggle"), {["description"] = "Open clipboard history"})
 -- hyprland/keybinds.conf:12
-hl.bind("SUPER + Period", hl.dsp.global("quickshell:overviewEmojiToggle"), {["description"] = "Emoji >> clipboard"})
+hl.bind("SUPER + Period", hl.dsp.global("quickshell:overviewEmojiToggle"), {["description"] = "Open emoji picker"})
 -- hyprland/keybinds.conf:13
-hl.bind("SUPER + A", hl.dsp.global("quickshell:sidebarLeftToggle"), {})
+hl.bind("SUPER + A", hl.dsp.global("quickshell:sidebarLeftToggle"), {["description"] = "Open Operations panel"})
 -- hyprland/keybinds.conf:14
-hl.bind("SUPER+ALT + A", hl.dsp.global("quickshell:sidebarLeftToggleDetach"), {})
+hl.bind("SUPER+ALT + A", hl.dsp.global("quickshell:sidebarLeftToggleDetach"), {["description"] = "Open Operations in a separate window"})
 -- hyprland/keybinds.conf:15
 hl.bind("SUPER + B", hl.dsp.global("quickshell:sidebarLeftToggle"), {})
 -- hyprland/keybinds.conf:16
 hl.bind("SUPER + O", hl.dsp.global("quickshell:sidebarLeftToggle"), {})
 -- hyprland/keybinds.conf:17
-hl.bind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"), {["description"] = "Toggle right sidebar"})
+hl.bind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"), {["description"] = "Open notifications and controls"})
 -- hyprland/keybinds.conf:18
-hl.bind("SUPER + Slash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
-hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
-hl.bind("SUPER + backslash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Toggle cheatsheet"})
+hl.bind("SUPER + Slash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Open shortcut guide"})
+hl.bind("SUPER + code:51", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Open shortcut guide"})
+hl.bind("SUPER + backslash", hl.dsp.global("quickshell:cheatsheetToggle"), {["description"] = "Open shortcut guide"})
 -- hyprland/keybinds.conf:19
 hl.bind("SUPER + K", hl.dsp.global("quickshell:oskToggle"), {["description"] = "Toggle on-screen keyboard"})
 -- hyprland/keybinds.conf:20
 hl.bind("SUPER + M", hl.dsp.global("quickshell:mediaControlsToggle"), {["description"] = "Toggle media controls"})
 -- hyprland/keybinds.conf:21
-hl.bind("SUPER + G", hl.dsp.global("quickshell:overlayToggle"), {})
+hl.bind("SUPER + G", hl.dsp.global("quickshell:overlayToggle"), {["description"] = "Toggle desktop overlay"})
 -- hyprland/keybinds.conf:22
 hl.bind("CTRL+ALT + Delete", hl.dsp.global("quickshell:sessionToggle"), {["description"] = "Toggle session menu"})
 -- hyprland/keybinds.conf:23
@@ -563,259 +567,259 @@ hl.bind("CTRL+ALT + Delete", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE 
 -- hyprland/keybinds.conf:25
 hl.bind("SHIFT+SUPER+ALT + Slash", hl.dsp.exec_cmd("qs -p ~/.config/quickshell/nyvorel/welcome.qml"), {})
 -- hyprland/keybinds.conf:27
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("qs -c nyvorel ipc call brightness increment || brightnessctl s 5%+"), {["repeating"] = true, ["locked"] = true})
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("qs -c nyvorel ipc call brightness increment || brightnessctl s 5%+"), {["repeating"] = true, ["locked"] = true, ["description"] = "Increase screen brightness"})
 -- hyprland/keybinds.conf:28
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("qs -c nyvorel ipc call brightness decrement || brightnessctl s 5%-"), {["repeating"] = true, ["locked"] = true})
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("qs -c nyvorel ipc call brightness decrement || brightnessctl s 5%-"), {["repeating"] = true, ["locked"] = true, ["description"] = "Decrease screen brightness"})
 -- hyprland/keybinds.conf:29
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.5"), {["repeating"] = true, ["locked"] = true})
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.5"), {["repeating"] = true, ["locked"] = true, ["description"] = "Increase audio volume"})
 -- hyprland/keybinds.conf:30
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"), {["repeating"] = true, ["locked"] = true})
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"), {["repeating"] = true, ["locked"] = true, ["description"] = "Decrease audio volume"})
 -- hyprland/keybinds.conf:32
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SINK@ toggle"), {["locked"] = true})
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SINK@ toggle"), {["locked"] = true, ["description"] = "Toggle audio mute"})
 -- hyprland/keybinds.conf:33
-hl.bind("SUPER+SHIFT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SINK@ toggle"), {["locked"] = true, ["description"] = "Toggle mute"})
+hl.bind("SUPER+SHIFT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SINK@ toggle"), {["locked"] = true, ["description"] = "Toggle audio mute"})
 -- hyprland/keybinds.conf:34
-hl.bind("ALT + XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true})
+hl.bind("ALT + XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle microphone mute"})
 -- hyprland/keybinds.conf:35
-hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true})
+hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle microphone mute"})
 -- hyprland/keybinds.conf:36
-hl.bind("SUPER+ALT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle mic"})
+hl.bind("SUPER+ALT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle microphone mute"})
 -- hyprland/keybinds.conf:37
 hl.bind("CTRL+SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"), {["description"] = "Change wallpaper"})
 -- hyprland/keybinds.conf:40
-hl.bind("CTRL+SUPER + R", hl.dsp.exec_cmd("sh -lc 'systemctl --user import-environment DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE >/dev/null 2>&1 || true; hyprctl reload; systemctl --user restart nyvorel-quickshell.service'"), {})
+hl.bind("CTRL+SUPER + R", hl.dsp.exec_cmd("sh -lc 'systemctl --user import-environment DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE >/dev/null 2>&1 || true; hyprctl reload; systemctl --user restart nyvorel-quickshell.service'"), {["description"] = "Reload Hyprland and restart Nyvorel"})
 -- hyprland/keybinds.conf:41
-hl.bind("CTRL+SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), {})
+hl.bind("CTRL+SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), {["description"] = "Switch panel family"})
 -- hyprland/keybinds.conf:45
 hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pkill fuzzel || cliphist list | fuzzel --match-mode fzf --dmenu | cliphist decode | wl-copy"), {["description"] = "Copy clipboard history entry"})
 -- hyprland/keybinds.conf:46
 hl.bind("SUPER + Period", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pkill fuzzel || ~/.config/hypr/hyprland/scripts/fuzzel-emoji.sh copy"), {["description"] = "Copy an emoji"})
 -- hyprland/keybinds.conf:47
-hl.bind("SUPER+SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {})
+hl.bind("SUPER+SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {["description"] = "Capture a region"})
 -- hyprland/keybinds.conf:48
 hl.bind("SUPER+SHIFT + S", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pidof slurp || hyprshot --freeze --mode region --silent --output-folder ~/Pictures/Screenshots"), {})
 -- hyprland/keybinds.conf:49
-hl.bind("SUPER+SHIFT + A", hl.dsp.global("quickshell:regionSearch"), {})
+hl.bind("SUPER+SHIFT + A", hl.dsp.global("quickshell:regionSearch"), {["description"] = "Search what you see"})
 -- hyprland/keybinds.conf:50
 hl.bind("SUPER+SHIFT + A", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pidof slurp || ~/.config/hypr/hyprland/scripts/snip_to_search.sh"), {})
 -- hyprland/keybinds.conf:52
-hl.bind("SUPER+SHIFT + X", hl.dsp.global("quickshell:regionOcr"), {})
+hl.bind("SUPER+SHIFT + X", hl.dsp.global("quickshell:regionOcr"), {["description"] = "Copy text from a region"})
 -- hyprland/keybinds.conf:53
-hl.bind("SUPER+SHIFT + T", hl.dsp.global("quickshell:regionOcr"), {})
+hl.bind("SUPER+SHIFT + T", hl.dsp.global("quickshell:regionOcr"), {["description"] = "Copy text from a region"})
 -- hyprland/keybinds.conf:54
 hl.bind("SUPER+SHIFT + X", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pidof slurp || grim -g \"$(slurp $SLURP_ARGS)\" \"/tmp/ocr_image.png\" && tesseract \"/tmp/ocr_image.png\" stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\\\n' '+' | sed 's/\\\\+$/\\\\n/') | wl-copy && rm \"/tmp/ocr_image.png\""), {})
 -- hyprland/keybinds.conf:55
 hl.bind("SUPER+SHIFT + T", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pidof slurp || grim -g \"$(slurp $SLURP_ARGS)\" \"/tmp/ocr_image.png\" && tesseract \"/tmp/ocr_image.png\" stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\\\n' '+' | sed 's/\\\\+$/\\\\n/') | wl-copy && rm \"/tmp/ocr_image.png\""), {})
 -- hyprland/keybinds.conf:57
-hl.bind("SUPER+SHIFT + C", hl.dsp.exec_cmd("hyprpicker -a"), {["description"] = "Color picker"})
+hl.bind("SUPER+SHIFT + C", hl.dsp.exec_cmd("hyprpicker -a"), {["description"] = "Copy a screen color"})
 -- hyprland/keybinds.conf:59
-hl.bind("Print", hl.dsp.exec_cmd("grim - | wl-copy"), {["locked"] = true})
+hl.bind("Print", hl.dsp.exec_cmd("grim - | wl-copy"), {["locked"] = true, ["description"] = "Copy a full-screen screenshot"})
 -- hyprland/keybinds.conf:60
-hl.bind("CTRL + Print", hl.dsp.exec_cmd("mkdir -p $(xdg-user-dir PICTURES)/Screenshots && grim $(xdg-user-dir PICTURES)/Screenshots/Screenshot_\"$(date '+%Y-%m-%d_%H.%M.%S')\".png"), {["locked"] = true, ["non_consuming"] = true})
+hl.bind("CTRL + Print", hl.dsp.exec_cmd("mkdir -p $(xdg-user-dir PICTURES)/Screenshots && grim $(xdg-user-dir PICTURES)/Screenshots/Screenshot_\"$(date '+%Y-%m-%d_%H.%M.%S')\".png"), {["locked"] = true, ["non_consuming"] = true, ["description"] = "Save and copy a full-screen screenshot"})
 -- hyprland/keybinds.conf:61
 hl.bind("CTRL + Print", hl.dsp.exec_cmd("grim - | wl-copy"), {["locked"] = true, ["non_consuming"] = true})
 -- hyprland/keybinds.conf:63
-hl.bind("SUPER+SHIFT + R", hl.dsp.global("quickshell:regionRecord"), {["locked"] = true})
+hl.bind("SUPER+SHIFT + R", hl.dsp.global("quickshell:regionRecord"), {["locked"] = true, ["description"] = "Record a region without audio"})
 -- hyprland/keybinds.conf:64
 hl.bind("SUPER+SHIFT + R", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || ~/.config/quickshell/nyvorel/scripts/videos/record.sh"), {["locked"] = true})
 -- hyprland/keybinds.conf:65
-hl.bind("SUPER+ALT + R", hl.dsp.global("quickshell:regionRecord"), {["locked"] = true})
+hl.bind("SUPER+ALT + R", hl.dsp.global("quickshell:regionRecord"), {["locked"] = true, ["description"] = "Record a region without audio"})
 -- hyprland/keybinds.conf:66
 hl.bind("SUPER+ALT + R", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || ~/.config/quickshell/nyvorel/scripts/videos/record.sh"), {["locked"] = true})
 -- hyprland/keybinds.conf:67
-hl.bind("CTRL+ALT + R", hl.dsp.exec_cmd("~/.config/quickshell/nyvorel/scripts/videos/record.sh --fullscreen"), {["locked"] = true})
+hl.bind("CTRL+ALT + R", hl.dsp.exec_cmd("~/.config/quickshell/nyvorel/scripts/videos/record.sh --fullscreen"), {["locked"] = true, ["description"] = "Record the screen without audio"})
 -- hyprland/keybinds.conf:68
-hl.bind("SUPER+SHIFT+ALT + R", hl.dsp.exec_cmd("~/.config/quickshell/nyvorel/scripts/videos/record.sh --fullscreen --sound"), {["locked"] = true})
+hl.bind("SUPER+SHIFT+ALT + R", hl.dsp.exec_cmd("~/.config/quickshell/nyvorel/scripts/videos/record.sh --fullscreen --sound"), {["locked"] = true, ["description"] = "Record the screen with audio"})
 -- hyprland/keybinds.conf:70
 hl.bind("SUPER+SHIFT+ALT + mouse:273", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/ai/primary-buffer-query.sh"), {["description"] = "Generate AI summary for selected text"})
 -- hyprland/keybinds.conf:75
-hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), {["mouse"] = true})
+hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), {["mouse"] = true, ["description"] = "Move window with mouse"})
 -- hyprland/keybinds.conf:76
-hl.bind("SUPER + mouse:274", hl.dsp.window.drag(), {["mouse"] = true})
+hl.bind("SUPER + mouse:274", hl.dsp.window.drag(), {["mouse"] = true, ["description"] = "Move window with mouse"})
 -- hyprland/keybinds.conf:77
-hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), {["mouse"] = true})
+hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), {["mouse"] = true, ["description"] = "Resize window with mouse"})
 -- hyprland/keybinds.conf:79
-hl.bind("SUPER + Left", hl.dsp.focus({direction = "left"}), {})
+hl.bind("SUPER + Left", hl.dsp.focus({direction = "left"}), {["description"] = "Focus window left"})
 -- hyprland/keybinds.conf:80
-hl.bind("SUPER + Right", hl.dsp.focus({direction = "right"}), {})
+hl.bind("SUPER + Right", hl.dsp.focus({direction = "right"}), {["description"] = "Focus window right"})
 -- hyprland/keybinds.conf:81
-hl.bind("SUPER + Up", hl.dsp.focus({direction = "up"}), {})
+hl.bind("SUPER + Up", hl.dsp.focus({direction = "up"}), {["description"] = "Focus window up"})
 -- hyprland/keybinds.conf:82
-hl.bind("SUPER + Down", hl.dsp.focus({direction = "down"}), {})
+hl.bind("SUPER + Down", hl.dsp.focus({direction = "down"}), {["description"] = "Focus window down"})
 -- hyprland/keybinds.conf:83
-hl.bind("SUPER + BracketLeft", hl.dsp.focus({direction = "left"}), {})
+hl.bind("SUPER + BracketLeft", hl.dsp.focus({direction = "left"}), {["description"] = "Focus window left"})
 -- hyprland/keybinds.conf:84
-hl.bind("SUPER + BracketRight", hl.dsp.focus({direction = "right"}), {})
+hl.bind("SUPER + BracketRight", hl.dsp.focus({direction = "right"}), {["description"] = "Focus window right"})
 -- hyprland/keybinds.conf:86
-hl.bind("SUPER+SHIFT + Left", hl.dsp.window.move({direction = "left"}), {})
+hl.bind("SUPER+SHIFT + Left", hl.dsp.window.move({direction = "left"}), {["description"] = "Move window left"})
 -- hyprland/keybinds.conf:87
-hl.bind("SUPER+SHIFT + Right", hl.dsp.window.move({direction = "right"}), {})
+hl.bind("SUPER+SHIFT + Right", hl.dsp.window.move({direction = "right"}), {["description"] = "Move window right"})
 -- hyprland/keybinds.conf:88
-hl.bind("SUPER+SHIFT + Up", hl.dsp.window.move({direction = "up"}), {})
+hl.bind("SUPER+SHIFT + Up", hl.dsp.window.move({direction = "up"}), {["description"] = "Move window up"})
 -- hyprland/keybinds.conf:89
-hl.bind("SUPER+SHIFT + Down", hl.dsp.window.move({direction = "down"}), {})
+hl.bind("SUPER+SHIFT + Down", hl.dsp.window.move({direction = "down"}), {["description"] = "Move window down"})
 -- hyprland/keybinds.conf:90
-hl.bind("ALT + F4", hl.dsp.window.close(), {})
+hl.bind("ALT + F4", hl.dsp.window.close(), {["description"] = "Close window"})
 -- hyprland/keybinds.conf:91
-hl.bind("SUPER + Q", hl.dsp.window.close(), {})
+hl.bind("SUPER + Q", hl.dsp.window.close(), {["description"] = "Close window"})
 -- hyprland/keybinds.conf:92
-hl.bind("SUPER+SHIFT+ALT + Q", hl.dsp.exec_cmd("hyprctl kill"), {})
+hl.bind("SUPER+SHIFT+ALT + Q", hl.dsp.exec_cmd("hyprctl kill"), {["description"] = "Force-close window"})
 -- hyprland/keybinds.conf:97
-hl.bind("SUPER + Semicolon", hl.dsp.layout("splitratio -0.1"), {["repeating"] = true})
+hl.bind("SUPER + Semicolon", hl.dsp.layout("splitratio -0.1"), {["repeating"] = true, ["description"] = "Decrease window split ratio"})
 -- hyprland/keybinds.conf:98
-hl.bind("SUPER + Apostrophe", hl.dsp.layout("splitratio +0.1"), {["repeating"] = true})
+hl.bind("SUPER + Apostrophe", hl.dsp.layout("splitratio +0.1"), {["repeating"] = true, ["description"] = "Increase window split ratio"})
 -- hyprland/keybinds.conf:100
-hl.bind("SUPER+ALT + Space", hl.dsp.window.float(), {})
+hl.bind("SUPER+ALT + Space", hl.dsp.window.float(), {["description"] = "Toggle floating window"})
 -- hyprland/keybinds.conf:101
-hl.bind("SUPER + D", hl.dsp.window.fullscreen({mode = "maximized"}), {})
+hl.bind("SUPER + D", hl.dsp.window.fullscreen({mode = "maximized"}), {["description"] = "Maximize window"})
 -- hyprland/keybinds.conf:102
-hl.bind("SUPER + F", hl.dsp.window.fullscreen({mode = "fullscreen"}), {})
+hl.bind("SUPER + F", hl.dsp.window.fullscreen({mode = "fullscreen"}), {["description"] = "Fullscreen window"})
 -- hyprland/keybinds.conf:103
-hl.bind("SUPER+ALT + F", hl.dsp.window.fullscreen_state({internal = 0, client = 3}), {})
+hl.bind("SUPER+ALT + F", hl.dsp.window.fullscreen_state({internal = 0, client = 3}), {["description"] = "Request app fullscreen"})
 -- hyprland/keybinds.conf:104
 -- Project Launcher owns Super+P; pin remains available on Super+Alt+P.
 -- hyprland/keybinds.conf:108
-hl.bind("SUPER+ALT + code:10", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 1"), {})
+hl.bind("SUPER+ALT + code:10", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 1"), {["description"] = "Send window to workspace 1"})
 -- hyprland/keybinds.conf:109
-hl.bind("SUPER+ALT + code:11", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 2"), {})
+hl.bind("SUPER+ALT + code:11", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 2"), {["description"] = "Send window to workspace 2"})
 -- hyprland/keybinds.conf:110
-hl.bind("SUPER+ALT + code:12", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 3"), {})
+hl.bind("SUPER+ALT + code:12", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 3"), {["description"] = "Send window to workspace 3"})
 -- hyprland/keybinds.conf:111
-hl.bind("SUPER+ALT + code:13", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 4"), {})
+hl.bind("SUPER+ALT + code:13", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 4"), {["description"] = "Send window to workspace 4"})
 -- hyprland/keybinds.conf:112
-hl.bind("SUPER+ALT + code:14", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 5"), {})
+hl.bind("SUPER+ALT + code:14", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 5"), {["description"] = "Send window to workspace 5"})
 -- hyprland/keybinds.conf:113
-hl.bind("SUPER+ALT + code:15", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 6"), {})
+hl.bind("SUPER+ALT + code:15", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 6"), {["description"] = "Send window to workspace 6"})
 -- hyprland/keybinds.conf:114
-hl.bind("SUPER+ALT + code:16", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 7"), {})
+hl.bind("SUPER+ALT + code:16", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 7"), {["description"] = "Send window to workspace 7"})
 -- hyprland/keybinds.conf:115
-hl.bind("SUPER+ALT + code:17", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 8"), {})
+hl.bind("SUPER+ALT + code:17", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 8"), {["description"] = "Send window to workspace 8"})
 -- hyprland/keybinds.conf:116
-hl.bind("SUPER+ALT + code:18", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 9"), {})
+hl.bind("SUPER+ALT + code:18", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 9"), {["description"] = "Send window to workspace 9"})
 -- hyprland/keybinds.conf:117
-hl.bind("SUPER+ALT + code:19", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 10"), {})
+hl.bind("SUPER+ALT + code:19", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 10"), {["description"] = "Send window to workspace 10"})
 -- hyprland/keybinds.conf:119
-hl.bind("SUPER+ALT + code:87", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 1"), {})
+hl.bind("SUPER+ALT + code:87", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 1"), {["description"] = "Send window to workspace 1"})
 -- hyprland/keybinds.conf:120
-hl.bind("SUPER+ALT + code:88", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 2"), {})
+hl.bind("SUPER+ALT + code:88", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 2"), {["description"] = "Send window to workspace 2"})
 -- hyprland/keybinds.conf:121
-hl.bind("SUPER+ALT + code:89", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 3"), {})
+hl.bind("SUPER+ALT + code:89", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 3"), {["description"] = "Send window to workspace 3"})
 -- hyprland/keybinds.conf:122
-hl.bind("SUPER+ALT + code:83", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 4"), {})
+hl.bind("SUPER+ALT + code:83", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 4"), {["description"] = "Send window to workspace 4"})
 -- hyprland/keybinds.conf:123
-hl.bind("SUPER+ALT + code:84", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 5"), {})
+hl.bind("SUPER+ALT + code:84", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 5"), {["description"] = "Send window to workspace 5"})
 -- hyprland/keybinds.conf:124
-hl.bind("SUPER+ALT + code:85", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 6"), {})
+hl.bind("SUPER+ALT + code:85", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 6"), {["description"] = "Send window to workspace 6"})
 -- hyprland/keybinds.conf:125
-hl.bind("SUPER+ALT + code:79", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 7"), {})
+hl.bind("SUPER+ALT + code:79", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 7"), {["description"] = "Send window to workspace 7"})
 -- hyprland/keybinds.conf:126
-hl.bind("SUPER+ALT + code:80", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 8"), {})
+hl.bind("SUPER+ALT + code:80", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 8"), {["description"] = "Send window to workspace 8"})
 -- hyprland/keybinds.conf:127
-hl.bind("SUPER+ALT + code:81", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 9"), {})
+hl.bind("SUPER+ALT + code:81", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 9"), {["description"] = "Send window to workspace 9"})
 -- hyprland/keybinds.conf:128
-hl.bind("SUPER+ALT + code:90", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 10"), {})
+hl.bind("SUPER+ALT + code:90", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh movetoworkspacesilent 10"), {["description"] = "Send window to workspace 10"})
 -- hyprland/keybinds.conf:131
-hl.bind("SUPER+SHIFT + mouse_down", hl.dsp.window.move({workspace = "r-1", follow = true}), {})
+hl.bind("SUPER+SHIFT + mouse_down", hl.dsp.window.move({workspace = "r-1", follow = true}), {["description"] = "Move window and follow to previous workspace"})
 -- hyprland/keybinds.conf:132
-hl.bind("SUPER+SHIFT + mouse_up", hl.dsp.window.move({workspace = "r+1", follow = true}), {})
+hl.bind("SUPER+SHIFT + mouse_up", hl.dsp.window.move({workspace = "r+1", follow = true}), {["description"] = "Move window and follow to next workspace"})
 -- hyprland/keybinds.conf:133
-hl.bind("SUPER+ALT + mouse_down", hl.dsp.window.move({workspace = "-1", follow = true}), {})
+hl.bind("SUPER+ALT + mouse_down", hl.dsp.window.move({workspace = "-1", follow = true}), {["description"] = "Move window and follow to previous workspace"})
 -- hyprland/keybinds.conf:134
-hl.bind("SUPER+ALT + mouse_up", hl.dsp.window.move({workspace = "+1", follow = true}), {})
+hl.bind("SUPER+ALT + mouse_up", hl.dsp.window.move({workspace = "+1", follow = true}), {["description"] = "Move window and follow to next workspace"})
 -- hyprland/keybinds.conf:137
-hl.bind("SUPER+ALT + Page_Down", hl.dsp.window.move({workspace = "+1", follow = true}), {})
+hl.bind("SUPER+ALT + Page_Down", hl.dsp.window.move({workspace = "+1", follow = true}), {["description"] = "Move window and follow to next workspace"})
 -- hyprland/keybinds.conf:138
-hl.bind("SUPER+ALT + Page_Up", hl.dsp.window.move({workspace = "-1", follow = true}), {})
+hl.bind("SUPER+ALT + Page_Up", hl.dsp.window.move({workspace = "-1", follow = true}), {["description"] = "Move window and follow to previous workspace"})
 -- hyprland/keybinds.conf:139
-hl.bind("SUPER+SHIFT + Page_Down", hl.dsp.window.move({workspace = "r+1", follow = true}), {})
+hl.bind("SUPER+SHIFT + Page_Down", hl.dsp.window.move({workspace = "r+1", follow = true}), {["description"] = "Move window and follow to next workspace"})
 -- hyprland/keybinds.conf:140
-hl.bind("SUPER+SHIFT + Page_Up", hl.dsp.window.move({workspace = "r-1", follow = true}), {})
+hl.bind("SUPER+SHIFT + Page_Up", hl.dsp.window.move({workspace = "r-1", follow = true}), {["description"] = "Move window and follow to previous workspace"})
 -- hyprland/keybinds.conf:141
-hl.bind("CTRL+SUPER+SHIFT + Right", hl.dsp.window.move({workspace = "r+1", follow = true}), {})
+hl.bind("CTRL+SUPER+SHIFT + Right", hl.dsp.window.move({workspace = "r+1", follow = true}), {["description"] = "Move window and follow to next workspace"})
 -- hyprland/keybinds.conf:142
-hl.bind("CTRL+SUPER+SHIFT + Left", hl.dsp.window.move({workspace = "r-1", follow = true}), {})
+hl.bind("CTRL+SUPER+SHIFT + Left", hl.dsp.window.move({workspace = "r-1", follow = true}), {["description"] = "Move window and follow to previous workspace"})
 -- hyprland/keybinds.conf:144
-hl.bind("SUPER+ALT + S", hl.dsp.window.move({workspace = "special", follow = false}), {})
+hl.bind("SUPER+ALT + S", hl.dsp.window.move({workspace = "special", follow = false}), {["description"] = "Send window to special workspace"})
 -- hyprland/keybinds.conf:146
-hl.bind("CTRL+SUPER + S", hl.dsp.workspace.toggle_special(""), {})
+hl.bind("CTRL+SUPER + S", hl.dsp.workspace.toggle_special(""), {["description"] = "Toggle special workspace"})
 -- hyprland/keybinds.conf:152
-hl.bind("SUPER + code:10", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 1"), {})
+hl.bind("SUPER + code:10", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 1"), {["description"] = "Go to workspace 1"})
 -- hyprland/keybinds.conf:153
-hl.bind("SUPER + code:11", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 2"), {})
+hl.bind("SUPER + code:11", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 2"), {["description"] = "Go to workspace 2"})
 -- hyprland/keybinds.conf:154
-hl.bind("SUPER + code:12", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 3"), {})
+hl.bind("SUPER + code:12", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 3"), {["description"] = "Go to workspace 3"})
 -- hyprland/keybinds.conf:155
-hl.bind("SUPER + code:13", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 4"), {})
+hl.bind("SUPER + code:13", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 4"), {["description"] = "Go to workspace 4"})
 -- hyprland/keybinds.conf:156
-hl.bind("SUPER + code:14", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 5"), {})
+hl.bind("SUPER + code:14", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 5"), {["description"] = "Go to workspace 5"})
 -- hyprland/keybinds.conf:157
-hl.bind("SUPER + code:15", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 6"), {})
+hl.bind("SUPER + code:15", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 6"), {["description"] = "Go to workspace 6"})
 -- hyprland/keybinds.conf:158
-hl.bind("SUPER + code:16", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 7"), {})
+hl.bind("SUPER + code:16", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 7"), {["description"] = "Go to workspace 7"})
 -- hyprland/keybinds.conf:159
-hl.bind("SUPER + code:17", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 8"), {})
+hl.bind("SUPER + code:17", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 8"), {["description"] = "Go to workspace 8"})
 -- hyprland/keybinds.conf:160
-hl.bind("SUPER + code:18", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 9"), {})
+hl.bind("SUPER + code:18", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 9"), {["description"] = "Go to workspace 9"})
 -- hyprland/keybinds.conf:161
-hl.bind("SUPER + code:19", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 10"), {})
+hl.bind("SUPER + code:19", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 10"), {["description"] = "Go to workspace 10"})
 -- hyprland/keybinds.conf:163
-hl.bind("SUPER + code:87", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 1"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:87", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 1"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 1"})
 -- hyprland/keybinds.conf:164
-hl.bind("SUPER + code:88", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 2"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:88", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 2"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 2"})
 -- hyprland/keybinds.conf:165
-hl.bind("SUPER + code:89", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 3"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:89", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 3"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 3"})
 -- hyprland/keybinds.conf:166
-hl.bind("SUPER + code:83", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 4"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:83", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 4"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 4"})
 -- hyprland/keybinds.conf:167
-hl.bind("SUPER + code:84", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 5"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:84", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 5"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 5"})
 -- hyprland/keybinds.conf:168
-hl.bind("SUPER + code:85", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 6"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:85", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 6"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 6"})
 -- hyprland/keybinds.conf:169
-hl.bind("SUPER + code:79", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 7"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:79", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 7"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 7"})
 -- hyprland/keybinds.conf:170
-hl.bind("SUPER + code:80", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 8"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:80", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 8"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 8"})
 -- hyprland/keybinds.conf:171
-hl.bind("SUPER + code:81", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 9"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:81", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 9"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 9"})
 -- hyprland/keybinds.conf:172
-hl.bind("SUPER + code:90", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 10"), {["dont_inhibit"] = true})
+hl.bind("SUPER + code:90", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/workspace_action.sh workspace 10"), {["dont_inhibit"] = true, ["description"] = "Go to workspace 10"})
 -- hyprland/keybinds.conf:175
-hl.bind("CTRL+SUPER + Right", hl.dsp.focus({workspace = "r+1"}), {})
+hl.bind("CTRL+SUPER + Right", hl.dsp.focus({workspace = "r+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:176
-hl.bind("CTRL+SUPER + Left", hl.dsp.focus({workspace = "r-1"}), {})
+hl.bind("CTRL+SUPER + Left", hl.dsp.focus({workspace = "r-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:178
-hl.bind("CTRL+SUPER+ALT + Right", hl.dsp.focus({workspace = "m+1"}), {})
+hl.bind("CTRL+SUPER+ALT + Right", hl.dsp.focus({workspace = "m+1"}), {["description"] = "Go to next workspace on this display"})
 -- hyprland/keybinds.conf:179
-hl.bind("CTRL+SUPER+ALT + Left", hl.dsp.focus({workspace = "m-1"}), {})
+hl.bind("CTRL+SUPER+ALT + Left", hl.dsp.focus({workspace = "m-1"}), {["description"] = "Go to previous workspace on this display"})
 -- hyprland/keybinds.conf:181
-hl.bind("SUPER + Page_Down", hl.dsp.focus({workspace = "+1"}), {})
+hl.bind("SUPER + Page_Down", hl.dsp.focus({workspace = "+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:182
-hl.bind("SUPER + Page_Up", hl.dsp.focus({workspace = "-1"}), {})
+hl.bind("SUPER + Page_Up", hl.dsp.focus({workspace = "-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:183
-hl.bind("CTRL+SUPER + Page_Down", hl.dsp.focus({workspace = "r+1"}), {})
+hl.bind("CTRL+SUPER + Page_Down", hl.dsp.focus({workspace = "r+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:184
-hl.bind("CTRL+SUPER + Page_Up", hl.dsp.focus({workspace = "r-1"}), {})
+hl.bind("CTRL+SUPER + Page_Up", hl.dsp.focus({workspace = "r-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:186
-hl.bind("SUPER + mouse_up", hl.dsp.focus({workspace = "+1"}), {})
+hl.bind("SUPER + mouse_up", hl.dsp.focus({workspace = "+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:187
-hl.bind("SUPER + mouse_down", hl.dsp.focus({workspace = "-1"}), {})
+hl.bind("SUPER + mouse_down", hl.dsp.focus({workspace = "-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:188
-hl.bind("CTRL+SUPER + mouse_up", hl.dsp.focus({workspace = "r+1"}), {})
+hl.bind("CTRL+SUPER + mouse_up", hl.dsp.focus({workspace = "r+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:189
-hl.bind("CTRL+SUPER + mouse_down", hl.dsp.focus({workspace = "r-1"}), {})
+hl.bind("CTRL+SUPER + mouse_down", hl.dsp.focus({workspace = "r-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:191
-hl.bind("SUPER + S", hl.dsp.workspace.toggle_special(""), {})
+hl.bind("SUPER + S", hl.dsp.workspace.toggle_special(""), {["description"] = "Toggle special workspace"})
 -- hyprland/keybinds.conf:192
-hl.bind("SUPER + mouse:275", hl.dsp.workspace.toggle_special(""), {})
+hl.bind("SUPER + mouse:275", hl.dsp.workspace.toggle_special(""), {["description"] = "Toggle special workspace"})
 -- hyprland/keybinds.conf:193
-hl.bind("CTRL+SUPER + BracketLeft", hl.dsp.focus({workspace = "-1"}), {})
+hl.bind("CTRL+SUPER + BracketLeft", hl.dsp.focus({workspace = "-1"}), {["description"] = "Go to previous workspace"})
 -- hyprland/keybinds.conf:194
-hl.bind("CTRL+SUPER + BracketRight", hl.dsp.focus({workspace = "+1"}), {})
+hl.bind("CTRL+SUPER + BracketRight", hl.dsp.focus({workspace = "+1"}), {["description"] = "Go to next workspace"})
 -- hyprland/keybinds.conf:195
-hl.bind("CTRL+SUPER + Up", hl.dsp.focus({workspace = "r-5"}), {})
+hl.bind("CTRL+SUPER + Up", hl.dsp.focus({workspace = "r-5"}), {["description"] = "Go back five workspaces"})
 -- hyprland/keybinds.conf:196
-hl.bind("CTRL+SUPER + Down", hl.dsp.focus({workspace = "r+5"}), {})
+hl.bind("CTRL+SUPER + Down", hl.dsp.focus({workspace = "r+5"}), {["description"] = "Go forward five workspaces"})
 -- hyprland/keybinds.conf:199
-hl.bind("SUPER+ALT + F1", hl.dsp.exec_cmd("notify-send 'Entered Virtual Machine submap' 'Keybinds disabled. Hit Super+Alt+F1 to escape' -a 'Hyprland' && hyprctl dispatch 'hl.dsp.submap(\"virtual-machine\")'"), {})
+hl.bind("SUPER+ALT + F1", hl.dsp.exec_cmd("notify-send 'Entered Virtual Machine submap' 'Keybinds disabled. Hit Super+Alt+F1 to escape' -a 'Hyprland' && hyprctl dispatch 'hl.dsp.submap(\"virtual-machine\")'"), {["description"] = "Toggle virtual machine shortcut mode"})
 -- hyprland/keybinds.conf:200
 end)
 hl.define_submap("virtual-machine", function()
@@ -831,65 +835,65 @@ hl.bind("SUPER+ALT + f12", hl.dsp.exec_cmd("bash -c 'RANDOM_IMAGE=$(find ~/Pictu
 -- hyprland/keybinds.conf:208
 hl.bind("SUPER+ALT + Equal", hl.dsp.exec_cmd("notify-send \"Urgent notification\" \"Ah hell no\" -u critical -a 'Hyprland keybind'"), {})
 -- hyprland/keybinds.conf:211
-hl.bind("SUPER + L", hl.dsp.exec_cmd("qs -c nyvorel ipc call lock activate"), {["description"] = "Lock"})
+hl.bind("SUPER + L", hl.dsp.exec_cmd("qs -c nyvorel ipc call lock activate"), {["description"] = "Lock screen"})
 -- hyprland/keybinds.conf:212
 hl.bind("SUPER+SHIFT + L", hl.dsp.exec_cmd("systemctl suspend || loginctl suspend"), {["locked"] = true, ["description"] = "Suspend system"})
 -- hyprland/keybinds.conf:214
-hl.bind("CTRL+SHIFT+ALT+SUPER + Delete", hl.dsp.exec_cmd("systemctl poweroff || loginctl poweroff"), {["description"] = "Shutdown"})
+hl.bind("CTRL+SHIFT+ALT+SUPER + Delete", hl.dsp.exec_cmd("systemctl poweroff || loginctl poweroff"), {["description"] = "Shut down system"})
 -- hyprland/keybinds.conf:218
-hl.bind("SUPER + Minus", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/zoom.sh decrease 0.3"), {["repeating"] = true})
+hl.bind("SUPER + Minus", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/zoom.sh decrease 0.3"), {["repeating"] = true, ["description"] = "Zoom out"})
 -- hyprland/keybinds.conf:219
-hl.bind("SUPER + Equal", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/zoom.sh increase 0.3"), {["repeating"] = true})
+hl.bind("SUPER + Equal", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/zoom.sh increase 0.3"), {["repeating"] = true, ["description"] = "Zoom in"})
 -- hyprland/keybinds.conf:221
-hl.bind("SUPER + code:82", hl.dsp.exec_cmd("qs -c nyvorel ipc call zoom zoomOut"), {["repeating"] = true})
+hl.bind("SUPER + code:82", hl.dsp.exec_cmd("qs -c nyvorel ipc call zoom zoomOut"), {["repeating"] = true, ["description"] = "Zoom out"})
 -- hyprland/keybinds.conf:222
-hl.bind("SUPER + code:86", hl.dsp.exec_cmd("qs -c nyvorel ipc call zoom zoomIn"), {["repeating"] = true})
+hl.bind("SUPER + code:86", hl.dsp.exec_cmd("qs -c nyvorel ipc call zoom zoomIn"), {["repeating"] = true, ["description"] = "Zoom in"})
 -- hyprland/keybinds.conf:223
 hl.bind("SUPER + code:82", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || ~/.config/hypr/hyprland/scripts/zoom.sh decrease 0.1"), {["repeating"] = true})
 -- hyprland/keybinds.conf:224
 hl.bind("SUPER + code:86", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || ~/.config/hypr/hyprland/scripts/zoom.sh increase 0.1"), {["repeating"] = true})
 -- hyprland/keybinds.conf:227
-hl.bind("SUPER+SHIFT + N", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {["locked"] = true})
+hl.bind("SUPER+SHIFT + N", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {["locked"] = true, ["description"] = "Next track"})
 -- hyprland/keybinds.conf:228
-hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {["locked"] = true})
+hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {["locked"] = true, ["description"] = "Next track"})
 -- hyprland/keybinds.conf:229
-hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), {["locked"] = true})
+hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), {["locked"] = true, ["description"] = "Previous track"})
 -- hyprland/keybinds.conf:230
-hl.bind("SUPER+SHIFT+ALT + mouse:275", hl.dsp.exec_cmd("playerctl previous"), {})
+hl.bind("SUPER+SHIFT+ALT + mouse:275", hl.dsp.exec_cmd("playerctl previous"), {["description"] = "Previous track"})
 -- hyprland/keybinds.conf:231
-hl.bind("SUPER+SHIFT+ALT + mouse:276", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {})
+hl.bind("SUPER+SHIFT+ALT + mouse:276", hl.dsp.exec_cmd("playerctl next || playerctl position `bc <<< \"100 * $(playerctl metadata mpris:length) / 1000000 / 100\"`"), {["description"] = "Next track"})
 -- hyprland/keybinds.conf:232
-hl.bind("SUPER+SHIFT + B", hl.dsp.exec_cmd("playerctl previous"), {["locked"] = true})
+hl.bind("SUPER+SHIFT + B", hl.dsp.exec_cmd("playerctl previous"), {["locked"] = true, ["description"] = "Previous track"})
 -- hyprland/keybinds.conf:233
-hl.bind("SUPER+SHIFT + P", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true})
+hl.bind("SUPER+SHIFT + P", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true, ["description"] = "Play or pause media"})
 -- hyprland/keybinds.conf:234
-hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true})
+hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true, ["description"] = "Play or pause media"})
 -- hyprland/keybinds.conf:235
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true})
+hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), {["locked"] = true, ["description"] = "Play or pause media"})
 -- hyprland/keybinds.conf:238
-hl.bind("SUPER + Return", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {})
+hl.bind("SUPER + Return", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {["description"] = "Open terminal"})
 -- hyprland/keybinds.conf:239
-hl.bind("SUPER + T", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {})
+hl.bind("SUPER + T", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {["description"] = "Open terminal"})
 -- hyprland/keybinds.conf:240
-hl.bind("CTRL+ALT + T", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {})
+hl.bind("CTRL+ALT + T", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"${TERMINAL}\" \"kitty -1\" \"foot\" \"alacritty\" \"wezterm\" \"konsole\" \"kgx\" \"uxterm\" \"xterm\""), {["description"] = "Open terminal"})
 -- hyprland/keybinds.conf:241
-hl.bind("SUPER + E", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"dolphin\" \"nautilus\" \"nemo\" \"thunar\" \"${TERMINAL}\" \"kitty -1 fish -c yazi\""), {})
+hl.bind("SUPER + E", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"dolphin\" \"nautilus\" \"nemo\" \"thunar\" \"${TERMINAL}\" \"kitty -1 fish -c yazi\""), {["description"] = "Open file manager"})
 -- hyprland/keybinds.conf:242
-hl.bind("SUPER + W", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"google-chrome-stable\" \"zen-browser\" \"firefox\" \"brave\" \"chromium\" \"microsoft-edge-stable\" \"opera\" \"librewolf\""), {})
+hl.bind("SUPER + W", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"google-chrome-stable\" \"zen-browser\" \"firefox\" \"brave\" \"chromium\" \"microsoft-edge-stable\" \"opera\" \"librewolf\""), {["description"] = "Open browser"})
 -- hyprland/keybinds.conf:243
-hl.bind("SUPER + C", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"antigravity\" \"code\" \"codium\" \"cursor\" \"zed\" \"zedit\" \"zeditor\" \"kate\" \"gnome-text-editor\" \"emacs\" \"command -v nvim && kitty -1 nvim\" \"command -v micro && kitty -1 micro\""), {})
+hl.bind("SUPER + C", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"antigravity\" \"code\" \"codium\" \"cursor\" \"zed\" \"zedit\" \"zeditor\" \"kate\" \"gnome-text-editor\" \"emacs\" \"command -v nvim && kitty -1 nvim\" \"command -v micro && kitty -1 micro\""), {["description"] = "Open code editor"})
 -- hyprland/keybinds.conf:244
-hl.bind("CTRL+SUPER+SHIFT+ALT + W", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"wps\" \"onlyoffice-desktopeditors\" \"libreoffice\""), {})
+hl.bind("CTRL+SUPER+SHIFT+ALT + W", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"wps\" \"onlyoffice-desktopeditors\" \"libreoffice\""), {["description"] = "Open office suite"})
 -- hyprland/keybinds.conf:245
-hl.bind("SUPER + X", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"kate\" \"gnome-text-editor\" \"emacs\""), {})
+hl.bind("SUPER + X", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"kate\" \"gnome-text-editor\" \"emacs\""), {["description"] = "Open text editor"})
 -- hyprland/keybinds.conf:246
-hl.bind("CTRL+SUPER + V", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"pavucontrol-qt\" \"pavucontrol\""), {})
+hl.bind("CTRL+SUPER + V", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"pavucontrol-qt\" \"pavucontrol\""), {["description"] = "Open volume mixer"})
 -- hyprland/keybinds.conf:247
-hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings --toggle"), {})
+hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings --toggle"), {["description"] = "Open Settings"})
 -- hyprland/keybinds.conf:248
-hl.bind("CTRL+SHIFT + Escape", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"gnome-system-monitor\" \"plasma-systemmonitor --page-name Processes\" \"command -v btop && kitty -1 fish -c btop\""), {})
+hl.bind("CTRL+SHIFT + Escape", hl.dsp.exec_cmd("~/.config/hypr/hyprland/scripts/launch_first_available.sh \"gnome-system-monitor\" \"plasma-systemmonitor --page-name Processes\" \"command -v btop && kitty -1 fish -c btop\""), {["description"] = "Open task manager"})
 -- hyprland/keybinds.conf:252
-hl.bind("CTRL+SUPER + Backslash", hl.dsp.window.resize({x = 640, y = 480, relative = false}), {})
+hl.bind("CTRL+SUPER + Backslash", hl.dsp.window.resize({x = 640, y = 480, relative = false}), {["description"] = "Resize window to 640 × 480"})
 -- hyprland.conf:20
 -- hyprland.conf:21
 -- hyprland.conf:22
@@ -898,11 +902,11 @@ dofile(nyvorel_config_root .. "/custom/appearance-runtime.lua")
 -- hyprland.conf:24
 -- hyprland.conf:25
 -- custom/keybinds.conf: desktop tools and display movement.
-hl.bind("SUPER + P", hl.dsp.window.pin(), {})
+hl.bind("SUPER + P", hl.dsp.window.pin(), {["description"] = "Pin window to all workspaces"})
 hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true}), { ["description"] = "Move window to left display" })
 hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true}), { ["description"] = "Move window to right display" })
-hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Arch Remote Control Center" })
-hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Backup & Recovery Center" })
+hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Open Arch Remote" })
+hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Open Backup & Recovery" })
 -- custom/nyvorel-super-scroll.conf:15
 -- custom/nyvorel-super-scroll.conf:18
 hl.bind("SUPER + Super_L", hl.dsp.exec_cmd(super_scroll .. " press left"), {["ignore_mods"] = true, ["description"] = "Toggle search on tap"})
@@ -949,7 +953,7 @@ load_optional(nyvorel_config_root .. "/monitors.lua")
 -- hyprland.conf:30
 hl.env("_JAVA_AWT_WM_NONREPARENTING", "1")
 -- hyprland.conf:33
-load_optional(nyvorel_config_root .. "/hyprland-gui.lua")
+load_optional(nyvorel_config_root .. "/hyprland-gui.lua", true)
 -- hyprland.conf:36
 -- nyvorel-terminal-glass.conf:5
 hl.config({["decoration"] = {["blur"] = {["enabled"] = true}}})
@@ -1008,8 +1012,9 @@ hl.window_rule({["center"] = true, ["match"] = {["class"] = "^(pavucontrol-qt)$"
 hl.layer_rule({["no_anim"] = true, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-origin-no-slide"})
 hl.layer_rule({["xray"] = true, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-bar-material-xray"})
 hl.layer_rule({["ignore_alpha"] = 0.57, ["match"] = {["namespace"] = "^quickshell:popup-quickfade$"}, ["name"] = "nyvorel-popup-bar-material-alpha"})
-load_optional(nyvorel_config_root .. "/custom/user.lua")
+load_optional(nyvorel_config_root .. "/custom/user.lua", true)
 end)
+publish_keybinds()
 hl.on("hyprland.start", function()
   if NYVOREL_VERIFY_ONLY then return end
   hl.exec_cmd("~/.config/hypr/hyprland/scripts/start_geoclue_agent.sh")

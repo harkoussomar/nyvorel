@@ -11,81 +11,82 @@ Item {
     property string category: "All"
     property string query: ""
     readonly property var categories: ["All", "Shell", "Windows", "Workspaces", "Capture", "Media", "System"]
-    readonly property var allEntries: collectEntries(HyprlandKeybinds.keybinds)
+    readonly property var allEntries: collectEntries(HyprlandKeybinds.bindings)
     readonly property var filteredEntries: allEntries.filter(entry => {
         if (root.category !== "All" && entry.category !== root.category)
             return false
         const q = root.query.trim().toLowerCase()
-        return q === "" || (entry.title + " " + entry.category + " " + entry.chord).toLowerCase().includes(q)
+        return q === "" || (entry.title + " " + entry.category + " " + entry.chord
+            + " " + (entry.editor?.defaultLabel ?? "")).toLowerCase().includes(q)
     })
 
-    function displayKey(key) {
+    function displayKey(bind) {
         const aliases = {
-            "SUPER": "Super", "CTRL": "Ctrl", "ALT": "Alt", "SHIFT": "Shift",
-            "Slash": "/", "Period": ".", "Return": "Enter", "Space": "Space",
-            "BackSpace": "Backspace", "mouse:272": "Left click", "mouse:273": "Right click",
-            "mouse:274": "Middle click", "Super_L": "Super", "Super_R": "Super"
+            slash: "/", backslash: "\\", period: ".", comma: ",", return: "Enter",
+            page_up: "Page Up", page_down: "Page Down", bracketleft: "[", bracketright: "]",
+            semicolon: ";", apostrophe: "'", minus: "−", equal: "=",
+            "mouse:272": "Left click", "mouse:273": "Right click", "mouse:274": "Middle click",
+            mouse_up: "Scroll up", mouse_down: "Scroll down",
+            super_l: "Super", super_r: "Super",
+            xf86audiolowervolume: "Volume down", xf86audioraisevolume: "Volume up",
+            xf86audiomute: "Mute", xf86audiomicmute: "Mic mute", xf86audionext: "Next track",
+            xf86audioprev: "Previous track", xf86audioplay: "Play", xf86audiopause: "Pause",
+            xf86monbrightnessup: "Brightness up", xf86monbrightnessdown: "Brightness down"
         }
-        return aliases[String(key)] ?? String(key)
-    }
+        const key = String(bind.key || "")
+        if (key.length > 0) {
+            const name = bind.mouse && /^\d+$/.test(key) ? "mouse:" + key : key
+            return aliases[name.toLowerCase()] ?? (name.length === 1 ? name.toUpperCase() : name)
+        }
 
-    function actionTitle(bind) {
-        const raw = String(bind.comment ?? "").trim()
-        const key = String(bind.key ?? "")
-        const mods = (bind.mods ?? []).join("+")
-        if (raw === "Exec cmd") {
-            if (mods === "SUPER" && key === "Y") return "Arch Remote"
-            if (mods === "SUPER" && key === "U") return "Backup & Recovery"
-            return ""
-        }
-        if (raw === "Global" || raw === "Window" || raw.startsWith("Execute:"))
-            return ""
-        const names = {
-            "Clipboard history >> clipboard": "Clipboard history",
-            "Emoji >> clipboard": "Emoji picker",
-            "Toggle cheatsheet": "Shortcut guide",
-            "Toggle search on tap": "Search and launch",
-            "OCR region to clipboard": "Copy text from screen",
-            "Region screenshot": "Capture a region",
-            "Visual search": "Search what you see",
-            "Toggle floating / tiled": "Toggle floating",
-            "Move window to display on the left": "Move to left display",
-            "Move window to display on the right": "Move to right display"
-        }
-        const title = names[raw] ?? raw.replace(/^Toggle /, "")
-        return title.length > 0 ? title.charAt(0).toUpperCase() + title.slice(1) : ""
+        const code = Number(bind.keycode)
+        if (code >= 10 && code <= 19)
+            return String((code - 9) % 10)
+        const keypad = { 79: 7, 80: 8, 81: 9, 82: "−", 83: 4, 84: 5, 85: 6,
+            86: "+", 87: 1, 88: 2, 89: 3, 90: 0 }
+        if (code in keypad)
+            return "Keypad " + keypad[code]
+        return bind.displayKey || (code > 0 ? "Keycode " + code : "")
     }
 
     function categoryFor(title) {
         const text = title.toLowerCase()
-        if (/capture|screenshot|record|ocr|text from screen|color picker|search what you see/.test(text)) return "Capture"
+        if (/capture|screenshot|record|ocr|color|text from a region|search what you see/.test(text)) return "Capture"
         if (/workspace|overview/.test(text)) return "Workspaces"
-        if (/window|floating|fullscreen|scratchpad|split ratio|display|vm mode/.test(text)) return "Windows"
-        if (/media|track|audio|volume|mute/.test(text)) return "Media"
-        if (/suspend|lock|remote|backup|recovery|reload|session/.test(text)) return "System"
+        if (/window|floating|fullscreen|scratchpad|split ratio|display|virtual machine/.test(text)) return "Windows"
+        if (/media|track|audio|volume|mute|microphone/.test(text)) return "Media"
+        if (/suspend|lock|remote|backup|recovery|reload|session|brightness|shut down|task manager/.test(text)) return "System"
         return "Shell"
     }
 
-    function collectEntries(tree) {
-        const result = [], seen = new Set()
-        function walk(node) {
-            for (const bind of (node.keybinds ?? [])) {
-                const title = root.actionTitle(bind)
-                if (title === "") continue
-                const rawKey = String(bind.key ?? "")
-                if (rawKey === "catchall") continue
-                const parts = [...(bind.mods ?? []), rawKey].map(root.displayKey)
-                const chord = parts.filter((part, index) => !(part === "Super" && index > 0 && parts[0] === "Super")).join(" + ")
-                const identity = chord.toLowerCase()
-                if (seen.has(identity)) continue
-                seen.add(identity)
-                result.push({ title: title, chord: chord, category: root.categoryFor(title) })
-            }
-            for (const child of (node.children ?? [])) walk(child)
+    function collectEntries(bindings) {
+        const modifiers = [[64, "Super"], [4, "Ctrl"], [8, "Alt"], [1, "Shift"], [2, "Caps Lock"],
+            [16, "Mod2"], [32, "Mod3"], [128, "Mod5"]]
+        const result = []
+        const seen = new Set()
+        for (const bind of bindings) {
+            const title = String(bind.description ?? "").trim()
+            if (!title || title.startsWith("[hidden]") || bind.catch_all || (bind.submap && bind.submap !== "global"))
+                continue
+            const key = root.displayKey(bind)
+            if (!key)
+                continue
+            const mask = Number(bind.modmask)
+            const parts = modifiers.filter(([bit, label]) => (mask & bit) && label !== key)
+                .map(([, label]) => label)
+            const chord = [...parts, key].join(" + ")
+            const identity = (bind.editor?.id ?? chord.toLowerCase()) + "\n" + title.toLowerCase()
+            if (seen.has(identity))
+                continue
+            seen.add(identity)
+            result.push({ title, chord, mask, keyLabel: key, editor: bind.editor,
+                key: bind.keycode ? `code:${bind.keycode}` : String(bind.key ?? ""),
+                category: root.categoryFor(bind.editor?.defaultLabel ?? title) })
         }
-        walk(tree ?? {})
         return result
     }
+
+    KeybindEditor { id: bindingEditor; parent: root }
 
     RowLayout {
         anchors.fill: parent
@@ -174,12 +175,13 @@ Item {
                             font.pixelSize: 25
                             font.weight: Font.DemiBold
                         }
-                        StyledText {
-                            text: "COMMAND ATLAS"
-                            color: Appearance.colors.colOnLayer1Inactive
-                            font.pixelSize: 10
-                            font.letterSpacing: 1.5
-                        }
+                    }
+                    RippleButtonWithIcon {
+                        implicitHeight: 36
+                        materialIcon: "restart_alt"
+                        mainText: Translation.tr("Restore defaults")
+                        enabled: HyprlandKeybinds.customized && !HyprlandKeybinds.saving
+                        onClicked: bindingEditor.confirmReset()
                     }
                     Rectangle {
                         Layout.preferredWidth: Math.min(315, root.width * 0.31)
@@ -243,20 +245,30 @@ Item {
                         spacing: 10
                         Repeater {
                             model: root.filteredEntries
-                            delegate: Item {
+                            delegate: RippleButton {
                                 id: entry
                                 required property var modelData
                                 width: rows.width < 660 ? rows.width : (rows.width - rows.spacing) / 2
                                 height: 54
-                                Rectangle {
+                                enabled: !HyprlandKeybinds.saving
+                                activeFocusOnTab: true
+                                colBackground: "transparent"
+                                colBackgroundHover: Appearance.colors.colLayer1Hover
+                                buttonRadius: Appearance.radius.control
+                                Accessible.name: modelData.title + ", " + modelData.chord
+                                onClicked: bindingEditor.edit(modelData)
+
+                                contentItem: Item {
+                                  Rectangle {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     height: 1
                                     color: Appearance.colors.colLayer0Border
                                 }
-                                StyledText {
+                                  StyledText {
                                     anchors.left: parent.left
+                                    anchors.leftMargin: 6
                                     anchors.right: chord.left
                                     anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
@@ -265,9 +277,10 @@ Item {
                                     font.pixelSize: 12
                                     elide: Text.ElideRight
                                 }
-                                Rectangle {
+                                  Rectangle {
                                     id: chord
-                                    anchors.right: parent.right
+                                    anchors.right: editIcon.left
+                                    anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: chordText.implicitWidth + 14
                                     height: 25
@@ -283,12 +296,25 @@ Item {
                                         font.family: Appearance.font.family.monospace
                                         font.pixelSize: 10
                                     }
+                                  }
+                                  MaterialSymbol {
+                                    id: editIcon
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: entry.modelData.editor ? "edit" : "info"
+                                    iconSize: 14
+                                    color: entry.hovered ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                  }
                                 }
                             }
                         }
                         StyledText {
                             visible: root.filteredEntries.length === 0
-                            text: root.allEntries.length === 0 ? "Loading shortcuts…" : "No matching shortcuts."
+                            text: !HyprlandKeybinds.loaded ? Translation.tr("Loading shortcuts…")
+                                : HyprlandKeybinds.failed ? Translation.tr("Could not read active Hyprland shortcuts.")
+                                : root.allEntries.length === 0 ? Translation.tr("No described shortcuts are active.")
+                                : Translation.tr("No matching shortcuts.")
                             color: Appearance.colors.colOnLayer1
                             font.pixelSize: 13
                         }
