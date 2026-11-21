@@ -113,7 +113,7 @@ Item {
     Component.onCompleted: {
         Qt.callLater(() => {
             root.entered = true
-            root.requestSnapshot()
+            root.requestSnapshot(GlobalStates.sidebarLeftOpen)
             systemDelay.restart()
         })
     }
@@ -255,7 +255,7 @@ Item {
     }
 
     function refreshAll() {
-        root.requestSnapshot()
+        root.requestSnapshot(true)
 
         if (root.selectedTab === 3) {
             root.requestSystem(true)
@@ -732,7 +732,7 @@ Item {
 
         function onSidebarLeftOpenChanged() {
             if (GlobalStates.sidebarLeftOpen) {
-                root.requestSnapshot()
+                root.requestSnapshot(true)
 
                 if (root.selectedTab === 3)
                     root.requestSystem(false)

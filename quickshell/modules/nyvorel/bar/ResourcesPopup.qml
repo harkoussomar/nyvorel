@@ -102,6 +102,42 @@ StyledPopup {
             }
         }
     }
+    property string uptime: "—"
+    property FileView uptimeFile: FileView {
+        path: root.active ? "/proc/uptime" : ""
+        onLoaded: {
+            if (!root.active)
+                return
+            const seconds = Math.floor(Number(text().split(" ")[0]))
+            if (!Number.isFinite(seconds) || seconds < 0)
+                return
+            const days = Math.floor(seconds / 86400)
+            const hours = Math.floor(seconds / 3600) % 24
+            const minutes = Math.floor(seconds / 60) % 60
+            const parts = []
+            if (days)
+                parts.push(`${days}d`)
+            if (hours)
+                parts.push(`${hours}h`)
+            if (minutes || !parts.length)
+                parts.push(`${minutes}m`)
+            root.uptime = parts.join(", ")
+            uptimeTimer.interval = (60 - seconds % 60) * 1000
+            uptimeTimer.restart()
+        }
+    }
+    property Timer uptimeRefresh: Timer {
+        id: uptimeTimer
+        onTriggered: {
+            if (root.active)
+                root.uptimeFile.reload()
+        }
+    }
+    onActiveChanged: {
+        if (!active)
+            uptimeTimer.stop()
+    }
+
     property var systemProbeTimer: Timer {
         interval: 10000
         repeat: true
@@ -361,7 +397,7 @@ StyledPopup {
                 Layout.leftMargin: 2
                 Layout.rightMargin: 2
                 MaterialSymbol { text: "schedule"; iconSize: 14; color: root.muted }
-                StyledText { Layout.fillWidth: true; text: Translation.tr("Uptime") + " · " + DateTime.uptime; font.pixelSize: Appearance.font.pixelSize.smallest; color: root.muted }
+                StyledText { Layout.fillWidth: true; text: Translation.tr("Uptime") + " · " + root.uptime; font.pixelSize: Appearance.font.pixelSize.smallest; color: root.muted }
                 StyledText { text: Translation.tr("Updates every 10s while open"); font.pixelSize: Appearance.font.pixelSize.smallest; color: root.muted }
             }
         }

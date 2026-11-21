@@ -21,6 +21,16 @@ StyledPopup {
     contentMargin: 0
     onDismissRequested: GlobalStates.closeBarPopup("network", root.barScreenName)
 
+    function syncNetworkView(): void {
+        if (forceActive)
+            NetworkOperations.openView(root)
+        else
+            NetworkOperations.closeView(root)
+    }
+    onForceActiveChanged: syncNetworkView()
+    Component.onCompleted: syncNetworkView()
+    Component.onDestruction: NetworkOperations.closeView(root)
+
     readonly property real screenWidth: root.QsWindow?.window?.screen?.width ?? 1280
     readonly property real screenHeight: root.QsWindow?.window?.screen?.height ?? 900
     readonly property real panelWidth: Math.max(300, Math.min(1128, screenWidth - (Config.options.bar.vertical ? Appearance.sizes.verticalBarWidth + 32 : 32)))
@@ -122,7 +132,12 @@ StyledPopup {
         implicitHeight: root.panelHeight
         readonly property bool compact: root.panelWidth < 760
         property int tab: 0
-        onTabChanged: viewport.contentItem.contentY = 0
+        property real scrollY: 0
+        onTabChanged: {
+            scrollY = 0
+            if (viewLoader.item)
+                viewLoader.item.viewport.contentItem.contentY = 0
+        }
         property var speedResult: ({})
         property string speedError: ""
         property bool speedLicenseRequired: false
@@ -149,12 +164,6 @@ StyledPopup {
             {name:"DNS",icon:"dns",path:"DNS"},
             {name:"Security",icon:"shield",path:"SECURITY"}
         ]
-        Component.onCompleted: {
-            NetworkOperations.active = true
-            NetworkOperations.runDoctor()
-            if (Network.wifiEnabled) Network.rescanWifi()
-        }
-        Component.onDestruction: NetworkOperations.active = false
         function textOr(value, fallback) { return value && String(value).length ? String(value) : fallback }
         function list(value) { return value && value.length ? value.join(" · ") : "—" }
         function bytes(value) {
@@ -244,8 +253,17 @@ StyledPopup {
             return "—"
         }
 
-        RowLayout {
+        // Keep the selected tab and speed test alive across popup closes.
+        Loader {
+            id: viewLoader
             anchors.fill: parent
+            active: root.active
+            sourceComponent: panel.viewComponent
+            onLoaded: item.viewport.contentItem.contentY = panel.scrollY
+        }
+
+        property Component viewComponent: RowLayout {
+            property alias viewport: viewport
             spacing: 0
 
             Rectangle {
@@ -363,6 +381,13 @@ StyledPopup {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
+                    Connections {
+                        target: viewport.contentItem
+                        function onContentYChanged() {
+                            if (root.forceActive && viewLoader.status === Loader.Ready)
+                                panel.scrollY = Math.max(0, viewport.contentItem.contentY)
+                        }
+                    }
                     contentWidth: availableWidth
                     contentHeight: panel.tab === 0 ? wifiPage.implicitHeight
                                  : panel.tab === 1 ? interfacesPage.implicitHeight

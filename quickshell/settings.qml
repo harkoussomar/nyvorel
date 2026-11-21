@@ -139,6 +139,7 @@ ApplicationWindow {
 
     property int currentPage: 0
     property var settingsSectionSelections: ({})
+    property var pendingAppearanceSearch: null
     readonly property var appearanceEditor: appearancePageLoader.item
     readonly property var currentPageItem:
         root.currentPage === 0 ? root.appearanceEditor : pageLoader.item
@@ -156,8 +157,12 @@ ApplicationWindow {
             if (root.currentPage === entry.pageIndex && pageLoader.item?.currentSection !== undefined)
                 pageLoader.item.currentSection = entry.pageSection
         }
-        if (!root.appearanceEditor || entry.appearanceTab === undefined)
+        if (entry.appearanceTab === undefined)
             return
+        if (!root.appearanceEditor) {
+            root.pendingAppearanceSearch = entry
+            return
+        }
         root.appearanceEditor.currentPage = entry.appearanceTab
         if (entry.appearanceSection)
             root.appearanceEditor.interfaceFineTuneSection = entry.appearanceSection
@@ -269,12 +274,11 @@ ApplicationWindow {
         const needle =
             root.normalizedSearchText(root.pendingSearchLabel)
 
-        if (
-            needle.length === 0
-            || !root.currentPageItem
-        ) {
+        if (needle.length === 0 || !root.currentPageItem)
             return
-        }
+
+        if (root.currentPage === 0 && !root.appearanceEditor.currentTabReady)
+            return
 
         const target =
             root.findSearchTextNode(root.currentPageItem, needle)
@@ -408,6 +412,7 @@ ApplicationWindow {
         const pageIndex = Number(entry.pageIndex)
         if (pageIndex < 0 || pageIndex >= root.pages.length)
             return
+        root.pendingAppearanceSearch = null
         if ((entry.path || "") !== "Page") {
             root.pendingSearchLabel = String(entry.searchLabel ?? entry.label ?? "")
             root.searchTargetAttempts = 0
@@ -966,23 +971,15 @@ ApplicationWindow {
                     // this field; no second dialog or duplicated search input.
                     Rectangle {
                         id: headerSearch
-                        // nyvorel-window-centered-header-search-v1
-                        // Center across the entire Settings window, not a
-                        // layout lane; preserve the existing field and results.
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: titleBar.mapFromItem(
-                            frameSurface,
-                            (frameSurface.width - width) / 2,
-                            0
-                        ).x
-                        width: Math.max(
-                            160,
-                            Math.min(
-                                520,
-                                frameSurface.width
-                                    - 2 * (root.navigationWidth + 18)
-                            )
-                        )
+                        readonly property real contentInset: settingsRailHeading.width + bodyRow.spacing
+
+                        anchors {
+                            horizontalCenter: parent.horizontalCenter
+                            horizontalCenterOffset: headerSearch.contentInset / 2
+                            verticalCenter: parent.verticalCenter
+                        }
+                        width: Math.min(520, titleBar.width - contentInset
+                            - 2 * (closeButton.width + bodyRow.spacing))
                         height: 36
                         radius: Appearance.radius.control
                         color: headerSearchInput.activeFocus
@@ -1338,19 +1335,24 @@ ApplicationWindow {
                             anchors.fill: parent
                             spacing: 4
 
-
                             RowLayout {
+                                id: appearanceFeedback
+                                readonly property string feedback: root.appearanceEditor?.feedback
+                                    ?? (appearancePageLoader.status === Loader.Error
+                                        ? Translation.tr("Could not load Appearance")
+                                        : root.currentPage === 0 ? Translation.tr("Loading appearance…") : "")
+
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 12
                                 Layout.rightMargin: 12
                                 visible: (root.appearanceEditor?.previewToken.length ?? 0) > 0
-                                    || (root.currentPage <= 2 && (root.appearanceEditor?.feedback.length ?? 0) > 0)
+                                    || (root.currentPage <= 2 && feedback.length > 0)
 
                                 StyledText {
                                     Layout.fillWidth: true
                                     text: (root.appearanceEditor?.previewToken.length ?? 0) > 0
                                         ? Translation.tr("Live preview · %1 seconds left").arg(root.appearanceEditor.previewSeconds)
-                                        : (root.appearanceEditor?.feedback ?? "")
+                                        : appearanceFeedback.feedback
                                     color: root.appearanceEditor?.actionFailed
                                         ? Appearance.m3colors.m3error
                                         : Appearance.colors.colOnLayer1
@@ -1383,13 +1385,24 @@ ApplicationWindow {
                                 visible: root.currentPage === 0
                                 asynchronous: true
                                 active: false
-                                sourceComponent: AppearanceConfig {
-                                    onWallpaperRequested: root.openWallpaperPicker()
-                                }
+                                source: Qt.resolvedUrl("modules/settings/AppearanceConfig.qml")
                                 Component.onCompleted: Qt.callLater(() => appearancePageLoader.active = true)
                                 onLoaded: {
+                                    root.prepareSearchPage(root.pendingAppearanceSearch)
+                                    root.pendingAppearanceSearch = null
+                                    if (root.currentPage === 0 && root.pendingSearchLabel.length)
+                                        searchTargetTimer.restart()
                                     if (pageLoader.item && pageLoader.item.appearanceEditor !== undefined)
                                         pageLoader.item.appearanceEditor = item
+                                }
+
+                                Connections {
+                                    target: appearancePageLoader.item
+                                    function onWallpaperRequested() { root.openWallpaperPicker() }
+                                    function onCurrentTabReadyChanged() {
+                                        if (root.currentPage === 0 && target.currentTabReady && root.pendingSearchLabel.length)
+                                            searchTargetTimer.restart()
+                                    }
                                 }
                             }
 
@@ -1481,26 +1494,36 @@ ApplicationWindow {
             }
         }
 
-        SettingsControlSurface {
-            id: settingsControlSurface
-
+        Loader {
+            id: settingsControlLoader
             anchors.fill: parent
             z: 100
+            asynchronous: true
+            property bool started: false
+            active: started || appearancePageLoader.status === Loader.Error
+                || (appearancePageLoader.status === Loader.Ready
+                    && (root.currentPage !== 0 || root.appearanceEditor.currentTabReady || root.appearanceEditor.actionFailed))
+            source: Qt.resolvedUrl("modules/nyvorel/settingsControlRail/SettingsControlSurface.qml")
 
-            pages: root.pages
-            currentPage: root.currentPage
+            onLoaded: {
+                started = true
+                item.pages = Qt.binding(() => root.pages)
+                item.currentPage = Qt.binding(() => root.currentPage)
+            }
 
-            helperPath: `${Directories.home}/.local/bin/nyvorel-settings-control`
-
-            onNavigateRequested: (pageIndex, label) => {
-                const entry = SettingsIndex.entries.find(
-                    candidate => candidate.pageIndex === pageIndex && candidate.label === label)
-                root.pendingSearchLabel = entry?.searchLabel ?? label
-                root.searchTargetAttempts = 0
-                if (entry)
-                    root.prepareSearchPage(entry)
-                root.switchToPage(pageIndex)
-                searchTargetTimer.restart()
+            Connections {
+                target: settingsControlLoader.item
+                function onNavigateRequested(pageIndex, label) {
+                    const entry = SettingsIndex.entries.find(
+                        candidate => candidate.pageIndex === pageIndex && candidate.label === label)
+                    root.pendingAppearanceSearch = null
+                    root.pendingSearchLabel = entry?.searchLabel ?? label
+                    root.searchTargetAttempts = 0
+                    if (entry)
+                        root.prepareSearchPage(entry)
+                    root.switchToPage(pageIndex)
+                    searchTargetTimer.restart()
+                }
             }
         }
 

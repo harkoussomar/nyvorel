@@ -1,7 +1,9 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
+import qs
 import qs.modules.common
+import qs.modules.nyvorel.overlay
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -21,6 +23,13 @@ Singleton {
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
     property real cpuUsage: 0
     property var previousCpuStats
+    readonly property bool sampling: Config.ready
+        && ((Config.options.panelFamily === "nyvorel" && GlobalStates.barOpen
+                && !GlobalStates.screenLocked && Config.options.bar.visibility.resources)
+            || GlobalStates.activeBarPopup === "resources"
+            || GlobalStates.overlayOpen
+            || OverlayContext.pinnedWidgetIdentifiers.includes("resources"))
+    onSamplingChanged: previousCpuStats = undefined
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -60,8 +69,9 @@ Singleton {
     }
 
 	Timer {
-		interval: 1
-        running: true 
+		interval: Math.max(250, Config.options.resources.updateInterval)
+        running: root.sampling
+        triggeredOnStart: true
         repeat: true
 		onTriggered: {
             // Reload files
@@ -93,12 +103,11 @@ Singleton {
             }
 
             root.updateHistories()
-            interval = Config.options?.resources?.updateInterval ?? 3000
         }
 	}
 
-	FileView { id: fileMeminfo; path: "/proc/meminfo" }
-    FileView { id: fileStat; path: "/proc/stat" }
+	FileView { id: fileMeminfo; path: root.sampling ? "/proc/meminfo" : "" }
+    FileView { id: fileStat; path: root.sampling ? "/proc/stat" : "" }
 
     Process {
         id: findCpuMaxFreqProc

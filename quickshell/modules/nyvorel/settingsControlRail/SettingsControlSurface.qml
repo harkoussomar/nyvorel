@@ -13,7 +13,7 @@ Item {
 
     property var pages: []
     property int currentPage: 0
-    property string helperPath: ""
+    property string helperPath: `${Directories.home}/.local/bin/nyvorel-settings-control`
 
     property bool opened: false
     property string mode: "search"

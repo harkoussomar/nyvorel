@@ -12,6 +12,16 @@ TabBar {
     required property string section
     signal sectionRequested(string id)
 
+    property bool selectionReady: false
+    readonly property int sectionIndex: Math.max(0, sections.findIndex(entry => entry.id === section))
+
+    function initializeSelection(): void {
+        if (selectionReady || count !== sections.length)
+            return
+        setCurrentIndex(sectionIndex)
+        selectionReady = true
+    }
+
     Layout.fillWidth: true
     Layout.minimumWidth: 0
     leftPadding: 10
@@ -19,10 +29,15 @@ TabBar {
     topPadding: 4
     spacing: 0
 
-    currentIndex: Math.max(0, sections.findIndex(entry => entry.id === section))
+    currentIndex: sectionIndex
+    Component.onCompleted: Qt.callLater(tabs.initializeSelection)
+    onCountChanged: {
+        if (!selectionReady && count === sections.length)
+            Qt.callLater(tabs.initializeSelection)
+    }
     onCurrentIndexChanged: {
         const selected = sections[currentIndex]
-        if (count === sections.length && selected && selected.id !== section)
+        if (selectionReady && count === sections.length && selected && selected.id !== section)
             sectionRequested(selected.id)
     }
 

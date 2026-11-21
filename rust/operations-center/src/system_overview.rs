@@ -71,13 +71,8 @@ fn root_inode_percent() -> Option<f64> {
 }
 
 fn parse_process_stat(text: &str) -> Option<(String, u64, u64, i64)> {
-    let (_, after_open) = text.split_once('(')?;
-    let (name, after_close) = after_open.rsplit_once(')')?;
-    let fields: Vec<&str> = after_close.split_whitespace().collect();
+    let (name, fields) = super::process_stat_fields(text)?;
     // Field 3 (state) is fields[0]; utime=14, stime=15, starttime=22, rss=24.
-    if fields.len() <= 21 {
-        return None;
-    }
     let total_ticks = fields[11].parse::<u64>().ok()? + fields[12].parse::<u64>().ok()?;
     let start_ticks = fields[19].parse::<u64>().ok()?;
     let rss_pages = fields[21].parse::<i64>().ok()?;

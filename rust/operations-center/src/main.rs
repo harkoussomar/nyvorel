@@ -3,6 +3,7 @@ mod battery_control;
 mod calendar_plans;
 mod system_overview;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env, fs,
@@ -17,6 +18,7 @@ use std::{
 const SCHEMA: i64 = 5;
 const CONTRACT: &str = "1.1.0";
 const REVISION: &str = "7.1-rust-operations";
+const LISTENER_REFRESH_SECONDS: f64 = 15.0;
 fn now() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -163,6 +165,12 @@ fn start_ticks(pid: i64) -> i64 {
         .map(|(_, r)| r.split_whitespace().collect())
         .unwrap_or_default();
     f.get(19).and_then(|x| x.parse().ok()).unwrap_or(0)
+}
+fn process_stat_fields(text: &str) -> Option<(&str, Vec<&str>)> {
+    let (_, after_open) = text.split_once('(')?;
+    let (name, after_close) = after_open.rsplit_once(')')?;
+    let fields: Vec<_> = after_close.split_whitespace().collect();
+    (fields.len() > 21).then_some((name, fields))
 }
 fn cwd(pid: i64) -> String {
     fs::read_link(format!("/proc/{pid}/cwd"))
@@ -320,27 +328,13 @@ fn project_name(path: &str) -> String {
     }
 }
 fn sha_key(parts: &[&str]) -> String {
-    let mut child = match Command::new("sha256sum")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(_) => return String::new(),
-    };
-    if let Some(mut input) = child.stdin.take() {
-        let _ = input.write_all(parts.join("\0").as_bytes());
-    }
-    child
-        .wait_with_output()
-        .ok()
-        .map(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .chars()
-                .take(20)
-                .collect()
-        })
-        .unwrap_or_default()
+    // Saved pins and job history use the first 20 hex digits of the
+    // SHA-256 of the UTF-8 fields joined by NUL bytes.
+    let input = parts.join("\0");
+    let digest = Sha256::digest(input.as_bytes());
+    let mut key = format!("{digest:x}");
+    key.truncate(20);
+    key
 }
 
 #[derive(Clone)]
@@ -359,52 +353,92 @@ struct Proc {
 fn processes() -> HashMap<i64, Proc> {
     let mut table = HashMap::new();
     let uid = unsafe { libc::getuid() };
-    let uid_s = uid.to_string();
-    let Ok((code, out, _)) = command(
-        &[
-            "ps",
-            "-U",
-            &uid_s,
-            "-o",
-            "pid=,ppid=,pgid=,sid=,etimes=,pcpu=,rss=,comm=,args=",
-        ],
-        Duration::from_secs(4),
-    ) else {
+    let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    let (Ok(entries), Ok(uptime)) = (fs::read_dir("/proc"), fs::read_to_string("/proc/uptime"))
+    else {
         return table;
     };
-    if code != 0 {
+    let Some(uptime) = uptime
+        .split_whitespace()
+        .next()
+        .and_then(|v| v.parse::<f64>().ok())
+    else {
+        return table;
+    };
+    if ticks <= 0 || page_size <= 0 {
         return table;
     }
-    let fields =
-        Regex::new(r"^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.*)$")
-            .unwrap();
-    for line in out.lines() {
-        let Some(f) = fields.captures(line) else {
+    for entry in entries.flatten() {
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<i64>() else {
             continue;
         };
-        let Ok(pid) = f[1].parse::<i64>() else {
-            continue;
-        };
-        if proc_uid(pid) != Some(uid) {
+        let path = entry.path();
+        if entry.metadata().ok().map(|metadata| metadata.uid()) != Some(uid) {
             continue;
         }
-        table.insert(
-            pid,
-            Proc {
-                pid,
-                ppid: f[2].parse().unwrap_or(0),
-                pgid: f[3].parse().unwrap_or(0),
-                sid: f[4].parse().unwrap_or(0),
-                elapsed: f[5].parse().unwrap_or(0),
-                cpu: f[6].parse().unwrap_or(0.0),
-                rss: f[7].parse().unwrap_or(0),
-                comm: f[8].into(),
-                args: f[9].into(),
-                start: start_ticks(pid),
-            },
-        );
+        let Ok(status) = fs::read_to_string(path.join("status")) else {
+            continue;
+        };
+        let real_uid = status
+            .lines()
+            .find_map(|line| line.strip_prefix("Uid:"))
+            .and_then(|line| line.split_whitespace().next())
+            .and_then(|value| value.parse::<u32>().ok());
+        if real_uid != Some(uid) {
+            continue;
+        }
+        let (Ok(stat), Ok(args)) = (
+            fs::read_to_string(path.join("stat")),
+            fs::read(path.join("cmdline")),
+        ) else {
+            continue;
+        };
+        if let Some(process) =
+            parse_process(pid, &stat, &args, uptime, ticks as f64, page_size / 1024)
+        {
+            table.insert(pid, process);
+        }
     }
     table
+}
+fn parse_process(
+    pid: i64,
+    stat: &str,
+    args: &[u8],
+    uptime: f64,
+    ticks: f64,
+    page_kib: i64,
+) -> Option<Proc> {
+    let (name, fields) = process_stat_fields(stat)?;
+    let start = fields[19].parse::<i64>().ok()?;
+    let consumed = fields[11].parse::<u64>().ok()? + fields[12].parse::<u64>().ok()?;
+    let age = (uptime - start as f64 / ticks).max(0.0);
+    let elapsed = age as i64;
+    let cpu = if age > 0.0 {
+        (consumed as f64 / ticks / age * 1000.0).floor() / 10.0
+    } else {
+        0.0
+    };
+    let args = String::from_utf8_lossy(args)
+        .trim_end_matches('\0')
+        .replace('\0', " ");
+    Some(Proc {
+        pid,
+        ppid: fields[1].parse().ok()?,
+        pgid: fields[2].parse().ok()?,
+        sid: fields[3].parse().ok()?,
+        elapsed,
+        cpu,
+        rss: fields[21].parse::<i64>().ok()?.max(0) * page_kib,
+        comm: name.to_owned(),
+        args: if args.is_empty() {
+            format!("[{name}]")
+        } else {
+            args
+        },
+        start,
+    })
 }
 fn lineage(mut pid: i64, table: &HashMap<i64, Proc>) -> Vec<i64> {
     let mut result = Vec::new();
@@ -595,11 +629,50 @@ fn protocol(kind: &str, args: &str, port: i64) -> String {
         "tcp".into()
     }
 }
-fn proc_socket_addresses(table: &HashMap<i64, Proc>) -> Vec<(i64, String, i64)> {
+struct TcpTables {
+    ipv4: String,
+    ipv6: String,
+}
+impl TcpTables {
+    fn read() -> Self {
+        Self {
+            ipv4: fs::read_to_string("/proc/net/tcp").unwrap_or_default(),
+            ipv6: fs::read_to_string("/proc/net/tcp6").unwrap_or_default(),
+        }
+    }
+
+    fn signature(&self) -> Option<String> {
+        if self.ipv4.is_empty() {
+            return None;
+        }
+        // Queue lengths and timers can change without changing a listener.
+        let mut sockets = Vec::new();
+        for contents in [&self.ipv4, &self.ipv6] {
+            for line in contents.lines().skip(1) {
+                let fields: Vec<_> = line.split_whitespace().collect();
+                if fields.len() >= 10 && fields[3] == "0A" {
+                    sockets.push(format!("{} {} {}", fields[1], fields[7], fields[9]));
+                }
+            }
+        }
+        sockets.sort_unstable();
+        Some(sha_key(
+            &sockets.iter().map(String::as_str).collect::<Vec<_>>(),
+        ))
+    }
+}
+fn proc_socket_addresses(
+    listeners: &HashSet<(i64, i64)>,
+    tables: &TcpTables,
+) -> Vec<(i64, String, i64)> {
+    if listeners.is_empty() {
+        return Vec::new();
+    }
+    let listener_pids: HashSet<i64> = listeners.iter().map(|&(pid, _)| pid).collect();
+    let listener_ports: HashSet<i64> = listeners.iter().map(|&(_, port)| port).collect();
     let uid = unsafe { libc::getuid() } as i64;
     let mut sockets = Vec::new();
-    for (file, ipv6) in [("/proc/net/tcp", false), ("/proc/net/tcp6", true)] {
-        let contents = fs::read_to_string(file).unwrap_or_default();
+    for (contents, ipv6) in [(&tables.ipv4, false), (&tables.ipv6, true)] {
         for line in contents.lines().skip(1) {
             let f: Vec<_> = line.split_whitespace().collect();
             if f.len() < 10 || f[3] != "0A" || f[7].parse::<i64>().ok() != Some(uid) {
@@ -612,6 +685,9 @@ fn proc_socket_addresses(table: &HashMap<i64, Proc>) -> Vec<(i64, String, i64)> 
             else {
                 continue;
             };
+            if inode == 0 || !listener_ports.contains(&port) {
+                continue;
+            }
             let address = if ipv6 {
                 if address_hex.len() != 32 {
                     continue;
@@ -645,14 +721,15 @@ fn proc_socket_addresses(table: &HashMap<i64, Proc>) -> Vec<(i64, String, i64)> 
                 }
                 format!("{}.{}.{}.{}", bytes[3], bytes[2], bytes[1], bytes[0])
             };
-            if inode > 0 {
-                sockets.push((inode, address, port));
-            }
+            sockets.push((inode, address, port));
         }
+    }
+    if sockets.is_empty() {
+        return Vec::new();
     }
     let wanted: HashSet<u64> = sockets.iter().map(|s| s.0).collect();
     let mut owners: HashMap<u64, Vec<i64>> = HashMap::new();
-    for pid in table.keys() {
+    for pid in listener_pids {
         let Ok(dir) = fs::read_dir(format!("/proc/{pid}/fd")) else {
             continue;
         };
@@ -671,14 +748,16 @@ fn proc_socket_addresses(table: &HashMap<i64, Proc>) -> Vec<(i64, String, i64)> 
                 continue;
             };
             if wanted.contains(&inode) {
-                owners.entry(inode).or_default().push(*pid);
+                owners.entry(inode).or_default().push(pid);
             }
         }
     }
     let mut result = Vec::new();
     for (inode, address, port) in sockets {
         for pid in owners.get(&inode).into_iter().flatten() {
-            result.push((*pid, address.clone(), port));
+            if listeners.contains(&(*pid, port)) {
+                result.push((*pid, address.clone(), port));
+            }
         }
     }
     result
@@ -781,16 +860,20 @@ fn runtime_pins(row: &Value) -> Vec<String> {
 }
 
 fn listeners(table: &HashMap<i64, Proc>) -> Vec<Value> {
+    listeners_from_tables(table, &TcpTables::read()).unwrap_or_default()
+}
+fn listeners_from_tables(table: &HashMap<i64, Proc>, tables: &TcpTables) -> Option<Vec<Value>> {
     let mut rows = Vec::new();
     let cfg = config();
     let re = Regex::new(r"pid=(\d+)").unwrap();
     let Ok((code, out, _)) = command(&["ss", "-H", "-ltnpe"], Duration::from_secs(4)) else {
-        return rows;
+        return None;
     };
     if code != 0 {
-        return rows;
+        return None;
     }
     let mut seen = HashSet::new();
+    let mut listed_endpoints = HashSet::new();
     for line in out.lines() {
         let fields: Vec<_> = line.split_whitespace().collect();
         if fields.len() < 4 {
@@ -815,6 +898,7 @@ fn listeners(table: &HashMap<i64, Proc>) -> Vec<Value> {
             if runtime_ignored(&cfg, &p.comm, &p.args, port) {
                 continue;
             }
+            listed_endpoints.insert((pid, port));
             let path = cwd(pid);
             let detector = matching_detector(&cfg, &p.comm, &p.args, &path, port);
             let field = |key| {
@@ -895,9 +979,9 @@ fn listeners(table: &HashMap<i64, Proc>) -> Vec<Value> {
             rows.push(json!({"key":format!("{pid}:{}:{port}:{address}",p.start),"pin_key":pin,"name":name,"kind":kind,"protocol":proto,"pid":pid,"start_ticks":p.start,"port":port,"address":address,"bind":format!("{address}:{port}"),"url":url,"endpoint":endpoint,"icon":if !field("icon").is_empty(){field("icon")}else if managed{managed_icon.into()}else if exposed{"public".into()}else{"dns".into()},"cwd":display_path(&path),"cpu":p.cpu,"memory":human_bytes(p.rss as f64),"memory_kib":p.rss,"uptime":human_seconds(p.elapsed),"elapsed":p.elapsed,"scope":scope,"exposed":exposed,"status":"Listening","managed_by_arch_remote":managed,"managed_area":area,"managed_icon":managed_icon,"operations_stop_allowed":!managed}));
         }
     }
-    // Cross-check socket inodes with /proc to retain address provenance.
-    // Different address representations are folded below, not shown as cards.
-    for (pid, address, port) in proc_socket_addresses(table) {
+    // The /proc data adds address aliases to listeners already found by ss.
+    // Only those listeners' processes and ports can contribute an alias.
+    for (pid, address, port) in proc_socket_addresses(&listed_endpoints, tables) {
         if !seen.insert((pid, port, address.clone())) {
             continue;
         }
@@ -926,7 +1010,7 @@ fn listeners(table: &HashMap<i64, Proc>) -> Vec<Value> {
             rows.push(row);
         }
     }
-    coalesce_runtimes(rows)
+    Some(coalesce_runtimes(rows))
 }
 fn lock_state() -> Result<fs::File, String> {
     use std::os::fd::AsRawFd;
@@ -1030,12 +1114,47 @@ fn reconcile_jobs(mut current: Vec<Value>, previous: &[Value], t: f64) -> Vec<Va
     current
 }
 fn monitor_once() -> Result<Value, String> {
+    monitor_pass(true)
+}
+fn monitor_pass(force_listeners: bool) -> Result<Value, String> {
     let _monitor_lock = lock_monitor()?;
     let table = processes();
-    let runtimes = listeners(&table);
+    let prev = read_json(&live_path());
+    let tcp = TcpTables::read();
+    let signature = tcp.signature();
+    let t = now();
+    let listener_age = t - fval(&prev, "listeners_checked_at");
+    let mut cached = arr(&prev, "runtimes");
+    let reuse_listeners = !force_listeners
+        && ival(&prev, "schema_version") == SCHEMA
+        && sval(&prev, "backend_revision") == REVISION
+        && signature.as_deref() == prev["listener_signature"].as_str()
+        && signature.is_some()
+        && (0.0..LISTENER_REFRESH_SECONDS).contains(&listener_age)
+        && cached.iter().all(|row| {
+            let identity = ival(row, "start_ticks");
+            identity > 0
+                && table
+                    .get(&ival(row, "pid"))
+                    .is_some_and(|p| p.start == identity)
+        });
+    let (runtimes, listeners_checked_at) = if reuse_listeners {
+        for row in &mut cached {
+            let process = &table[&ival(row, "pid")];
+            row["cpu"] = json!(process.cpu);
+            row["memory_kib"] = json!(process.rss);
+            row["memory"] = json!(human_bytes(process.rss as f64));
+            row["elapsed"] = json!(process.elapsed);
+            row["uptime"] = json!(human_seconds(process.elapsed));
+        }
+        (cached, fval(&prev, "listeners_checked_at"))
+    } else if let Some(runtimes) = listeners_from_tables(&table, &tcp) {
+        (runtimes, t)
+    } else {
+        (Vec::new(), 0.0)
+    };
     let rp: HashSet<i64> = runtimes.iter().map(|r| ival(r, "pid")).collect();
     let discovered = operations(&table, &rp);
-    let prev = read_json(&live_path());
     // Preserve running job identities during the v7.0 -> v7.1 handover.
     let same_backend = ival(&prev, "schema_version") == SCHEMA
         && [REVISION, "7.0-rust-operations"].contains(&sval(&prev, "backend_revision"));
@@ -1044,7 +1163,6 @@ fn monitor_once() -> Result<Value, String> {
     } else {
         vec![]
     };
-    let t = now();
     let jobs = reconcile_jobs(discovered, &prev_jobs, t);
     let curr: HashSet<String> = jobs
         .iter()
@@ -1108,7 +1226,7 @@ fn monitor_once() -> Result<Value, String> {
         st["operation_history"] = json!(history);
         write_json(&state_path(), &st)?;
     }
-    let payload = json!({"schema_version":SCHEMA,"ui_contract":CONTRACT,"backend_revision":REVISION,"timestamp":t,"runtimes":runtimes,"operations":jobs});
+    let payload = json!({"schema_version":SCHEMA,"ui_contract":CONTRACT,"backend_revision":REVISION,"timestamp":t,"listeners_checked_at":listeners_checked_at,"listener_signature":signature,"runtimes":runtimes,"operations":jobs});
     write_json(&live_path(), &payload)?;
     Ok(payload)
 }
@@ -1737,7 +1855,7 @@ fn main() {
     let result = match args.first().map(String::as_str).unwrap_or("") {
         "monitor" => loop {
             let start = Instant::now();
-            if let Err(e) = monitor_once() {
+            if let Err(e) = monitor_pass(false) {
                 eprintln!("operations monitor: {e}")
             }
             let elapsed = start.elapsed();
@@ -1760,6 +1878,56 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn proc_inventory_preserves_process_identity_and_arguments() {
+        let process = parse_process(
+            42,
+            "42 (test worker (local)) S 11 12 13 0 0 0 0 0 0 0 100 50 0 0 0 0 0 0 500 0 128",
+            b"python3\0app name.py\0--flag\0",
+            20.0,
+            100.0,
+            4,
+        )
+        .unwrap();
+        assert_eq!(
+            (process.pid, process.ppid, process.pgid, process.sid),
+            (42, 11, 12, 13)
+        );
+        assert_eq!(
+            (process.start, process.elapsed, process.rss),
+            (500, 15, 512)
+        );
+        assert_eq!(process.cpu, 10.0);
+        assert_eq!(process.comm, "test worker (local)");
+        assert_eq!(process.args, "python3 app name.py --flag");
+    }
+
+    #[test]
+    fn listener_signature_tracks_sockets_without_tracking_queue_activity() {
+        let tables = |rows: &str| TcpTables {
+            ipv4: format!("header\n{rows}"),
+            ipv6: String::new(),
+        };
+        let a = "0: 0100007F:0016 00000000:0000 0A 0:0 0:0 0 1000 0 123\n";
+        let queued = a.replace("0:0 0:0", "0:8 0:0");
+        let changed = a.replace("0 123", "0 456");
+        assert_eq!(tables(a).signature(), tables(&queued).signature());
+        assert_ne!(tables(a).signature(), tables(&changed).signature());
+        assert_ne!(tables(a).signature(), tables("").signature());
+    }
+
+    #[test]
+    fn sha_key_preserves_existing_identifiers() {
+        assert_eq!(sha_key(&[]), "e3b0c44298fc1c149afb");
+        assert_eq!(sha_key(&["/example/éléments"]), "3408e855a9e6e85593ec");
+        assert_eq!(
+            sha_key(&["vite", "/example/éléments", "Vite", "3017", "::1"]),
+            "a50af4f741f5fc0581e1"
+        );
+        assert_eq!(sha_key(&["ab", "c"]), "6c032e631d39a14d85af");
+        assert_eq!(sha_key(&["a", "bc"]), "40bb547d936bbd31318e");
+    }
 
     #[test]
     fn operation_classifier_avoids_incidental_names() {

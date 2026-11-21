@@ -11,6 +11,7 @@ import Qt5Compat.GraphicalEffects
 
 import Quickshell
 import Quickshell.Io
+import "." as SettingsComponents
 
 Item {
     id: root
@@ -21,11 +22,22 @@ Item {
     property var variantsData: []
     property string variantsError: ""
     property int currentPage: 0
+    readonly property bool currentTabReady:
+        initialized && [themeTab, surfacesTab, cornersTab, appThemingTab, savedLooksTab][currentPage]?.status === Loader.Ready
+    readonly property bool usesWallpaperPalette: selectedSource === "wallpaper" || selectedSource === "hybrid"
+    readonly property bool wallpaperVariantsVisible:
+        visible && currentPage === 0 && currentTabReady && usesWallpaperPalette
+    property bool terminalTuningRequested: false
     readonly property int cornerCardPadding: 14
     signal wallpaperRequested()
 
     function expandTerminalTuning(): void {
-        terminalEditor.terminalTuningExpanded = true
+        if (!appThemingTab.item) {
+            root.terminalTuningRequested = true
+            return
+        }
+        root.terminalTuningRequested = false
+        appThemingTab.item.expandTerminalTuning()
     }
     readonly property bool canClose: !root.pending && root.previewToken.length === 0
     readonly property string feedback: root.toastText.length ? root.toastText
@@ -596,6 +608,9 @@ Item {
     }
 
     function loadVariants() {
+        if (!root.wallpaperVariantsVisible)
+            return
+
         const wallpaper = root.selectedWallpaper.length > 0
             ? root.selectedWallpaper
             : (root.statusData.wallpaper ?? Config.options.background.wallpaperPath)
@@ -929,6 +944,11 @@ Item {
 
     onSelectedSourceChanged: root.markDraftChanged(false)
 
+    onWallpaperVariantsVisibleChanged: {
+        if (root.wallpaperVariantsVisible)
+            variantReloadTimer.restart()
+    }
+
     onSelectedModeChanged: {
         if (root.initialized)
             variantReloadTimer.restart()
@@ -1101,7 +1121,6 @@ Timer {
                         else
                             root.syncDraftFromStatus(data)
                         root.initialized = true
-                        root.loadVariants()
                     } else if (!data.preview && (root.syncDraftOnNextStatus || hadPreview)) {
                         root.syncDraftFromStatus(data)
                         root.syncDraftOnNextStatus = false
@@ -1346,6 +1365,18 @@ Timer {
 
             if (root.autoApplyPending)
                 autoApplyTimer.restart()
+        }
+    }
+
+    component AppearanceTab: Loader {
+        required property int pageIndex
+        property bool visited: false
+
+        active: visited || (root.visible && root.currentPage === pageIndex)
+        asynchronous: true
+        onStatusChanged: {
+            if (status === Loader.Ready)
+                visited = true
         }
     }
 
@@ -2814,7 +2845,7 @@ component SectionTitle: ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        SettingsSectionTabs {
+        SettingsComponents.SettingsSectionTabs {
             Layout.leftMargin: root.width < 760 ? 12 : 16
             Layout.rightMargin: Layout.leftMargin
             Layout.topMargin: Layout.leftMargin
@@ -2827,13 +2858,28 @@ component SectionTitle: ColumnLayout {
         }
 
         StackLayout {
-            id: pageStack
             Layout.fillWidth: true
             Layout.fillHeight: true
             enabled: root.initialized
             currentIndex: root.currentPage
-            // THEME
-            // =====================================================
+            AppearanceTab { id: themeTab; pageIndex: 0; sourceComponent: themePage }
+            AppearanceTab { id: surfacesTab; pageIndex: 1; sourceComponent: surfacesPage }
+            AppearanceTab { id: cornersTab; pageIndex: 2; sourceComponent: cornersPage }
+            AppearanceTab {
+                id: appThemingTab
+                pageIndex: 3
+                sourceComponent: appThemingPage
+                onLoaded: {
+                    if (root.terminalTuningRequested)
+                        root.expandTerminalTuning()
+                }
+            }
+            AppearanceTab { id: savedLooksTab; pageIndex: 4; sourceComponent: savedLooksPage }
+        }
+
+        Component {
+            id: themePage
+
             ScrollView {
                 clip: true
                 leftPadding: 20
@@ -3591,7 +3637,7 @@ component SectionTitle: ColumnLayout {
 
                     Loader {
                         Layout.fillWidth: true
-                        active: root.selectedSource === "wallpaper" || root.selectedSource === "hybrid"
+                        active: root.initialized && root.usesWallpaperPalette
                         visible: active
                         sourceComponent: Rectangle {
                             Layout.fillWidth: true
@@ -3641,7 +3687,8 @@ component SectionTitle: ColumnLayout {
 
                     Loader {
                         Layout.fillWidth: true
-                        active: root.selectedSource === "wallpaper" || root.selectedSource === "hybrid"
+                        active: root.initialized && root.usesWallpaperPalette
+                        asynchronous: true
                         visible: active
                         sourceComponent: ColumnLayout {
                             spacing: 11
@@ -3984,10 +4031,11 @@ component SectionTitle: ColumnLayout {
                     Item { implicitHeight: 12 }
                 }
             }
+        }
 
-            // =====================================================
-            // INTERFACE
-            // =====================================================
+        Component {
+            id: surfacesPage
+
             ScrollView {
                 clip: true
                 leftPadding: 20
@@ -4128,7 +4176,7 @@ component SectionTitle: ColumnLayout {
                             anchors.margins: 1
                             spacing: 0
 
-                            SettingsSectionTabs {
+                            SettingsComponents.SettingsSectionTabs {
                                 sections: [
                                     { id: "surfaces", label: "Surfaces", icon: "blur_on" },
                                     { id: "motion", label: "Motion", icon: "motion_mode" },
@@ -4297,10 +4345,11 @@ component SectionTitle: ColumnLayout {
                     Item { implicitHeight: 10 }
                 }
             }
+        }
 
-            // =====================================================
-            // GEOMETRY
-            // =====================================================
+        Component {
+            id: cornersPage
+
             ScrollView {
                 clip: true
                 leftPadding: 20
@@ -4465,11 +4514,15 @@ component SectionTitle: ColumnLayout {
                     }
                 }
             }
+        }
 
-            // =====================================================
-            // TARGETS
-            // =====================================================
+        Component {
+            id: appThemingPage
+
             ScrollView {
+                function expandTerminalTuning(): void {
+                    terminalEditor.terminalTuningExpanded = true
+                }
                 clip: true
                 leftPadding: 20
                 rightPadding: 20
@@ -4515,7 +4568,7 @@ component SectionTitle: ColumnLayout {
                         ]
                     }
 
-                    TerminalColorSettings {
+                    SettingsComponents.TerminalColorSettings {
                         id: terminalEditor
                         Layout.fillWidth: true
                         targetEnabled: root.targetEnabled("terminal")
@@ -4527,10 +4580,11 @@ component SectionTitle: ColumnLayout {
                     }
                 }
             }
+        }
 
-            // =====================================================
-            // SAVED
-            // =====================================================
+        Component {
+            id: savedLooksPage
+
             ScrollView {
                 clip: true
                 leftPadding: 20

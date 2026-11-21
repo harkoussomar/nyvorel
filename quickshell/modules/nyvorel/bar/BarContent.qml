@@ -518,7 +518,7 @@ Item {
         popupRadius: Appearance.radius.bar
         contentMargin: 0
         onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
-        SidebarLeftContent {}
+        contentComponent: SidebarLeftContent {}
     }
 
     // ============================================================
@@ -590,7 +590,7 @@ Item {
         irisAnimation: true
         dismissOnOutsideClick: true
         onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
-        SidebarRightContent {}
+        contentComponent: SidebarRightContent {}
     }
 
     NetworkOperationsPopup {

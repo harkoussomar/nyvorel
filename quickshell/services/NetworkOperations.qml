@@ -9,7 +9,8 @@ import qs.services
 Singleton {
     id: root
     readonly property string backend: Quickshell.shellPath("scripts/system/nyvorel-network")
-    property bool active: false
+    property QtObject activeView: null
+    readonly property bool active: activeView !== null
     property var snapshot: ({"ok": false})
     property var checks: []
     property var comparison: []
@@ -32,6 +33,19 @@ Singleton {
     function refresh() {
         if (active && !snapshotProcess.running)
             snapshotProcess.exec([backend, "snapshot"])
+    }
+    function openView(view: QtObject): void {
+        if (activeView === view)
+            return
+        activeView = view
+        if (!checks.length)
+            runDoctor()
+        if (Network.wifiEnabled && !Network.wifiScanning)
+            Network.rescanWifi()
+    }
+    function closeView(view: QtObject): void {
+        if (activeView === view)
+            activeView = null
     }
     function setDns(provider, primary, secondary) {
         if (operationBusy) return
@@ -57,11 +71,16 @@ Singleton {
         if (!comparisonProcess.running) comparisonProcess.exec([backend, "compare"])
     }
     onActiveChanged: {
-        if (active) refresh()
-        else snapshotProcess.running = false
+        if (!active)
+            return
+        lastSampleTime = 0
+        downloadRate = 0
+        uploadRate = 0
+        refresh()
     }
     Connections {
         target: Network
+        enabled: root.active
         function onNetworkNameChanged() { root.refresh() }
         function onWifiStatusChanged() { root.refresh() }
     }
@@ -75,6 +94,8 @@ Singleton {
         id: snapshotProcess
         stdout: StdioCollector {
             onStreamFinished: {
+                if (!root.active)
+                    return
                 const result = root.parse(text)
                 if (!result.ok) { root.error = result.error || "Network snapshot unavailable"; return }
                 root.snapshot = result

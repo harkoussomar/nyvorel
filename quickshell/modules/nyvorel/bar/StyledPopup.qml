@@ -15,6 +15,15 @@ LazyLoader {
 
     property Item hoverTarget
     default property Item contentItem
+    property Component contentComponent
+    readonly property Item popupContent: contentComponent ? deferredContent.item : contentItem
+    property Loader deferredContent: Loader {
+        active: root.contentComponent !== null && (root.fadeRequested || hasOpened)
+        property bool hasOpened: false
+        sourceComponent: root.contentComponent
+        // Preserve panel selections and actions in progress after first use.
+        onLoaded: hasOpened = true
+    }
 
     property real popupBackgroundMargin: 0
     property real contentMargin: 12
@@ -468,13 +477,13 @@ LazyLoader {
                 }
 
                 implicitWidth:
-                    root.contentItem.implicitWidth
+                    (root.popupContent?.implicitWidth ?? 0)
                     + margin * 2
                     + (popupWindow.joinedHorizontal
                         ? popupWindow.joinedInset * 2 : 0)
 
                 implicitHeight:
-                    root.contentItem.implicitHeight
+                    (root.popupContent?.implicitHeight ?? 0)
                     + margin * 2
                     + (popupWindow.joinedVertical
                         ? popupWindow.joinedInset * 2 : 0)
@@ -612,7 +621,7 @@ LazyLoader {
                         ? popupBackground.implicitHeight
                         : parent.height - (popupWindow.joinedVertical
                             ? popupWindow.joinedInset * 2 : 0)
-                    children: [ root.contentItem ]
+                    children: root.popupContent ? [root.popupContent] : []
                 }
             }
         }

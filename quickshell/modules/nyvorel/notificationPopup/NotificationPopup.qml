@@ -4,8 +4,6 @@ import qs.modules.common.widgets
 import qs.services
 
 import QtQuick
-import QtQuick.Controls
-
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
@@ -13,143 +11,95 @@ import Quickshell.Hyprland
 Scope {
     id: notificationPopup
 
-    // notification-toast-material-stability-v1
     readonly property bool toastLogicalVisible:
-        Notifications.popupList.length > 0
-        && !GlobalStates.screenLocked
-    property string targetScreenName: Hyprland.focusedMonitor?.name ?? ""
-
-    onToastLogicalVisibleChanged: {
-        if (toastLogicalVisible)
-            targetScreenName = Hyprland.focusedMonitor?.name ?? ""
-    }
-
-
-    PanelWindow {
-        id: root
-
-
-        visible:
-            Config.options.appearance.transparency.enable
-                ? true
-                : notificationPopup.toastLogicalVisible
-
-        screen:
-            Quickshell.screens.find(
-                (screen) =>
-                    screen.name
-                    === notificationPopup.targetScreenName
-            )
+        Notifications.popupList.length > 0 && !GlobalStates.screenLocked
+    property bool retainingExit: false
+    property string targetScreenName: ""
+    readonly property ShellScreen presentedScreen: {
+        if (GlobalStates.screenLocked || (!toastLogicalVisible && !retainingExit))
+            return null
+        return Quickshell.screens.find(screen => screen.name === targetScreenName)
             ?? Quickshell.screens[0]
             ?? null
+    }
 
-        readonly property bool barOnThisScreen:
-            GlobalStates.barOpen
-            && !GlobalStates.screenLocked
-            && (
-                Config.options.bar.screenList.length === 0
-                || Config.options.bar.screenList.includes(root.screen?.name)
-            )
-
-
-        // glass-system-v2.3b-shape
-        Region {
-            id: glassNotificationVisibleMask
-            item:
-                notificationPopup.toastLogicalVisible
-                    ? listview.contentItem
-                    : null
+    function syncPresentation(): void {
+        if (GlobalStates.screenLocked) {
+            exitTimer.stop()
+            retainingExit = false
+        } else if (toastLogicalVisible) {
+            if (!retainingExit)
+                targetScreenName = Hyprland.focusedMonitor?.name ?? ""
+            exitTimer.stop()
+            retainingExit = true
+        } else if (retainingExit) {
+            exitTimer.restart()
         }
-        HyprlandWindow.visibleMask:
-            Config.options.appearance.transparency.enable
-                ? glassNotificationVisibleMask
-                : null
+    }
 
-        WlrLayershell.namespace:
-            "quickshell:notificationPopup"
+    onToastLogicalVisibleChanged: syncPresentation()
+    Component.onCompleted: syncPresentation()
 
+    Timer {
+        id: exitTimer
+        interval: Appearance.reducedMotion ? 16
+            : Math.ceil(Math.max(Appearance.animationCurves.expressiveFastSpatialDuration,
+                Appearance.animationCurves.expressiveFastEffectsDuration) * Appearance.motionScale) + 32
+        onTriggered: notificationPopup.retainingExit = false
+    }
 
-        WlrLayershell.layer:
-            WlrLayer.Overlay
+    Variants {
+        model: notificationPopup.presentedScreen ? [notificationPopup.presentedScreen] : []
 
+        PanelWindow {
+            id: root
+            required property ShellScreen modelData
+            screen: modelData
 
-        exclusiveZone:
-            0
+            readonly property bool barOnThisScreen: GlobalStates.barOpen && !GlobalStates.screenLocked
+                && (Config.options.bar.screenList.length === 0
+                    || Config.options.bar.screenList.includes(modelData.name))
 
-
-        anchors {
-            top:
-                true
-
-            right:
-                true
-
-            bottom:
-                true
-        }
-
-        margins {
-            top: root.barOnThisScreen && !Config.options.bar.vertical && !Config.options.bar.bottom
-                ? Appearance.sizes.barHeight + 8 : 0
-            right: root.barOnThisScreen && Config.options.bar.vertical && Config.options.bar.bottom
-                ? Appearance.sizes.verticalBarWidth + 8 : 0
-        }
-
-
-        mask:
+            HyprlandWindow.visibleMask: Config.options.appearance.transparency.enable
+                ? glassNotificationVisibleMask : null
             Region {
-                item:
-                    notificationPopup.toastLogicalVisible
-                        ? listview.contentItem
-                        : null
+                id: glassNotificationVisibleMask
+                item: listview.contentItem
             }
 
-
-        color:
-            "transparent"
-
-
-        implicitWidth:
-            Appearance
-                .sizes
-                .notificationPopupWidth
-
-
-        // notification-architecture-v2
-        // Popup presentation is deliberately flat: one delegate per
-        // notification. App grouping remains a notification-center concern.
-        NotificationToastList {
-            id: listview
-
-
+            WlrLayershell.namespace: "quickshell:notificationPopup"
+            WlrLayershell.layer: WlrLayer.Overlay
+            exclusiveZone: 0
             anchors {
-                top:
-                    parent.top
-
-                bottom:
-                    parent.bottom
-
-                right:
-                    parent.right
-
-                rightMargin:
-                      8
-
-                topMargin:
-                      8
+                top: true
+                right: true
+                bottom: true
             }
+            margins {
+                top: root.barOnThisScreen && !Config.options.bar.vertical && !Config.options.bar.bottom
+                    ? Appearance.sizes.barHeight + 8 : 0
+                right: root.barOnThisScreen && Config.options.bar.vertical && Config.options.bar.bottom
+                    ? Appearance.sizes.verticalBarWidth + 8 : 0
+            }
+            mask: Region {
+                item: notificationPopup.toastLogicalVisible ? listview.contentItem : null
+            }
+            color: "transparent"
+            implicitWidth: Appearance.sizes.notificationPopupWidth
 
-
-            implicitWidth:
-                parent.width
-                - Appearance
-                    .sizes
-                    .elevationMargin
-                    * 2
-
-
-            clip:
-                true
+            NotificationToastList {
+                id: listview
+                anchors {
+                    top: parent.top
+                    bottom: parent.bottom
+                    right: parent.right
+                    rightMargin: 8
+                    topMargin: 8
+                }
+                implicitWidth: parent.width - Appearance.sizes.elevationMargin * 2
+                clip: true
+                populate: add
+            }
         }
     }
 }

@@ -121,7 +121,7 @@ Variants {
         Process {
             id: getWallpaperSizeProc
             property string path: bgRoot.wallpaperPath
-            command: ["magick", "identify", "-format", "%w %h", path]
+            command: ["magick", "identify", "-ping", "-format", "%w %h", path]
             onExited: {
                 if (path !== bgRoot.wallpaperPath)
                     Qt.callLater(bgRoot.updateZoomScale)

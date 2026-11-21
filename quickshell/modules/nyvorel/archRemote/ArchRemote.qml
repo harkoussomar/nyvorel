@@ -14,6 +14,15 @@ Scope {
     property bool placementPending: false
     property string targetScreenName: ""
 
+    readonly property ShellScreen presentedScreen: {
+        if (!GlobalStates.archRemoteOpen && !root.presentationClosing)
+            return null
+        return Quickshell.screens.find(screen => screen.name === root.targetScreenName)
+            ?? Quickshell.screens.find(screen => screen.name === Hyprland.focusedMonitor?.name)
+            ?? Quickshell.screens[0]
+            ?? null
+    }
+
     function focusedScreenName() {
         const name = Hyprland.focusedMonitor?.name ?? ""
         return Quickshell.screens.find(screen => screen.name === name)?.name
@@ -51,13 +60,12 @@ Scope {
         root.placementPending = false
         placementFallbackTimer.stop()
         root.targetScreenName = screenName || root.focusedScreenName()
-        root.presentationClosing = false
         GlobalStates.archRemoteOpen = true
+        presentationCloseTimer.stop()
+        root.presentationClosing = false
     }
 
     function openCenter() {
-        presentationCloseTimer.stop()
-        root.presentationClosing = false
         root.placementPending = true
         placementFallbackTimer.restart()
         if (!cursorPositionProc.running) {
@@ -105,7 +113,9 @@ Scope {
 
     Timer {
         id: presentationCloseTimer
-        interval: 260 // motion-calibrated-v1
+        // Keep the surface through the opacity fade and the scaled spatial exit.
+        interval: Appearance.reducedMotion
+            ? 200 : Math.max(200, Math.round(260 * Appearance.motionScale))
         repeat: false
         onTriggered: root.presentationClosing = false
     }
@@ -137,24 +147,13 @@ Scope {
         onPressed: root.toggleCenter()
     }
 
-    LazyLoader {
-        // modal-material-stability-v1
-        // Glass keeps only the native host mapped; the visual content
-        // remains logically gated by archRemoteOpen.
-        active:
-            Config.options.appearance.transparency.enable
-                ? true
-                : (
-                    GlobalStates.archRemoteOpen
-                    || root.presentationClosing
-                )
+    Variants {
+        // Tie the native surface to its output for the life of the presentation.
+        model: root.presentedScreen ? [root.presentedScreen] : []
 
-        component: PanelWindow {
-            visible: true
-            id: panelWindow
-            screen: Quickshell.screens.find(screen => screen.name === root.targetScreenName)
-                ?? Quickshell.screens.find(screen => screen.name === Hyprland.focusedMonitor?.name)
-                ?? null
+        PanelWindow {
+            required property ShellScreen modelData
+            screen: modelData
             anchors { left: true; right: true; top: true; bottom: true }
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
@@ -163,7 +162,7 @@ Scope {
             mask: Region {
                 item:
                     GlobalStates.archRemoteOpen
-                        ? archRemoteContentLoader.item
+                        ? archRemoteContent
                         : null
             }
 
@@ -173,23 +172,11 @@ Scope {
                     ? WlrKeyboardFocus.OnDemand
                     : WlrKeyboardFocus.None
 
-            Loader {
-                id: archRemoteContentLoader
+            ArchRemoteContent {
+                id: archRemoteContent
                 anchors.fill: parent
-                active:
-                    GlobalStates.archRemoteOpen
-                    || root.presentationClosing
-
-                sourceComponent: Component {
-                ArchRemoteContent {
-                    anchors.fill: parent
-                    screenName:
-                        panelWindow.screen !== null
-                            ? panelWindow.screen.name
-                            : ""
-                    onCloseRequested: root.closeCenter()
-                }
-                }
+                screenName: modelData.name
+                onCloseRequested: root.closeCenter()
             }
         }
     }

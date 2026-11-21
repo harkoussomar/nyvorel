@@ -45,6 +45,7 @@ def resize(path, edge, output):
          f"{path}[0]", "-auto-orient", "-thumbnail", f"{edge}x{edge}>",
          "-strip", "-define", "png:compression-level=2", str(output)],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, check=True, timeout=20,
+        env=dict(os.environ, MAGICK_TEMPORARY_PATH=str(output.parent)),
     )
 
 

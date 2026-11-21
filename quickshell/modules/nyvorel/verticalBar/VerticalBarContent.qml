@@ -168,7 +168,7 @@ Item { // Bar content region
         popupRadius: Appearance.radius.bar
         contentMargin: 0
         onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
-        SidebarLeftContent {}
+        contentComponent: SidebarLeftContent {}
     }
 
     Bar.StyledPopup {
@@ -221,7 +221,7 @@ Item { // Bar content region
         popupRadius: Appearance.radius.bar
         contentMargin: 0
         onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
-        SidebarRightContent {}
+        contentComponent: SidebarRightContent {}
     }
 
     Bar.NetworkOperationsPopup {
