@@ -1053,34 +1053,8 @@ SettingsTabbedPage {
 
         SettingsCard {
             title: Translation.tr("Lock screen")
-            subtitle: Translation.tr("Choose the lock provider, startup behavior, security rules, and Quickshell lock appearance.")
+            subtitle: Translation.tr("Configure startup locking, security, and lock-screen appearance.")
             iconName: "lock"
-
-            FieldLabel {
-                title: Translation.tr("Lock provider")
-                subtitle: Translation.tr("Quickshell uses the built-in lock surface. Hyprlock launches the external Hyprlock process instead.")
-            }
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: 8
-
-                ChoiceChip {
-                    label: Translation.tr("Quickshell")
-                    iconName: "lock"
-                    selected: !Config.options.lock.useHyprlock
-
-                    onClicked: Config.options.lock.useHyprlock = false
-                }
-
-                ChoiceChip {
-                    label: Translation.tr("Hyprlock")
-                    iconName: "water_drop"
-                    selected: Config.options.lock.useHyprlock
-
-                    onClicked: Config.options.lock.useHyprlock = true
-                }
-            }
 
             PreferenceSwitchRow {
                 title: Translation.tr("Lock on shell startup")
@@ -1122,11 +1096,8 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    enabled: !Config.options.lock.useHyprlock
                     title: Translation.tr("Unlock login keyring")
-                    subtitle: Config.options.lock.useHyprlock
-                        ? Translation.tr("This integration is part of the built-in Quickshell lock flow.")
-                        : Translation.tr("Unlock the user's keyring after successful Quickshell authentication.")
+                    subtitle: Translation.tr("Unlock the user's keyring after successful authentication.")
                     iconName: "key_vertical"
                     switchChecked:
                         Config.options.lock.security.unlockKeyring
@@ -1138,7 +1109,7 @@ SettingsTabbedPage {
             }
 
             ExpandButton {
-                collapsedText: Translation.tr("Quickshell lock appearance")
+                collapsedText: Translation.tr("Lock appearance")
                 expandedText: Translation.tr("Hide lock appearance")
                 expanded: root.lockAppearanceExpanded
 
@@ -1152,14 +1123,7 @@ SettingsTabbedPage {
                 Layout.fillWidth: true
                 spacing: 8
 
-                InfoBox {
-                    visible: Config.options.lock.useHyprlock
-                    iconName: "info"
-                    text: Translation.tr("These appearance controls affect the built-in Quickshell lock screen and are not applied to Hyprlock.")
-                }
-
                 PreferenceSwitchRow {
-                    enabled: !Config.options.lock.useHyprlock
                     title: Translation.tr("Center clock")
                     subtitle: Translation.tr("Place the lock-screen clock in the centered layout.")
                     iconName: "center_focus_weak"
@@ -1171,7 +1135,6 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    enabled: !Config.options.lock.useHyprlock
                     title: Translation.tr("Show “Locked” label")
                     subtitle: Translation.tr("Display the lock-state text on the built-in lock screen.")
                     iconName: "info"
@@ -1183,7 +1146,6 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    enabled: !Config.options.lock.useHyprlock
                     title: Translation.tr("Shape password characters")
                     subtitle: Translation.tr("Use varying Material-style shapes instead of ordinary password dots.")
                     iconName: "shapes"
@@ -1195,7 +1157,6 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    enabled: !Config.options.lock.useHyprlock
                     title: Translation.tr("Blur wallpaper while locked")
                     subtitle: Translation.tr("Enable the additional Gaussian blur layer used by the built-in lock transition.")
                     iconName: "blur_on"
@@ -1207,9 +1168,7 @@ SettingsTabbedPage {
                 }
 
                 ConfigSpinBox {
-                    visible:
-                        !Config.options.lock.useHyprlock
-                        && Config.options.lock.blur.enable
+                    visible: Config.options.lock.blur.enable
 
                     Layout.fillWidth: true
                     icon: "loupe"
@@ -1225,9 +1184,7 @@ SettingsTabbedPage {
                 }
 
                 InfoBox {
-                    visible:
-                        !Config.options.lock.useHyprlock
-                        && Config.options.lock.blur.enable
+                    visible: Config.options.lock.blur.enable
 
                     iconName: "speed"
                     text: Translation.tr("Lock-screen blur uses an additional GPU effect while the Quickshell lock surface is active.")

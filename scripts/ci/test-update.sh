@@ -52,11 +52,25 @@ OLD_POINTER1="$(cat "$HOME1/.local/state/nyvorel/current-install")"
 RUNTIME1="$HOME1/.config/hypr/custom/appearance-runtime.conf"
 printf '\n# user selected Fluid\n' >>"$RUNTIME1"
 RUNTIME_SHA1="$(sha256sum "$RUNTIME1" | cut -d' ' -f1)"
-for output in hyprland/colors.conf hyprlock/colors.conf; do
+for output in hyprland/colors.conf; do
   printf '\n# user-selected Matugen palette\n' >>"$HOME1/.config/hypr/$output"
 done
 COLOR_SHA1="$(sha256sum "$HOME1/.config/hypr/hyprland/colors.conf" | cut -d' ' -f1)"
-LOCK_COLOR_SHA1="$(sha256sum "$HOME1/.config/hypr/hyprlock/colors.conf" | cut -d' ' -f1)"
+# Older Nyvorel manifests managed this generated file.
+mkdir -p "$HOME1/.config/hypr/hyprlock"
+printf '# retired Hyprlock palette\n' >"$HOME1/.config/hypr/hyprlock/colors.conf"
+python3 - "$OLD_STATE1/manifest.json" <<'PY_MANIFEST'
+import json
+import sys
+from pathlib import Path
+manifest = Path(sys.argv[1])
+data = json.loads(manifest.read_text())
+source = next(entry for entry in data["entries"]
+              if entry["destination"] == ".config/hypr/hyprland/colors.conf")
+data["entries"].append(dict(source, destination=".config/hypr/hyprlock/colors.conf",
+                            source="hypr/hyprlock/colors.conf", preexisting=False, backup=None))
+manifest.write_text(json.dumps(data, indent=2) + "\n")
+PY_MANIFEST
 for output in .config/kitty/nyvorel-dynamic-theme.conf .config/fish/conf.d/99-nyvorel-dynamic-theme.fish; do
   printf '\n# generated terminal palette\n' >>"$HOME1/$output"
 done
@@ -110,7 +124,7 @@ grep -qF '# ci-update-candidate' "$HOME1/.local/bin/nyvorel-settings" \
 [[ "$(sha256sum "$RUNTIME1" | cut -d' ' -f1)" == "$RUNTIME_SHA1" ]] \
   || die "update replaced selected appearance runtime state"
 [[ "$(sha256sum "$HOME1/.config/hypr/hyprland/colors.conf" | cut -d' ' -f1)" == "$COLOR_SHA1" ]]
-[[ "$(sha256sum "$HOME1/.config/hypr/hyprlock/colors.conf" | cut -d' ' -f1)" == "$LOCK_COLOR_SHA1" ]]
+[[ ! -e "$HOME1/.config/hypr/hyprlock/colors.conf" ]] || die "update did not retire Hyprlock palette"
 [[ "$(sha256sum "$HOME1/.config/kitty/nyvorel-dynamic-theme.conf" | cut -d' ' -f1)" == "$KITTY_SHA1" ]]
 [[ "$(sha256sum "$HOME1/.config/fish/conf.d/99-nyvorel-dynamic-theme.fish" | cut -d' ' -f1)" == "$FISH_SHA1" ]]
 
@@ -135,7 +149,7 @@ entries = {entry["destination"]: entry for entry in data["entries"]}
 assert ".local/bin/nyvorel-ci-update-fixture" in entries
 assert entries[".config/hypr/custom/appearance-runtime.conf"]["ownership"] == "runtime"
 assert entries[".config/hypr/hyprland/colors.conf"]["ownership"] == "runtime"
-assert entries[".config/hypr/hyprlock/colors.conf"]["ownership"] == "runtime"
+assert ".config/hypr/hyprlock/colors.conf" not in entries
 assert entries[".config/kitty/nyvorel-dynamic-theme.conf"]["ownership"] == "runtime"
 assert entries[".config/fish/conf.d/99-nyvorel-dynamic-theme.fish"]["ownership"] == "runtime"
 
@@ -277,11 +291,11 @@ state = Path(Path(sys.argv[1]).read_text().strip())
 manifest = state / "manifest.json"
 data = json.loads(manifest.read_text())
 for entry in data["entries"]:
-    if entry["destination"] in {".config/hypr/hyprland/colors.conf", ".config/hypr/hyprlock/colors.conf"}:
+    if entry["destination"] == ".config/hypr/hyprland/colors.conf":
         entry.pop("ownership", None)
 manifest.write_text(json.dumps(data, indent=2) + "\n")
 PY
-for output in hyprland/colors.conf hyprlock/colors.conf; do
+for output in hyprland/colors.conf; do
   printf '\n# palette from the old Appearance Studio\n' >>"$HOME3/.config/hypr/$output"
 done
 
@@ -325,7 +339,7 @@ if grep -qF '# >>> nyvorel-fluid-interface-v1 >>>' \
   "$HOME3/.config/hypr/custom/rules.conf"; then
   die "legacy runtime rules remained in managed rules.conf"
 fi
-for output in hyprland/colors.conf hyprlock/colors.conf; do
+for output in hyprland/colors.conf; do
   grep -qF 'palette from the old Appearance Studio' "$HOME3/.config/hypr/$output" \
     || die "legacy update replaced generated compositor palette: $output"
 done

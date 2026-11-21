@@ -89,7 +89,6 @@ fn disabled_target_paths(targets: &Value) -> Result<Vec<PathBuf>, String> {
     for (name, files) in [
         ("shell", vec![generated.join("colors.json")]),
         ("hyprland", vec![base.join("hypr/hyprland/colors.lua")]),
-        ("hyprlock", vec![base.join("hypr/hyprlock/colors.conf")]),
         ("fuzzel", vec![base.join("fuzzel/fuzzel_theme.ini")]),
         (
             "gtk",

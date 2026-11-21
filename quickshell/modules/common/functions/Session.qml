@@ -1,5 +1,6 @@
 pragma Singleton
 import Quickshell
+import qs
 import qs.services
 import qs.modules.common
 
@@ -17,7 +18,7 @@ Singleton {
     }
 
     function lock() {
-        Quickshell.execDetached(["loginctl", "lock-session"]);
+        GlobalStates.screenLocked = true;
     }
 
     function suspend() {

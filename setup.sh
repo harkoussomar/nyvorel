@@ -10,6 +10,7 @@ recommended=0
 ocr=0
 recording=0
 enable_networkmanager=0
+graphical_login=1
 wheelhouse=""
 vulkan_driver=""
 
@@ -21,7 +22,7 @@ Usage: ./setup.sh [--plan|--install --yes] [options]
 
 --plan                   Print package groups and user-file steps (default).
 --install --yes          Consent to a full pacman system upgrade, selected
-                         official packages, and Nyvorel user-file setup.
+                         official packages, Nyvorel setup, and graphical login.
 --resume                 Continue after an interrupted user-file setup.
 --replace-existing       Back up and replace conflicting personal config files.
 --with-recommended       Add Zed, Kate, Ark, btop and appearance tools.
@@ -29,11 +30,13 @@ Usage: ./setup.sh [--plan|--install --yes] [options]
 --with-ocr-english       Add Tesseract with English language data.
 --with-recording         Add GPU screen recording tools.
 --enable-networkmanager  Enable/start NetworkManager after package install.
+--no-graphical-login     Skip display-manager installation and boot setup.
 --wheelhouse PATH         Use local materialyoucolor wheel(s), without PyPI.
 
-Run as the intended desktop user with internet and sudo. This does not
-partition disks, install a display manager, use an AUR helper, activate VPN,
-or enable remote services. Existing network management is preserved unless
+Run as the intended desktop user with internet and sudo. On a fresh system,
+setup installs SDDM and enables it for the next boot. An existing display
+manager keeps control of login. Setup does not partition disks, use an AUR
+helper, activate VPN, or enable remote services. Network management is preserved unless
 --enable-networkmanager is explicitly selected.
 EOF
 }
@@ -52,6 +55,7 @@ while (($#)); do
     --with-ocr-english) ocr=1; shift ;;
     --with-recording) recording=1; shift ;;
     --enable-networkmanager) enable_networkmanager=1; shift ;;
+    --no-graphical-login) graphical_login=0; shift ;;
     --wheelhouse)
       (($# >= 2)) || { echo '--wheelhouse needs a directory.' >&2; exit 2; }
       wheelhouse="$2"; shift 2 ;;
@@ -83,7 +87,7 @@ core=(
   qt6-positioning qt6-5compat kirigami
   noto-fonts noto-fonts-emoji ttf-dejavu ttf-material-symbols-variable
   ttf-jetbrains-mono-nerd adwaita-cursors
-  kitty fish firefox dolphin plasma-integration hyprlock qt6-multimedia-ffmpeg
+  kitty fish firefox dolphin plasma-integration qt6-multimedia-ffmpeg
   pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
   matugen jq bc xdg-utils xdg-user-dirs brightnessctl cava
@@ -92,6 +96,7 @@ recommended_packages=(zed kate ark btop imagemagick ffmpeg playerctl hypridle)
 ocr_packages=(tesseract tesseract-data-eng)
 recording_packages=(gpu-screen-recorder libpulse)
 packages=("${core[@]}")
+(( graphical_login == 0 )) || packages+=(sddm)
 case "$vulkan_driver" in
   ''|vulkan-intel|vulkan-radeon|vulkan-swrast|vulkan-virtio|vulkan-nouveau|nvidia-utils) ;;
   *) echo "Unsupported Vulkan package selection: $vulkan_driver" >&2; exit 2 ;;
@@ -132,7 +137,12 @@ printf '  Core official packages (%d): %s\n' "${#core[@]}" "${core[*]}"
 (( recording == 0 )) || printf '  Recording:   %s\n' "${recording_packages[*]}"
 printf '  NetworkManager activation: %s\n' "$([[ "$enable_networkmanager" == 1 ]] && echo requested || echo no)"
 printf '  Follow-up: backed-up user install, isolated color environment, default wallpaper/palette.\n'
-printf '  First login: start-hyprland through nyvorel session; user services activate there.\n'
+if (( graphical_login )); then
+  printf '  Graphical login: install SDDM, register Nyvorel, and enable SDDM at boot if no display manager is configured.\n'
+  printf '  First login: sign in with your normal account to launch Nyvorel.\n'
+else
+  printf '  Graphical login: skipped. Start Nyvorel from a text console.\n'
+fi
 
 if [[ "$mode" == plan ]]; then
   printf 'No packages, services, or user files changed.\n'
@@ -227,5 +237,9 @@ first_run_args=(--initialize --yes)
 "$cli" first-run "${first_run_args[@]}"
 "$cli" first-run --check
 "$cli" session --check
-printf '\nNyvorel user setup is ready. Start the desktop with: %s session\n' "$cli"
+if (( graphical_login )); then
+  sudo /usr/bin/python3 -I "$root/packaging/nyvorel-graphical-login" --source "$root/packaging/nyvorel.desktop"
+else
+  printf '\nNyvorel user setup is ready. Start the desktop with: %s session\n' "$cli"
+fi
 printf 'For recovery, inspect ~/.local/state/nyvorel/installations and first-run snapshots.\n'

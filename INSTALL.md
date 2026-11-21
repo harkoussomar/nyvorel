@@ -46,16 +46,17 @@ color environment, and seeds the first wallpaper and palette. The color
 environment fetches a version-pinned binary wheel from PyPI unless
 `--wheelhouse PATH` points to a reviewed local wheel.
 
-At the next local text login run:
+On a fresh Arch installation, setup installs SDDM and configures it to start
+at the next boot, with Nyvorel preselected. Use your normal account and password
+at the graphical login. Hyprland then starts with Nyvorel's configuration and
+activates Quickshell and the user services.
 
-```sh
-~/.local/bin/nyvorel session
-```
+If a display manager is already configured, setup registers Nyvorel and keeps
+that manager and its saved session choice. Select **Nyvorel** in the session menu.
+SDDM remembers the selection after a successful login.
 
-This explicitly starts Hyprland with `~/.config/hypr/hyprland.lua`, then
-activates Nyvorel's user services and Quickshell. The installed desktop entry
-can be selected from a display manager if one is configured. The explicit path
-works even when a fresh Arch login has not added `~/.local/bin` to `PATH`.
+Use `--no-graphical-login` for a text-console setup. Sign in at the console
+and run `~/.local/bin/nyvorel session` to launch the desktop manually.
 Before entering the desktop, `~/.local/bin/nyvorel first-run --check`,
 `~/.local/bin/nyvorel session --check`, and
 `~/.local/bin/nyvorel doctor --no-session` help diagnose setup.
@@ -87,6 +88,14 @@ If setup stops after installing packages, rerun `./setup.sh --install --yes
 the dry-run conflict list and use `--replace-existing` only when you intend to
 back up and replace those files. Do not use setup on an existing Nyvorel
 desktop; use `nyvorel update --dry-run` followed by `nyvorel update --yes`.
+
+The source setup registers a system-wide session at
+`/usr/local/share/wayland-sessions/nyvorel.desktop` with a launcher at
+`/usr/local/bin/nyvorel-session`. The user-file uninstaller manages the home
+directory. Remove these two system files as an administrator if you also want
+to remove the source session entry. To return a machine using SDDM to text
+login, run `sudo systemctl disable sddm.service` and
+`sudo systemctl set-default multi-user.target` before the next boot.
 
 ## Lower-level user-file installer
 
@@ -251,12 +260,16 @@ sudo pacman -U ./nyvorel-*.pkg.tar.zst
 Pacman installs only package-owned `/usr` content. It does not write to your
 home directory.
 
-Review and materialize the user configuration explicitly:
+For the full desktop and graphical login, review and run the one-time setup
+as the user who will sign in:
 
 ```sh
-nyvorel install --dry-run
-nyvorel install --yes
+nyvorel install --with-graphical-login --dry-run
+nyvorel install --with-graphical-login --yes
 ```
+
+Use `nyvorel install --yes` for user-file materialization alone. Pacman owns
+the packaged session entry in `/usr/share/wayland-sessions`.
 
 After a package upgrade:
 

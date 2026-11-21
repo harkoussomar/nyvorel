@@ -81,6 +81,7 @@ fn preview_allowed_paths() -> Result<Vec<PathBuf>, String> {
     let mut paths = vec![
         generated.join("colors.json"),
         config.join("hypr/hyprland/colors.lua"),
+        // Allow rollback of previews made by older versions.
         config.join("hypr/hyprlock/colors.conf"),
         config.join("fuzzel/fuzzel_theme.ini"),
         config.join("gtk-3.0/gtk.css"),
@@ -517,7 +518,6 @@ fn first_run_state(cfg: &Value, catalog: &Value) -> Value {
         "targets": {
             "shell": true,
             "hyprland": true,
-            "hyprlock": true,
             "gtk": true,
             "fuzzel": true,
             "qt": theme_cfg["enableQtApps"].as_bool().unwrap_or(true) && !hyprland,
@@ -551,7 +551,7 @@ fn load_state(cfg: &Value, catalog: &Value) -> Result<Value, String> {
     .iter()
     .any(|key| state.get(*key).is_none())
         || [
-            "shell", "hyprland", "hyprlock", "gtk", "fuzzel", "qt", "terminal", "editors",
+            "shell", "hyprland", "gtk", "fuzzel", "qt", "terminal", "editors",
         ]
         .iter()
         .any(|key| state["targets"].get(*key).is_none());
@@ -576,12 +576,13 @@ fn load_state(cfg: &Value, catalog: &Value) -> Result<Value, String> {
         return Err("invalid Appearance Studio targets".into());
     }
     for key in [
-        "shell", "hyprland", "hyprlock", "gtk", "fuzzel", "qt", "terminal", "editors",
+        "shell", "hyprland", "gtk", "fuzzel", "qt", "terminal", "editors",
     ] {
         if state["targets"].get(key).is_none() {
             state["targets"][key] = defaults["targets"][key].clone();
         }
     }
+    state["targets"].as_object_mut().unwrap().remove("hyprlock");
     if !state["activeUi"].is_object() {
         state["activeUi"] = snapshot(cfg, catalog);
     }
@@ -1322,8 +1323,8 @@ fn main() {
             }
         }
         Some("target") => {
-            const NAMES: [&str; 8] = [
-                "shell", "hyprland", "hyprlock", "gtk", "fuzzel", "qt", "terminal", "editors",
+            const NAMES: [&str; 7] = [
+                "shell", "hyprland", "gtk", "fuzzel", "qt", "terminal", "editors",
             ];
             if args.len() != 3
                 || !NAMES.contains(&args[1].as_str())

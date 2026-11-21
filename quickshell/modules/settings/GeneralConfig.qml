@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Io
 import qs.services
 import qs.modules.common
-import qs.modules.common.functions
 import qs.modules.common.widgets
 
 SettingsTabbedPage {
@@ -29,8 +28,6 @@ SettingsTabbedPage {
     property bool translationExpanded: false
     property int lastFullChargeThreshold:
         Math.min(100, Config.options.battery.full)
-    property string timeFormatError: ""
-    property string pendingTimeFormat: ""
 
     // >>> TOUCHPAD-SCROLL-SETTINGS-V1 >>>
     readonly property string scrollSettingsHelper:
@@ -110,41 +107,6 @@ SettingsTabbedPage {
         Config.options.battery.critical <= Config.options.battery.low
         && (!Config.options.battery.automaticSuspend
             || Config.options.battery.suspend <= Config.options.battery.critical)
-
-    function setTimeFormat(value: string): void {
-        if (value === Config.options.time.format || lockTimeProc.running)
-            return
-        root.pendingTimeFormat = value
-        root.timeFormatError = ""
-        lockTimeProc.command = [
-            FileUtils.trimFileProtocol(
-                Quickshell.shellPath("scripts/system/nyvorel-lock-time-format")
-            ),
-            "--format", value
-        ]
-        lockTimeProc.running = true
-    }
-
-    Process {
-        id: lockTimeProc
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const result = JSON.parse(text)
-                    if (!result.ok)
-                        root.timeFormatError = result.error ?? "Could not update the lock-screen clock."
-                } catch (error) {
-                    root.timeFormatError = "Could not update the lock-screen clock."
-                }
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode === 0 && !root.timeFormatError)
-                Config.options.time.format = root.pendingTimeFormat
-            else if (!root.timeFormatError)
-                root.timeFormatError = "Could not update the lock-screen clock."
-        }
-    }
 
     Process {
         id: translationProc
@@ -1008,47 +970,31 @@ SettingsTabbedPage {
                     spacing: 8
 
                     ChoiceChip {
-                        enabled: !lockTimeProc.running
                         label: Translation.tr("13:42")
                         iconName: "schedule"
                         description: Translation.tr("24-hour format")
                         selected: Config.options.time.format === "hh:mm"
 
-                        onClicked: root.setTimeFormat("hh:mm")
+                        onClicked: Config.options.time.format = "hh:mm"
                     }
 
                     ChoiceChip {
-                        enabled: !lockTimeProc.running
                         label: Translation.tr("1:42 pm")
                         iconName: "schedule"
                         description: Translation.tr("12-hour format with lowercase am/pm")
                         selected: Config.options.time.format === "h:mm ap"
 
-                        onClicked: root.setTimeFormat("h:mm ap")
+                        onClicked: Config.options.time.format = "h:mm ap"
                     }
 
                     ChoiceChip {
-                        enabled: !lockTimeProc.running
                         label: Translation.tr("1:42 PM")
                         iconName: "schedule"
                         description: Translation.tr("12-hour format with uppercase AM/PM")
                         selected: Config.options.time.format === "h:mm AP"
 
-                        onClicked: root.setTimeFormat("h:mm AP")
+                        onClicked: Config.options.time.format = "h:mm AP"
                     }
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    visible: lockTimeProc.running || root.timeFormatError.length > 0
-                    text: lockTimeProc.running
-                        ? Translation.tr("Updating time format…")
-                        : root.timeFormatError
-                    color: root.timeFormatError.length > 0
-                        ? Appearance.m3colors.m3error
-                        : Appearance.colors.colSubtext
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    wrapMode: Text.Wrap
                 }
             }
         }

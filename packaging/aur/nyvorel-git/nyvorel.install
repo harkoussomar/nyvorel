@@ -2,7 +2,7 @@ post_install() {
   echo "Nyvorel package installed."
   echo "No user HOME was modified."
   echo "Review: nyvorel doctor"
-  echo "Materialize for your user: nyvorel install --dry-run"
+  echo "Full setup preview: nyvorel install --with-graphical-login --dry-run"
 }
 
 post_upgrade() {

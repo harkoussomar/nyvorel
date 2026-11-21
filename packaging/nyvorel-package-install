@@ -7,6 +7,9 @@ HELPER_ROOT="${NYVOREL_PACKAGE_HELPER_ROOT:-$LIB_ROOT/bin}"
 
 TARGET_HOME="${HOME:?HOME is not set}"
 MIGRATE=0
+GRAPHICAL_LOGIN=0
+DRY_RUN=0
+YES=0
 PASSTHROUGH=()
 
 usage() {
@@ -20,6 +23,8 @@ Options:
   --target-home PATH       Operate on another home (testing/staging).
   --migrate-source-clone   Explicitly convert an existing source-clone
                            installation to package ownership.
+  --with-graphical-login   Initialize the desktop and enable graphical login
+                           for the current user on the next boot.
   --yes                    Confirm materialization/update.
   --dry-run                Preview only.
   --force-changed          Archive changed managed files when syncing/migrating.
@@ -45,7 +50,21 @@ while (($#)); do
       MIGRATE=1
       shift
       ;;
-    --yes|--dry-run|--force-changed|--activate|--no-activate)
+    --with-graphical-login)
+      GRAPHICAL_LOGIN=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      PASSTHROUGH+=("$1")
+      shift
+      ;;
+    --yes)
+      YES=1
+      PASSTHROUGH+=("$1")
+      shift
+      ;;
+    --force-changed|--activate|--no-activate)
       PASSTHROUGH+=("$1")
       shift
       ;;
@@ -73,6 +92,35 @@ PY
 [[ -x "$LIB_ROOT/install.sh" ]] || { echo "ERROR: package lifecycle installer missing" >&2; exit 1; }
 [[ -x "$HELPER_ROOT/nyvorel-update" ]] || { echo "ERROR: package updater helper missing" >&2; exit 1; }
 
+if (( GRAPHICAL_LOGIN )); then
+  [[ "$TARGET_HOME" == "$(realpath -- "$HOME")" && $(id -u) != 0 ]] || {
+    echo 'Graphical login setup must run as the intended desktop user.' >&2; exit 2;
+  }
+  (( DRY_RUN || YES )) || {
+    echo 'Review --with-graphical-login --dry-run, then pass --with-graphical-login --yes.' >&2; exit 2;
+  }
+  printf 'Graphical login: initialize Nyvorel, then configure SDDM for boot if no display manager exists.\n'
+fi
+
+materialize() {
+  if (( ! GRAPHICAL_LOGIN || DRY_RUN )); then
+    exec "$@"
+  fi
+  command -v sudo >/dev/null || { echo 'Graphical login setup needs sudo.' >&2; exit 1; }
+  if ! pacman -Qq sddm >/dev/null 2>&1 && [[ ! -t 0 ]]; then
+    echo 'Installing SDDM needs an interactive terminal to review pacman.' >&2; exit 2
+  fi
+  "$@"
+  "$HELPER_ROOT/nyvorel-color-env" --install --yes
+  "$HELPER_ROOT/nyvorel-first-run" --initialize --yes
+  "$HELPER_ROOT/nyvorel-first-run" --check
+  "$HELPER_ROOT/nyvorel-session" --check
+  if ! pacman -Qq sddm >/dev/null 2>&1; then
+    sudo pacman -Syu --needed sddm
+  fi
+  sudo /usr/bin/python3 -I "$HELPER_ROOT/nyvorel-graphical-login" --package
+}
+
 POINTER="$TARGET_HOME/.local/state/nyvorel/current-install"
 
 if [[ ! -s "$POINTER" ]]; then
@@ -83,7 +131,8 @@ if [[ ! -s "$POINTER" ]]; then
 
   export NYVOREL_SOURCE_KIND=package
   export NYVOREL_SOURCE_ROOT="$SOURCE_ROOT"
-  exec "$LIB_ROOT/install.sh" "${PASSTHROUGH[@]}"
+  materialize "$LIB_ROOT/install.sh" "${PASSTHROUGH[@]}"
+  exit
 fi
 
 SOURCE_KIND="$(
@@ -111,7 +160,7 @@ case "$SOURCE_KIND" in
       echo "ERROR: installation is already package-owned; remove --migrate-source-clone." >&2
       exit 2
     }
-    exec "$HELPER_ROOT/nyvorel-update" \
+    materialize "$HELPER_ROOT/nyvorel-update" \
       --package-source "$SOURCE_ROOT" \
       "${PASSTHROUGH[@]}"
     ;;
@@ -131,7 +180,7 @@ MSG
       exit 3
     }
 
-    exec "$HELPER_ROOT/nyvorel-update" \
+    materialize "$HELPER_ROOT/nyvorel-update" \
       --package-source "$SOURCE_ROOT" \
       --migrate-to-package \
       "${PASSTHROUGH[@]}"

@@ -831,7 +831,7 @@ hl.bind("SUPER+ALT + f12", hl.dsp.exec_cmd("bash -c 'RANDOM_IMAGE=$(find ~/Pictu
 -- hyprland/keybinds.conf:208
 hl.bind("SUPER+ALT + Equal", hl.dsp.exec_cmd("notify-send \"Urgent notification\" \"Ah hell no\" -u critical -a 'Hyprland keybind'"), {})
 -- hyprland/keybinds.conf:211
-hl.bind("SUPER + L", hl.dsp.exec_cmd("loginctl lock-session"), {["description"] = "Lock"})
+hl.bind("SUPER + L", hl.dsp.exec_cmd("qs -c nyvorel ipc call lock activate"), {["description"] = "Lock"})
 -- hyprland/keybinds.conf:212
 hl.bind("SUPER+SHIFT + L", hl.dsp.exec_cmd("systemctl suspend || loginctl suspend"), {["locked"] = true, ["description"] = "Suspend system"})
 -- hyprland/keybinds.conf:214

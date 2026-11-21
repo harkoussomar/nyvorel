@@ -284,6 +284,13 @@
   ],
   "optional": [
     {
+      "id": "graphical-login",
+      "commands_any_of": ["sddm"],
+      "arch_packages_any_of": ["sddm"],
+      "feature": "Graphical login and boot-to-Nyvorel setup.",
+      "evidence": ["setup.sh", "packaging/nyvorel-graphical-login"]
+    },
+    {
       "id": "notifications",
       "commands_any_of": [
         "notify-send"

@@ -78,7 +78,6 @@ def target_paths(home: Path) -> dict[str, Path]:
         "wallpaper": state / "quickshell/user/generated/wallpaper/path.txt",
         "hyprland": config / "hypr/hyprland/colors.conf",
         "hyprland_lua": config / "hypr/hyprland/colors.lua",
-        "hyprlock": config / "hypr/hyprlock/colors.conf",
         "fuzzel": config / "fuzzel/fuzzel_theme.ini",
         "gtk3": config / "gtk-3.0/gtk.css",
         "gtk4": config / "gtk-4.0/gtk.css",
@@ -149,7 +148,6 @@ def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -
             "color": color_path,
             "hyprland": stage_config / "hypr/hyprland/colors.conf",
             "hyprland_lua": stage_config / "hypr/hyprland/colors.lua",
-            "hyprlock": stage_config / "hypr/hyprlock/colors.conf",
             "fuzzel": stage_config / "fuzzel/fuzzel_theme.ini",
             "gtk3": stage_config / "gtk-3.0/gtk.css",
             "gtk4": stage_config / "gtk-4.0/gtk.css",
@@ -191,7 +189,7 @@ def stage_outputs(home: Path, wallpaper: Path, interpreter: Path, shell: Path) -
                 "uiProfile": "fluid",
             },
             "targets": {
-                "shell": True, "hyprland": True, "hyprlock": True,
+                "shell": True, "hyprland": True,
                 "gtk": True, "fuzzel": True, "qt": False,
                 "terminal": True, "editors": True,
             },
@@ -323,8 +321,7 @@ def main() -> int:
         parser.error("review --plan, then pass --initialize --yes")
     if not wallpaper.is_file() or not (home / ".config/matugen/config.toml").is_file():
         raise RuntimeError("Install Nyvorel's shell and Matugen templates before first-run initialization")
-    protected = {"hyprland", "hyprlock"}
-    existing = [str(path) for key, path in paths.items() if key not in protected and path.exists()]
+    existing = [str(path) for key, path in paths.items() if key != "hyprland" and path.exists()]
     if existing and not args.repair:
         raise RuntimeError("Existing appearance files need review before replacement: " + ", ".join(existing[:5]) + "; pass --repair to back them up")
     interpreter = home / ".local/state/quickshell/.venv/bin/python"

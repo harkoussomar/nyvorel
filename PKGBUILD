@@ -30,6 +30,7 @@ depends=(
   'matugen'
 )
 optdepends=(
+  'sddm: Graphical login and boot-to-Nyvorel setup.'
   'libnotify: Desktop notifications and fallback user feedback.'
   'wl-clipboard: Clipboard integration and clipboard history transport.'
   'cliphist: Clipboard history storage and decoding.'
@@ -109,6 +110,7 @@ package() {
     install -m755 "$_helper" "$_helpers/$(basename "$_helper")"
   done
   install -m755 "$_src/packaging/nyvorel-package-install"     "$_helpers/nyvorel-package-install"
+  install -m755 "$_src/packaging/nyvorel-graphical-login" "$_helpers/nyvorel-graphical-login"
 
   install -d "$_share"
   for _dir in quickshell hypr matugen integrations dependencies assets; do

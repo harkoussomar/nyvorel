@@ -4544,8 +4544,7 @@ component SectionTitle: ColumnLayout {
                         subtitle: "Core shell and compositor surfaces."
                         targetItems: [
                             { "id": "shell", "name": "Nyvorel", "icon": "dashboard", "desc": "Panels, dialogs and widgets" },
-                            { "id": "hyprland", "name": "Hyprland", "icon": "select_window", "desc": "Compositor colors and borders" },
-                            { "id": "hyprlock", "name": "Hyprlock", "icon": "lock", "desc": "Lock-screen color template" }
+                            { "id": "hyprland", "name": "Hyprland", "icon": "select_window", "desc": "Compositor colors and borders" }
                         ]
                     }
 

@@ -245,15 +245,15 @@ For optional Zed, Kate, Ark, btop and appearance utilities, add
 `--with-recording` adds recording tools. Review `./setup.sh --help` before
 selecting options, especially the GPU-specific Vulkan driver for Zed.
 
-At the next local text login, start the graphical desktop with:
+On a fresh Arch installation, setup installs SDDM, enables graphical login for
+the next boot, and preselects Nyvorel. Sign in with your normal account and
+Hyprland, Quickshell, and Nyvorel's user services start automatically. If you
+already have a display manager, select **Nyvorel** in its session menu once.
 
-```sh
-~/.local/bin/nyvorel session
-```
+Use `--no-graphical-login` for a text-console setup. Start that session with
+`~/.local/bin/nyvorel session`.
 
-The installed launcher starts Hyprland with Nyvorel's configuration; the session
-activates user services and Quickshell. A display manager may use the installed
-Nyvorel session entry. The setup refuses to replace existing managed files
+The setup refuses to replace existing managed files
 unless you review the conflict and pass `--replace-existing`, which backs them
 up. It records the installation under
 `~/.local/state/nyvorel/installations/`.
@@ -280,8 +280,9 @@ Doctor findings with suggested fixes, and never installs packages, enables
 services or changes configuration. Use `nyvorel welcome --json` for automation.
 This guided first-run feature is included in `v0.1.2`.
 
-Package-installed users run the same command; package materialization must still
-be confirmed explicitly with `nyvorel install --dry-run` / `--yes`.
+Package-installed users can complete the graphical setup once with
+`nyvorel install --with-graphical-login --yes`. Replace `--yes` with
+`--dry-run` to review the plan first.
 
 ## Safe recovery is part of the install model
 

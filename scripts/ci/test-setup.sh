@@ -38,7 +38,10 @@ grep -q 'pacman-contrib' "$tmp/plan.log"
 grep -q 'brightnessctl' "$tmp/plan.log"
 grep -q 'cava' "$tmp/plan.log"
 grep -q 'Vulkan provider:' "$tmp/plan.log"
+grep -q 'install SDDM' "$tmp/plan.log"
 grep -q 'No packages, services, or user files changed' "$tmp/plan.log"
+"$root/setup.sh" --plan --no-graphical-login > "$tmp/text-plan.log"
+grep -q 'Graphical login: skipped' "$tmp/text-plan.log"
 [[ ! -s "$NYVOREL_TEST_PACMAN_LOG" && ! -s "$NYVOREL_TEST_SUDO_LOG" ]]
 
 if "$root/setup.sh" --install > "$tmp/no-consent.log" 2>&1; then
@@ -135,4 +138,68 @@ NYVOREL_PACKAGE_MODE=1 NYVOREL_PACKAGE_HELPER_ROOT="$tmp/package-helpers" \
   "$root/bin/nyvorel-activate" --session > "$tmp/activate-package-fluid.log"
 grep -qx 'nyvorel-glass-runtime glass' "$NYVOREL_TEST_APPEARANCE_LOG"
 grep -qx 'nyvorel-fluid-runtime fluid' "$NYVOREL_TEST_APPEARANCE_LOG"
+
+# Exercise the complete setup ordering without changing the host's boot services.
+mkdir -p "$tmp/source/dependencies" "$tmp/source/packaging" "$tmp/fresh-home"
+cp "$root/setup.sh" "$tmp/source/"
+cp "$root/dependencies/arch.json" "$tmp/source/dependencies/"
+cp "$root/packaging/"{nyvorel.desktop,nyvorel-graphical-login} "$tmp/source/packaging/"
+cat > "$tmp/source/install.sh" <<'MOCK'
+#!/usr/bin/env bash
+if [[ "$*" == *--dry-run* ]]; then
+  echo 'Existing replacements  : 0'
+  exit 0
+fi
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/nyvorel" <<'CLI'
+#!/usr/bin/env bash
+echo "$*" >> "$NYVOREL_TEST_FULL_SETUP"
+if [[ "$*" == 'session --check' && "${NYVOREL_TEST_BROKEN_SESSION:-0}" == 1 ]]; then
+  exit 1
+fi
+CLI
+chmod +x "$HOME/.local/bin/nyvorel"
+MOCK
+cat > "$tmp/bin/sudo" <<'MOCK'
+#!/usr/bin/env bash
+echo "sudo $*" >> "$NYVOREL_TEST_FULL_SETUP"
+MOCK
+chmod +x "$tmp/source/install.sh" "$tmp/bin/sudo"
+export NYVOREL_TEST_FULL_SETUP="$tmp/full-setup.log"
+HOME="$tmp/fresh-home" "$tmp/source/setup.sh" --install --yes > "$tmp/full-setup.out"
+asserted_setup="$(tail -n 2 "$NYVOREL_TEST_FULL_SETUP")"
+[[ "$asserted_setup" == $'session --check\n'"sudo /usr/bin/python3 -I $tmp/source/packaging/nyvorel-graphical-login --source $tmp/source/packaging/nyvorel.desktop" ]]
+: > "$NYVOREL_TEST_FULL_SETUP"
+HOME="$tmp/fresh-home" "$tmp/source/setup.sh" --install --yes --no-graphical-login > "$tmp/text-setup.out"
+grep -q 'Start the desktop with' "$tmp/text-setup.out"
+! grep -q '^sudo ' "$NYVOREL_TEST_FULL_SETUP"
+: > "$NYVOREL_TEST_FULL_SETUP"
+if HOME="$tmp/fresh-home" NYVOREL_TEST_BROKEN_SESSION=1 "$tmp/source/setup.sh" --install --yes > "$tmp/broken-setup.out"; then
+  echo 'Graphical login setup accepted a broken session' >&2; exit 1
+fi
+! grep -q '^sudo ' "$NYVOREL_TEST_FULL_SETUP"
+
+mkdir -p "$tmp/package/bin" "$tmp/package-source"
+cat > "$tmp/package/install.sh" <<'MOCK'
+#!/usr/bin/env bash
+echo "materialize $*" >> "$NYVOREL_TEST_FULL_SETUP"
+MOCK
+for helper in nyvorel-color-env nyvorel-first-run nyvorel-session nyvorel-update; do
+  cat > "$tmp/package/bin/$helper" <<'MOCK'
+#!/usr/bin/env bash
+echo "${0##*/} $*" >> "$NYVOREL_TEST_FULL_SETUP"
+MOCK
+done
+chmod +x "$tmp/package/install.sh" "$tmp/package/bin/"*
+export NYVOREL_PACKAGE_LIB_ROOT="$tmp/package"
+export NYVOREL_SOURCE_ROOT="$tmp/package-source"
+: > "$NYVOREL_TEST_FULL_SETUP"
+HOME="$tmp/fresh-home" "$root/packaging/nyvorel-package-install" --with-graphical-login --dry-run
+grep -qx 'materialize --dry-run' "$NYVOREL_TEST_FULL_SETUP"
+! grep -q '^sudo ' "$NYVOREL_TEST_FULL_SETUP"
+: > "$NYVOREL_TEST_FULL_SETUP"
+HOME="$tmp/fresh-home" "$root/packaging/nyvorel-package-install" --with-graphical-login --yes
+asserted_setup="$(tail -n 2 "$NYVOREL_TEST_FULL_SETUP")"
+[[ "$asserted_setup" == $'nyvorel-session --check\n'"sudo /usr/bin/python3 -I $tmp/package/bin/nyvorel-graphical-login --package" ]]
+PYTHONDONTWRITEBYTECODE=1 python3 "$root/scripts/ci/test-graphical-login.py"
 echo 'PASS setup plan/consent/live guard/existing-install refusal and session activation'

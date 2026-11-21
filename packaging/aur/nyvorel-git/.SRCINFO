@@ -30,6 +30,7 @@ pkgbase = nyvorel-git
 	depends = jq
 	depends = bc
 	depends = matugen
+	optdepends = sddm: Graphical login and boot-to-Nyvorel setup.
 	optdepends = libnotify: Desktop notifications and fallback user feedback.
 	optdepends = wl-clipboard: Clipboard integration and clipboard history transport.
 	optdepends = cliphist: Clipboard history storage and decoding.

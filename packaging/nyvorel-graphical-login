@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Register the Nyvorel session and provision SDDM on a fresh system."""
+
+import argparse
+import os
+from pathlib import Path
+import pwd
+import stat
+import subprocess
+import tempfile
+
+
+LOCAL_LAUNCHER = Path("/usr/local/bin/nyvorel-session")
+LOCAL_SESSION = Path("/usr/local/share/wayland-sessions/nyvorel.desktop")
+PACKAGE_SESSION = Path("/usr/share/wayland-sessions/nyvorel.desktop")
+SDDM_SERVICE = "sddm.service"
+
+SOURCE_LAUNCHER = b"""#!/bin/sh
+launcher="${HOME:?HOME is required}/.local/bin/nyvorel"
+if [ -x "$launcher" ]; then
+    exec "$launcher" session
+fi
+exec /usr/bin/nyvorel session
+"""
+
+
+def systemctl(*args: str) -> str:
+    return subprocess.check_output(["/usr/bin/systemctl", *args], text=True).strip()
+
+
+def installed_manager(root: Path) -> str:
+    info = systemctl(
+        "show", "display-manager.service", "--property=LoadState,FragmentPath"
+    )
+    fields = dict(line.split("=", 1) for line in info.splitlines())
+    if fields.get("LoadState") == "not-found":
+        alias = root / "etc/systemd/system/display-manager.service"
+        if os.path.lexists(alias):
+            raise RuntimeError(f"{alias} is configured but systemd cannot load it")
+        if systemctl("show", SDDM_SERVICE, "--property=ActiveState", "--value") == "active":
+            return SDDM_SERVICE
+        return ""
+    fragment = fields.get("FragmentPath")
+    return Path(fragment).name if fragment else "display-manager.service"
+
+
+def publish(
+    path: Path, data: bytes, mode: int, created: list[Path], owner: tuple[int, int] | None = None
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(prefix=".nyvorel-login-", dir=path.parent) as pending:
+        pending.write(data)
+        pending.flush()
+        if owner is not None:
+            os.fchown(pending.fileno(), *owner)
+        os.fchmod(pending.fileno(), mode)
+        # Link only when the destination is absent. An existing file is never replaced.
+        os.link(pending.name, path)
+        created.append(path)
+
+
+def source_session(template: Path) -> bytes:
+    desktop = template.read_bytes()
+    if b"\nExec=/usr/bin/nyvorel session\n" not in desktop or b"\nTryExec=/usr/bin/nyvorel\n" not in desktop:
+        raise RuntimeError(f"Unexpected Nyvorel session entry: {template}")
+    return desktop.replace(
+        b"Exec=/usr/bin/nyvorel session\n", f"Exec={LOCAL_LAUNCHER}\n".encode()
+    ).replace(
+        b"TryExec=/usr/bin/nyvorel\n", f"TryExec={LOCAL_LAUNCHER}\n".encode()
+    )
+
+
+def ensure_local_file(path: Path, data: bytes, mode: int, created: list[Path]) -> None:
+    if os.path.lexists(path):
+        existing = path.lstat()
+        if (not stat.S_ISREG(existing.st_mode) or existing.st_uid != os.geteuid()
+                or stat.S_IMODE(existing.st_mode) & 0o022 or path.read_bytes() != data
+                or (mode & 0o111 and not os.access(path, os.X_OK))):
+            raise RuntimeError(f"Refusing to replace existing session file: {path}")
+        return
+    publish(path, data, mode, created)
+
+
+def configure(kind: str, template: Path | None = None, root: Path = Path("/")) -> None:
+    manager = installed_manager(root)
+    session = LOCAL_SESSION if kind == "source" else PACKAGE_SESSION
+    local_launcher = root / LOCAL_LAUNCHER.relative_to("/")
+    local_entry = root / LOCAL_SESSION.relative_to("/")
+    package_entry = root / PACKAGE_SESSION.relative_to("/")
+    created: list[Path] = []
+    sddm_enabled = False
+    seeded_session = False
+    try:
+        if kind == "source":
+            assert template is not None
+            ensure_local_file(local_launcher, SOURCE_LAUNCHER, 0o755, created)
+            ensure_local_file(local_entry, source_session(template), 0o644, created)
+        else:
+            if not package_entry.is_file() or not os.access(root / "usr/bin/nyvorel", os.X_OK):
+                raise RuntimeError(f"Packaged session entry is missing: {session}")
+            if os.path.lexists(local_entry):
+                ensure_local_file(local_launcher, SOURCE_LAUNCHER, 0o755, created)
+                ensure_local_file(local_entry, source_session(package_entry), 0o644, created)
+                session = LOCAL_SESSION
+
+        if manager:
+            print(f"Registered Nyvorel. Select it at your existing {manager} login screen.")
+            return
+
+        account = pwd.getpwnam("sddm")
+        # SDDM uses the absolute desktop-entry path in its remembered session.
+        # Seed it once on a new installation, then let SDDM remember users' choices.
+        state = root / Path(account.pw_dir).relative_to("/") / "state.conf"
+        if not os.path.lexists(state):
+            publish(state, f"[Last]\nSession={session}\n".encode(), 0o600, created,
+                    (account.pw_uid, account.pw_gid))
+            seeded_session = True
+
+        systemctl("enable", SDDM_SERVICE)
+        sddm_enabled = True
+        if systemctl("get-default") != "graphical.target":
+            systemctl("set-default", "graphical.target")
+    except (Exception, KeyboardInterrupt):
+        try:
+            if sddm_enabled:
+                systemctl("disable", SDDM_SERVICE)
+        finally:
+            for path in reversed(created):
+                path.unlink(missing_ok=True)
+        raise
+
+    print("SDDM will start at boot.")
+    if seeded_session:
+        print("Sign in with your normal account to open Nyvorel.")
+    else:
+        print("Select Nyvorel in SDDM's session menu on your first sign-in.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--source", type=Path, metavar="DESKTOP_FILE")
+    mode.add_argument("--package", action="store_true")
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error("system login setup requires administrator privileges")
+    try:
+        configure("package" if args.package else "source", args.source)
+    except (OSError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f"Graphical login setup failed: {error}\n")
+
+
+if __name__ == "__main__":
+    main()

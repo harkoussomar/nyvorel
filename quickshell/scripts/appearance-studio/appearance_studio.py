@@ -340,7 +340,6 @@ EDITOR_SETTINGS = [
 TARGET_FILES = {
     "shell": [COLORS_JSON],
     "hyprland": [XDG_CONFIG / "hypr/hyprland/colors.lua"],
-    "hyprlock": [XDG_CONFIG / "hypr/hyprlock/colors.conf"],
     "fuzzel": [XDG_CONFIG / "fuzzel/fuzzel_theme.ini"],
     "gtk": [XDG_CONFIG / "gtk-3.0/gtk.css", XDG_CONFIG / "gtk-4.0/gtk.css"],
     "editors": EDITOR_SETTINGS,
@@ -438,7 +437,6 @@ def _default_state() -> dict[str, Any]:
         "targets": {
             "shell": True,
             "hyprland": True,
-            "hyprlock": True,
             "gtk": True,
             "fuzzel": True,
             # II's bundled KDE bridge attempts to talk to KWin. On Hyprland
@@ -461,6 +459,7 @@ def _load_state() -> dict[str, Any]:
         state.setdefault(key, deepcopy(value))
     for key, value in default["targets"].items():
         state["targets"].setdefault(key, value)
+    state["targets"].pop("hyprlock", None)
     if not isinstance(state.get("activeUi"), dict):
         state["activeUi"] = _config_snapshot()
     active = state.get("active")
@@ -3398,7 +3397,7 @@ def main() -> int:
     p.add_argument("id", choices=sorted(set(UI_PROFILES) | set(LEGACY_UI_PROFILE_ALIASES)))
 
     p = sub.add_parser("target")
-    p.add_argument("name", choices=["shell", "hyprland", "hyprlock", "gtk", "fuzzel", "qt", "terminal", "editors"])
+    p.add_argument("name", choices=["shell", "hyprland", "gtk", "fuzzel", "qt", "terminal", "editors"])
     p.add_argument("enabled", choices=["true", "false", "1", "0"])
 
     p = sub.add_parser("favorite-add")
