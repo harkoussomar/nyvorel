@@ -1,4 +1,4 @@
-import qs.modules.common.widgets.shapes
+import "shapes"
 import "shapes/material-shapes.js" as MaterialShapes
 
 ShapeCanvas {

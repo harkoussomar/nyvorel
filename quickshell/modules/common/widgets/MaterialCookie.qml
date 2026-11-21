@@ -1,8 +1,5 @@
 import QtQuick
-import QtQuick.Shapes
-import Quickshell
-import qs.modules.common
-import qs.modules.common.widgets.shapes
+import "shapes"
 import "shapes/geometry/offset.js" as Offset
 import "shapes/shapes/corner-rounding.js" as CornerRounding
 import "shapes/shapes/rounded-polygon.js" as RoundedPolygon

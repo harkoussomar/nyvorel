@@ -2,6 +2,7 @@
 """Register the Nyvorel session and provision SDDM on a fresh system."""
 
 import argparse
+from configparser import Error as ConfigError, RawConfigParser
 import os
 from pathlib import Path
 import pwd
@@ -13,6 +14,16 @@ import tempfile
 LOCAL_LAUNCHER = Path("/usr/local/bin/nyvorel-session")
 LOCAL_SESSION = Path("/usr/local/share/wayland-sessions/nyvorel.desktop")
 PACKAGE_SESSION = Path("/usr/share/wayland-sessions/nyvorel.desktop")
+LOCAL_THEME = Path("/usr/local/share/sddm/themes/nyvorel")
+PACKAGE_THEME = Path("/usr/share/sddm/themes/nyvorel")
+SDDM_THEME_CONFIG = Path("/etc/sddm.conf.d/20-nyvorel-theme.conf")
+THEME_FILES = ("ClockFace.qml", "Main.qml", "metadata.desktop", "theme.conf")
+WALLPAPER = Path("quickshell/assets/images/default_wallpaper.png")
+WIDGETS = Path("quickshell/modules/common/widgets")
+SHARED_WIDGETS = tuple(map(Path, (
+    "MaterialCookie.qml", "MaterialShape.qml", "ToolbarFrame.qml", "ToolbarInput.qml",
+    "shapes/ShapeCanvas.qml", "shapes/LICENSE",
+)))
 SDDM_SERVICE = "sddm.service"
 
 SOURCE_LAUNCHER = b"""#!/bin/sh
@@ -76,9 +87,42 @@ def ensure_local_file(path: Path, data: bytes, mode: int, created: list[Path]) -
         if (not stat.S_ISREG(existing.st_mode) or existing.st_uid != os.geteuid()
                 or stat.S_IMODE(existing.st_mode) & 0o022 or path.read_bytes() != data
                 or (mode & 0o111 and not os.access(path, os.X_OK))):
-            raise RuntimeError(f"Refusing to replace existing session file: {path}")
+            raise RuntimeError(f"Refusing to replace existing login file: {path}")
         return
     publish(path, data, mode, created)
+
+
+def configure_theme(root: Path, template: Path | None, created: list[Path]) -> None:
+    drop_in = root / SDDM_THEME_CONFIG.relative_to("/")
+    if os.path.lexists(drop_in):
+        return
+
+    # A local Current entry, including an empty choice, belongs to the administrator.
+    config = RawConfigParser(strict=False, delimiters=("=",), allow_no_value=True)
+    config.optionxform = str
+    config.read([*sorted(drop_in.parent.glob("*.conf")), root / "etc/sddm.conf"], encoding="utf-8-sig")
+    if config.has_option("Theme", "Current"):
+        return
+
+    theme = LOCAL_THEME if template else PACKAGE_THEME
+    destination = root / theme.relative_to("/")
+    if template:
+        source = template.parent / "sddm/nyvorel"
+        project = template.parent.parent
+        for name in THEME_FILES:
+            ensure_local_file(destination / name, (source / name).read_bytes(), 0o644, created)
+        ensure_local_file(destination / "wallpaper.png", (project / WALLPAPER).read_bytes(), 0o644, created)
+        widgets = project / WIDGETS
+        shape_scripts = sorted((widgets / "shapes").rglob("*.js"))
+        for path in (*SHARED_WIDGETS, *(script.relative_to(widgets) for script in shape_scripts)):
+            ensure_local_file(destination / "widgets" / path, (widgets / path).read_bytes(), 0o644, created)
+    else:
+        payload = (*THEME_FILES, "wallpaper.png", *(Path("widgets") / path for path in SHARED_WIDGETS))
+        if not all((destination / path).is_file() for path in payload):
+            raise RuntimeError(f"Packaged SDDM theme is missing files: {theme}")
+
+    # SDDM accepts an absolute theme path, leaving the system ThemeDir available.
+    publish(drop_in, f"[Theme]\nCurrent={theme}\n".encode(), 0o644, created)
 
 
 def configure(kind: str, template: Path | None = None, root: Path = Path("/")) -> None:
@@ -107,6 +151,7 @@ def configure(kind: str, template: Path | None = None, root: Path = Path("/")) -
             print(f"Registered Nyvorel. Select it at your existing {manager} login screen.")
             return
 
+        configure_theme(root, template, created)
         account = pwd.getpwnam("sddm")
         # SDDM uses the absolute desktop-entry path in its remembered session.
         # Seed it once on a new installation, then let SDDM remember users' choices.
@@ -146,7 +191,7 @@ def main() -> None:
         parser.error("system login setup requires administrator privileges")
     try:
         configure("package" if args.package else "source", args.source)
-    except (OSError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
+    except (OSError, KeyError, RuntimeError, ConfigError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Graphical login setup failed: {error}\n")
 
 

@@ -100,6 +100,10 @@ package() {
 
   install -Dm755 "$_src/bin/nyvorel" "$pkgdir/usr/bin/nyvorel"
   install -Dm644 "$_src/packaging/nyvorel.desktop" "$pkgdir/usr/share/wayland-sessions/nyvorel.desktop"
+  local _sddm_theme="$pkgdir/usr/share/sddm/themes/nyvorel"
+  install -Dm644 -t "$_sddm_theme" "$_src/packaging/sddm/nyvorel/"{ClockFace.qml,Main.qml,metadata.desktop,theme.conf}
+  ln -s ../../../nyvorel/quickshell/assets/images/default_wallpaper.png "$_sddm_theme/wallpaper.png"
+  ln -s ../../../nyvorel/quickshell/modules/common/widgets "$_sddm_theme/widgets"
   install -Dm755 "$_src/install.sh" "$pkgdir/usr/lib/nyvorel/install.sh"
   install -Dm755 "$_src/uninstall.sh" "$pkgdir/usr/lib/nyvorel/uninstall.sh"
 

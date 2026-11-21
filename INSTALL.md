@@ -47,13 +47,14 @@ environment fetches a version-pinned binary wheel from PyPI unless
 `--wheelhouse PATH` points to a reviewed local wheel.
 
 On a fresh Arch installation, setup installs SDDM and configures it to start
-at the next boot, with Nyvorel preselected. Use your normal account and password
-at the graphical login. Hyprland then starts with Nyvorel's configuration and
-activates Quickshell and the user services.
+at the next boot with the Nyvorel sign-in theme and session preselected. Use
+your normal account and password. The desktop session picker appears when
+SDDM finds multiple sessions. Hyprland then starts with Nyvorel's configuration
+and activates Quickshell and the user services.
 
 If a display manager is already configured, setup registers Nyvorel and keeps
-that manager and its saved session choice. Select **Nyvorel** in the session menu.
-SDDM remembers the selection after a successful login.
+that manager, its theme, and its saved session choice. Select **Nyvorel** in
+the session menu. SDDM remembers the selection after a successful login.
 
 Use `--no-graphical-login` for a text-console setup. Sign in at the console
 and run `~/.local/bin/nyvorel session` to launch the desktop manually.
@@ -93,7 +94,10 @@ The source setup registers a system-wide session at
 `/usr/local/share/wayland-sessions/nyvorel.desktop` with a launcher at
 `/usr/local/bin/nyvorel-session`. The user-file uninstaller manages the home
 directory. Remove these two system files as an administrator if you also want
-to remove the source session entry. To return a machine using SDDM to text
+to remove the source session entry. When source setup provisions the Nyvorel
+SDDM theme, its files live in `/usr/local/share/sddm/themes/nyvorel` and its
+theme selection lives in `/etc/sddm.conf.d/20-nyvorel-theme.conf`.
+To return a machine using SDDM to text
 login, run `sudo systemctl disable sddm.service` and
 `sudo systemctl set-default multi-user.target` before the next boot.
 
@@ -269,7 +273,16 @@ nyvorel install --with-graphical-login --yes
 ```
 
 Use `nyvorel install --yes` for user-file materialization alone. Pacman owns
-the packaged session entry in `/usr/share/wayland-sessions`.
+the packaged session entry in `/usr/share/wayland-sessions` and the sign-in
+theme in `/usr/share/sddm/themes/nyvorel`.
+
+On an existing SDDM installation, you can choose the packaged theme by setting
+`Current=nyvorel` in the `[Theme]` section of your SDDM configuration. The
+greeter uses the same toolbar, password field, and Material shapes as the
+lock screen, with a system-wide wallpaper and color palette. To customize the
+wallpaper, set `background` under `[General]` in the theme's `theme.conf.user`
+to an image readable by SDDM. The same file accepts Material color overrides
+such as `primary`, `onPrimary`, and `surfaceContainer`.
 
 After a package upgrade:
 

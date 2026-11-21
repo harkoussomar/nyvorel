@@ -5,6 +5,7 @@ from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -26,6 +27,8 @@ class GraphicalLoginTest(unittest.TestCase):
         self.session = self.root / login.LOCAL_SESSION.relative_to("/")
         self.launcher = self.root / login.LOCAL_LAUNCHER.relative_to("/")
         self.saved_session = self.root / "var/lib/sddm/state.conf"
+        self.theme = self.root / login.LOCAL_THEME.relative_to("/")
+        self.theme_config = self.root / login.SDDM_THEME_CONFIG.relative_to("/")
         self.manager = ""
         self.active = False
         self.default = "multi-user.target"
@@ -60,6 +63,16 @@ class GraphicalLoginTest(unittest.TestCase):
         executable.parent.mkdir(parents=True)
         executable.write_text("#!/bin/sh\n")
         executable.chmod(0o755)
+        package_theme = self.root / login.PACKAGE_THEME.relative_to("/")
+        shutil.copytree(TEMPLATE.parent / "sddm/nyvorel", package_theme)
+        wallpaper = self.root / "usr/share/nyvorel" / login.WALLPAPER
+        wallpaper.parent.mkdir(parents=True)
+        wallpaper.write_bytes(b"packaged wallpaper")
+        (package_theme / "wallpaper.png").symlink_to(os.path.relpath(wallpaper, package_theme))
+        widgets = self.root / "usr/share/nyvorel" / login.WIDGETS
+        widgets.parent.mkdir(parents=True)
+        shutil.copytree(ROOT / login.WIDGETS, widgets)
+        (package_theme / "widgets").symlink_to(os.path.relpath(widgets, package_theme), target_is_directory=True)
 
     def mutations(self):
         return [args for args in self.calls if args[0] not in {"show", "get-default"}]
@@ -70,6 +83,10 @@ class GraphicalLoginTest(unittest.TestCase):
         self.assertIn(f"TryExec={login.LOCAL_LAUNCHER}\n", self.session.read_text())
         self.assertEqual(self.saved_session.read_text(), f"[Last]\nSession={login.LOCAL_SESSION}\n")
         self.assertEqual(self.saved_session.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.theme_config.read_text(), f"[Theme]\nCurrent={login.LOCAL_THEME}\n")
+        self.assertCountEqual([path.name for path in self.theme.iterdir()], (*login.THEME_FILES, "wallpaper.png", "widgets"))
+        for widget in (*login.SHARED_WIDGETS, Path("shapes/shapes/morph.js")):
+            self.assertEqual((self.theme / "widgets" / widget).read_bytes(), (ROOT / login.WIDGETS / widget).read_bytes())
         self.assertEqual(self.mutations(), [
             ("enable", "sddm.service"), ("set-default", "graphical.target"),
         ])
@@ -92,6 +109,16 @@ class GraphicalLoginTest(unittest.TestCase):
                 self.assertTrue(self.session.is_file())
                 self.assertEqual(self.mutations(), [])
                 self.assertIn("/other.desktop", self.saved_session.read_text())
+                self.assertFalse(self.theme_config.exists())
+
+    def test_preserves_administrator_theme_when_enabling_sddm(self):
+        config = self.root / "etc/sddm.conf"
+        config.parent.mkdir(parents=True)
+        config.write_text("[Theme]\nCurrent=corners\n")
+        self.install_source()
+        self.assertEqual(config.read_text(), "[Theme]\nCurrent=corners\n")
+        self.assertFalse(self.theme_config.exists())
+        self.assertFalse(self.theme.exists())
 
     def test_running_sddm_without_alias_is_preserved(self):
         self.active = True
@@ -115,6 +142,8 @@ class GraphicalLoginTest(unittest.TestCase):
         self.assertFalse(self.session.exists())
         self.assertFalse(self.launcher.exists())
         self.assertFalse(self.saved_session.exists())
+        self.assertFalse(self.theme_config.exists())
+        self.assertFalse(any(path.is_file() for path in self.theme.rglob("*")))
 
     def test_custom_session_entry_is_never_overwritten(self):
         self.session.parent.mkdir(parents=True)
@@ -139,6 +168,7 @@ class GraphicalLoginTest(unittest.TestCase):
         self.install_packaged_entry()
         login.configure("package", root=self.root)
         self.assertEqual(self.saved_session.read_text(), f"[Last]\nSession={login.PACKAGE_SESSION}\n")
+        self.assertEqual(self.theme_config.read_text(), f"[Theme]\nCurrent={login.PACKAGE_THEME}\n")
         self.assertFalse(self.launcher.exists())
 
     def test_packaged_setup_after_source_keeps_session_path(self):

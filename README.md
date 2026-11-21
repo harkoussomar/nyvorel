@@ -245,10 +245,11 @@ For optional Zed, Kate, Ark, btop and appearance utilities, add
 `--with-recording` adds recording tools. Review `./setup.sh --help` before
 selecting options, especially the GPU-specific Vulkan driver for Zed.
 
-On a fresh Arch installation, setup installs SDDM, enables graphical login for
-the next boot, and preselects Nyvorel. Sign in with your normal account and
-Hyprland, Quickshell, and Nyvorel's user services start automatically. If you
-already have a display manager, select **Nyvorel** in its session menu once.
+On a fresh Arch installation, setup installs SDDM with a sign-in theme based on
+Nyvorel's lock screen, enables graphical login for the next boot, and preselects
+Nyvorel. Sign in with your normal account to start Hyprland, Quickshell, and
+Nyvorel's user services automatically. If you already have a display manager,
+select **Nyvorel** in its session menu once.
 
 Use `--no-graphical-login` for a text-console setup. Start that session with
 `~/.local/bin/nyvorel session`.
