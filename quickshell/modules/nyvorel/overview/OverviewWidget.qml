@@ -110,10 +110,9 @@ Item {
         implicitHeight: workspaceColumnLayout.implicitHeight + padding * 2
         radius:
               root.largeWorkspaceRadius + padding
-        color:
-              Appearance.colors.colBackgroundSurfaceContainer
-        border.width: 0
-        border.color: "transparent"
+        color: ColorUtils.applyAlpha(Appearance.m3colors.m3surfaceContainer,
+            Config.options.appearance.transparency.enable ? 0.76 : 1)
+        border.color: ColorUtils.applyAlpha(Appearance.m3colors.m3outlineVariant, 0.48)
 
         Column { // Workspaces
             id: workspaceColumnLayout
@@ -146,21 +145,11 @@ Item {
                                 || workspaceValue
                                     === root.effectiveActiveWorkspaceId
 
-                            property color defaultWorkspaceColor:
-                                emphasized
-                                    ? Appearance.colors.colSurfaceContainerLow
-                                    : ColorUtils.transparentize(
-                                        Appearance.colors.colSurfaceContainerLow,
-                                        0.48
-                                    )
+                            property color defaultWorkspaceColor: ColorUtils.applyAlpha(
+                                Appearance.m3colors.m3onSurface, emphasized ? 0.10 : 0.05)
 
-                            property color hoveredWorkspaceColor:
-                                ColorUtils.mix(
-                                    defaultWorkspaceColor,
-                                    Appearance.colors.colLayer1Hover,
-                                    0.16
-                                )
-                            property color hoveredBorderColor: Appearance.colors.colLayer2Hover
+                            property color hoveredWorkspaceColor: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.20)
+                            property color hoveredBorderColor: Appearance.colors.colPrimary
                             property bool hoveredWhileDragging: false
 
                             implicitWidth: root.workspaceImplicitWidth
@@ -191,13 +180,9 @@ Item {
                                     weight: Font.DemiBold
                                     family: Appearance.font.family.expressive
                                 }
-                                color:
-                                    ColorUtils.transparentize(
-                                        Appearance.colors.colOnLayer1,
-                                        workspace.emphasized
-                                            ? 0.82
-                                            : 0.92
-                                    )
+                                color: workspace.emphasized ? Appearance.m3colors.m3onSurface
+                                    : ColorUtils.mix(Appearance.m3colors.m3onSurface,
+                                        Appearance.m3colors.m3onSurfaceVariant, 0.65)
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }

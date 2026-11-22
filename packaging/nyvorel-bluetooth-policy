@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Disable BlueZ adapter auto-power during full Nyvorel setup."""
+
+import os
+from pathlib import Path
+import re
+import stat
+import tempfile
+
+
+BLUEZ_CONFIG = Path("/etc/bluetooth/main.conf")
+
+
+def with_startup_default(original: bytes) -> bytes:
+    newline = b"\r\n" if b"\r\n" in original else b"\n"
+    setting = b"AutoEnable=false" + newline
+    sections = list(re.finditer(rb"(?m)^[ \t]*\[([^\r\n\]]+)\][ \t]*\r?$", original))
+    policy = None
+    for index, section in enumerate(sections):
+        if section[1] != b"Policy":
+            continue
+        end = sections[index + 1].start() if index + 1 < len(sections) else len(original)
+        if re.search(rb"(?m)^[ \t]*AutoEnable[ \t]*=", original[section.end():end]):
+            return original
+        policy = section
+    if policy is None:
+        separator = b""
+        if original and not original.endswith(b"\n"):
+            separator = newline
+        return original + separator + b"[Policy]" + newline + setting
+    # Insert inside the section, leaving BlueZ's comments and other settings intact.
+    end_of_header = original.find(b"\n", policy.end())
+    if end_of_header == -1:
+        return original + newline + setting
+    position = end_of_header + 1
+    return original[:position] + setting + original[position:]
+
+
+def apply_default(config: Path) -> None:
+    if not config.parent.is_dir():
+        return
+    try:
+        info = config.lstat()
+    except FileNotFoundError:
+        info = None
+    if info and (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()):
+        print(f"Preserving administrator-managed BlueZ configuration at {config}.")
+        return
+    original = config.read_bytes() if info else b""
+    updated = with_startup_default(original)
+    if original == updated:
+        print("Preserving the existing BlueZ AutoEnable choice.")
+        return
+
+    with tempfile.TemporaryDirectory(prefix=".nyvorel-bluez-", dir=config.parent) as directory:
+        pending = Path(directory) / config.name
+        pending.write_bytes(updated)
+        if info:
+            os.chown(pending, info.st_uid, info.st_gid)
+        pending.chmod(stat.S_IMODE(info.st_mode) if info else 0o644)
+        if info:
+            with tempfile.NamedTemporaryFile(prefix="main.conf.before-nyvorel-", dir=config.parent, delete=False) as backup:
+                backup.write(original)
+                os.fchown(backup.fileno(), info.st_uid, info.st_gid)
+                os.fchmod(backup.fileno(), stat.S_IMODE(info.st_mode))
+            if config.is_symlink() or config.read_bytes() != original:
+                raise RuntimeError(f"BlueZ configuration changed while updating {config}.")
+            pending.replace(config)
+            print(f"BlueZ starts with Bluetooth off. Previous configuration saved to {backup.name}.")
+        else:
+            os.link(pending, config)
+            print("BlueZ starts with Bluetooth off.")
+
+
+if __name__ == "__main__":
+    if os.geteuid() != 0:
+        raise SystemExit("Changing the BlueZ startup policy requires administrator privileges.")
+    try:
+        apply_default(BLUEZ_CONFIG)
+    except (OSError, RuntimeError) as error:
+        raise SystemExit(f"Could not set the BlueZ startup policy: {error}") from error

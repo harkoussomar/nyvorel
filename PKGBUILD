@@ -115,6 +115,7 @@ package() {
   done
   install -m755 "$_src/packaging/nyvorel-package-install"     "$_helpers/nyvorel-package-install"
   install -m755 "$_src/packaging/nyvorel-graphical-login" "$_helpers/nyvorel-graphical-login"
+  install -m755 "$_src/packaging/nyvorel-bluetooth-policy" "$_helpers/nyvorel-bluetooth-policy"
 
   install -d "$_share"
   for _dir in quickshell hypr matugen integrations dependencies assets; do

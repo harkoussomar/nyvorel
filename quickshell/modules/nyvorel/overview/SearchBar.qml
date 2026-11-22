@@ -97,7 +97,8 @@ RowLayout {
 
         background: Rectangle {
             radius: lensButton.buttonRadius
-            color: lensButton.down ? root.activeColor : lensButton.hovered ? root.hoverColor : root.surfaceColor
+            color: Qt.tint(root.surfaceColor, lensButton.down ? root.activeColor
+                : lensButton.hovered ? root.hoverColor : "transparent")
             border.width: lensButton.visualFocus ? 2 : 1
             border.color: lensButton.visualFocus ? root.focusOutline : root.outline
         }
@@ -124,8 +125,8 @@ RowLayout {
 
         background: Rectangle {
             radius: musicButton.buttonRadius
-            color: musicButton.toggled || musicButton.down ? root.activeColor
-                : musicButton.hovered ? root.hoverColor : root.surfaceColor
+            color: Qt.tint(root.surfaceColor, musicButton.toggled || musicButton.down ? root.activeColor
+                : musicButton.hovered ? root.hoverColor : "transparent")
             border.width: musicButton.visualFocus ? 2 : 1
             border.color: musicButton.visualFocus ? root.focusOutline
                 : musicButton.toggled ? root.activeOutline : root.outline

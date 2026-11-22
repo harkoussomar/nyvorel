@@ -21,15 +21,22 @@ FocusScope {
     property string selectedResultKey: ""
     property bool navigatingEmoji: false
     property bool selectionMoved: false
+    // Use the Workbench side-pane tint over the actual bar surface.
     readonly property color resultsBackground: attachedToBar
-        ? ColorUtils.mix(ColorUtils.applyAlpha(Appearance.barVisual.attachedSurfaceFill, 1), Appearance.m3colors.m3onSurface, 0.91)
+        ? ColorUtils.transparentize(Appearance.m3colors.m3background, 0.78)
         : ColorUtils.applyAlpha(Appearance.m3colors.m3surfaceContainer, 1)
     readonly property color surfaceOutline: attachedToBar
-        ? ColorUtils.mix(resultsBackground, Appearance.m3colors.m3onSurface, 0.88)
+        ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.86)
         : Appearance.m3colors.m3outlineVariant
-    readonly property color resultHighlight: ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.78)
-    readonly property color resultOutline: ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.40)
-    readonly property color resultHover: ColorUtils.mix(resultsBackground, Appearance.m3colors.m3onSurface, 0.91)
+    readonly property color resultHighlight: attachedToBar
+        ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.84)
+        : ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.78)
+    readonly property color resultOutline: attachedToBar
+        ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.66)
+        : ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.40)
+    readonly property color resultHover: attachedToBar
+        ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.93)
+        : ColorUtils.mix(resultsBackground, Appearance.m3colors.m3onSurface, 0.91)
 
     implicitWidth: Math.min(720, Math.max(1, availableWidth - 32))
     implicitHeight: content.implicitHeight + 16

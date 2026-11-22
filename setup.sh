@@ -137,6 +137,7 @@ printf '  Core official packages (%d): %s\n' "${#core[@]}" "${core[*]}"
 (( recording == 0 )) || printf '  Recording:   %s\n' "${recording_packages[*]}"
 printf '  NetworkManager activation: %s\n' "$([[ "$enable_networkmanager" == 1 ]] && echo requested || echo no)"
 printf '  Follow-up: backed-up user install, isolated color environment, default wallpaper/palette.\n'
+printf '  Bluetooth: leave adapters off at startup when BlueZ is installed and AutoEnable is unset.\n'
 if (( graphical_login )); then
   printf '  Graphical login: install SDDM, register Nyvorel, and enable SDDM at boot if no display manager is configured.\n'
   printf '  First login: sign in with your normal account to launch Nyvorel.\n'
@@ -237,6 +238,9 @@ first_run_args=(--initialize --yes)
 "$cli" first-run "${first_run_args[@]}"
 "$cli" first-run --check
 "$cli" session --check
+if [[ -d /etc/bluetooth ]]; then
+  sudo /usr/bin/python3 -I "$root/packaging/nyvorel-bluetooth-policy"
+fi
 if (( graphical_login )); then
   sudo /usr/bin/python3 -I "$root/packaging/nyvorel-graphical-login" --source "$root/packaging/nyvorel.desktop"
 else

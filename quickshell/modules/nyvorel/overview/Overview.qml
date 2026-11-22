@@ -26,9 +26,10 @@ Scope {
         visible: GlobalStates.overviewOpen && !remappingLayer
         readonly property bool verticalBar: Config.options.bar.vertical
         readonly property bool oppositeEdge: Config.options.bar.bottom
-        readonly property bool attachedToBar: !overviewScope.workspaceMode && GlobalStates.barOpen && !GlobalStates.screenLocked
+        readonly property bool attachedToBar: GlobalStates.barOpen && !GlobalStates.screenLocked
             && Config.options.bar.showBackground && !!screen
             && (Config.options.bar.screenList.length === 0 || Config.options.bar.screenList.includes(screen.name))
+        readonly property bool joinedAtBottom: attachedToBar && !verticalBar && oppositeEdge
         readonly property real barGap: Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0
         readonly property real joinOffset: Math.max(0,
             (verticalBar ? Appearance.sizes.verticalBarWidth : Appearance.sizes.barHeight) - barGap - 1)
@@ -57,6 +58,7 @@ Scope {
         Region {
             id: glassOverviewVisibleMask
             item: presentation
+            Region { item: overviewLoader.visible ? overviewLoader : null }
         }
         HyprlandWindow.visibleMask:
             Config.options.appearance.transparency.enable
@@ -83,6 +85,9 @@ Scope {
                 && !GlobalStates.regionSelectorOpen
                     ? presentation
                     : null
+            Region {
+                item: overviewLoader.visible && !GlobalStates.regionSelectorOpen ? overviewLoader : null
+            }
         }
 
         anchors {
@@ -154,9 +159,6 @@ Scope {
                 GlobalStates.overviewOpen = false
             }
         }
-        implicitWidth: presentation.width
-        implicitHeight: presentation.height
-
         function setSearchingText(text) {
             searchWidget.setSearchingText(text);
             searchWidget.focusFirstItem();
@@ -173,8 +175,8 @@ Scope {
 
             visible: GlobalStates.overviewOpen
             enabled: !GlobalStates.regionSelectorOpen
-            width: columnLayout.implicitWidth + horizontalPadding * 2
-            height: columnLayout.implicitHeight + verticalPadding * 2
+            width: searchWidget.implicitWidth + horizontalPadding * 2
+            height: searchWidget.implicitHeight + verticalPadding * 2
             x: panelWindow.attachedToBar && panelWindow.verticalBar
                 ? panelWindow.oppositeEdge ? parent.width - panelWindow.joinOffset - width : panelWindow.joinOffset
                 : Math.round((parent.width - width) / 2)
@@ -194,45 +196,45 @@ Scope {
                 strokeColor: Appearance.colors.colLayer0Border
             }
 
-            Column {
-                id: columnLayout
+            SearchWidget {
+                id: searchWidget
                 x: presentation.horizontalPadding
                 y: presentation.verticalPadding
-                // OVERVIEW-UI-PRIORITY-V2.4
-                // Search and workspace overview are separate hierarchy layers.
-                spacing: 8
+                attachedToBar: panelWindow.attachedToBar
+                availableWidth: Math.max(1, panelWindow.width - presentation.horizontalPadding * 2
+                    - (panelWindow.attachedToBar && panelWindow.verticalBar ? panelWindow.joinOffset : 0))
+                availableHeight: Math.max(1, panelWindow.height - presentation.verticalPadding * 2
+                    - (panelWindow.attachedToBar && !panelWindow.verticalBar ? panelWindow.joinOffset : 0))
+            }
 
-                Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Escape) {
-                        GlobalStates.overviewOpen = false;
-                    } else if (event.key === Qt.Key_Left) {
-                        if (overviewScope.workspaceMode && !panelWindow.searchingText)
-                            HyprNative.workspace("r-1");
-                    } else if (event.key === Qt.Key_Right) {
-                        if (overviewScope.workspaceMode && !panelWindow.searchingText)
-                            HyprNative.workspace("r+1");
-                    }
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_Escape) {
+                    GlobalStates.overviewOpen = false;
+                } else if (overviewScope.workspaceMode && !panelWindow.searchingText) {
+                    if (event.key === Qt.Key_Left)
+                        HyprNative.workspace("r-1");
+                    else if (event.key === Qt.Key_Right)
+                        HyprNative.workspace("r+1");
                 }
+            }
+        }
 
-                SearchWidget {
-                    id: searchWidget
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    attachedToBar: panelWindow.attachedToBar
-                    availableWidth: Math.max(1, panelWindow.width - presentation.horizontalPadding * 2
-                        - (panelWindow.attachedToBar && panelWindow.verticalBar ? panelWindow.joinOffset : 0))
-                    availableHeight: Math.max(1, panelWindow.height - presentation.verticalPadding * 2
-                        - (panelWindow.attachedToBar && !panelWindow.verticalBar ? panelWindow.joinOffset : 0))
-                }
+        Loader {
+            id: overviewLoader
 
-                Loader {
-                    id: overviewLoader
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    active: GlobalStates.overviewOpen && overviewScope.workspaceMode && (Config?.options.overview.enable ?? true)
-                    visible: active && panelWindow.searchingText === ""
-                    sourceComponent: OverviewWidget {
-                        screen: panelWindow.screen
-                    }
-                }
+            readonly property int gap: 8
+            // Keep the workspace previews centered in the desktop area beside a vertical bar.
+            readonly property real sideOffset: panelWindow.attachedToBar && panelWindow.verticalBar
+                ? (panelWindow.oppositeEdge ? -panelWindow.joinOffset : panelWindow.joinOffset) : 0
+            x: Math.round((panelWindow.width - width + sideOffset) / 2)
+            y: panelWindow.joinedAtBottom
+                ? presentation.y - height - gap
+                : presentation.y + presentation.height + gap
+            active: GlobalStates.overviewOpen && overviewScope.workspaceMode && (Config?.options.overview.enable ?? true)
+            visible: active && panelWindow.searchingText === ""
+            enabled: !GlobalStates.regionSelectorOpen
+            sourceComponent: OverviewWidget {
+                screen: panelWindow.screen
             }
         }
     }

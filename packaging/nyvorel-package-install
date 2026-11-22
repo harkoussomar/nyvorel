@@ -100,6 +100,7 @@ if (( GRAPHICAL_LOGIN )); then
     echo 'Review --with-graphical-login --dry-run, then pass --with-graphical-login --yes.' >&2; exit 2;
   }
   printf 'Graphical login: initialize Nyvorel, then configure SDDM for boot if no display manager exists.\n'
+  printf 'Bluetooth: leave adapters off at startup when BlueZ is installed and AutoEnable is unset.\n'
 fi
 
 materialize() {
@@ -117,6 +118,9 @@ materialize() {
   "$HELPER_ROOT/nyvorel-session" --check
   if ! pacman -Qq sddm >/dev/null 2>&1; then
     sudo pacman -Syu --needed sddm
+  fi
+  if [[ -d /etc/bluetooth ]]; then
+    sudo /usr/bin/python3 -I "$HELPER_ROOT/nyvorel-bluetooth-policy"
   fi
   sudo /usr/bin/python3 -I "$HELPER_ROOT/nyvorel-graphical-login" --package
 }

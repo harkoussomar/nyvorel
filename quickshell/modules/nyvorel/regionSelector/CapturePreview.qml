@@ -18,6 +18,7 @@ PanelWindow {
 
     readonly property bool copied: !!capture?.copied
     readonly property bool saved: !!capture?.savedPath
+    readonly property bool outputIssue: (!copied && !saved) || (capture?.mode === "both" && (!copied || !saved))
     readonly property string statusText: {
         if (copied && saved)
             return Translation.tr("Copied and saved");
@@ -29,8 +30,8 @@ PanelWindow {
     }
 
     visible: shown && !!capture?.path
-    implicitWidth: Math.max(240, Math.min(430, (screen?.width ?? 462) - 32))
-    implicitHeight: content.implicitHeight + 20
+    implicitWidth: Math.min(400, Math.max(1, (screen?.width ?? 432) - 32))
+    implicitHeight: content.implicitHeight + Appearance.spacing.xl * 2
     anchors { bottom: true; right: true }
     margins { bottom: 16; right: 16 }
     exclusiveZone: 0
@@ -44,96 +45,81 @@ PanelWindow {
         onTriggered: root.dismissed()
     }
 
-    Rectangle {
+    CaptureSurface {
         anchors.fill: parent
-        radius: Appearance.radius.bar
-        color: Appearance.m3colors.m3surfaceContainer
-        border.color: Appearance.m3colors.m3outlineVariant
 
         HoverHandler { id: hover }
 
         ColumnLayout {
             id: content
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 7
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 110
-                radius: Appearance.radius.control
-                color: Appearance.m3colors.m3surfaceContainerLowest
-                clip: true
-
-                Image {
-                    anchors.fill: parent
-                    anchors.margins: 4
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    cache: false
-                    source: root.capture?.path ? "file://" + encodeURI(root.capture.path) : ""
-                }
-            }
+            anchors.margins: Appearance.spacing.xl
+            spacing: Appearance.spacing.md
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Appearance.spacing.md
 
                 MaterialSymbol {
-                    text: root.copied || root.saved ? "check_circle" : "info"
+                    text: root.outputIssue ? "info" : "check_circle"
                     iconSize: 18
-                    color: Appearance.colors.colPrimary
+                    color: root.outputIssue ? Appearance.material.error : Appearance.material.accent
                 }
                 StyledText {
                     Layout.fillWidth: true
                     text: root.statusText
                     elide: Text.ElideRight
-                    color: Appearance.m3colors.m3onSurface
+                    color: Appearance.material.textPrimary
+                    font.weight: Font.DemiBold
                 }
                 CaptureButton {
                     iconName: "close"
                     text: Translation.tr("Close preview")
                     showLabel: false
+                    Layout.preferredWidth: 36
                     onClicked: root.dismissed()
                 }
             }
 
-            Flow {
-                id: actions
+            Image {
                 Layout.fillWidth: true
-                spacing: 4
-                readonly property bool compact: width < 370
+                Layout.preferredHeight: Math.min(160, Math.round(root.width * 0.44))
+                visible: status !== Image.Error
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+                sourceSize.width: 800
+                sourceSize.height: 320
+                source: root.capture?.path ? "file://" + encodeURI(root.capture.path) : ""
+            }
 
-                CaptureButton {
-                    iconName: "edit"
-                    text: Translation.tr("Annotate")
-                    showLabel: !actions.compact
-                    onClicked: root.actionRequested("annotate")
-                }
-                CaptureButton {
-                    iconName: "text_select_start"
-                    text: Translation.tr("Copy text")
-                    showLabel: !actions.compact
-                    onClicked: root.actionRequested("ocr")
-                }
-                CaptureButton {
-                    visible: root.saved
-                    iconName: "folder_open"
-                    text: Translation.tr("Open folder")
-                    showLabel: !actions.compact
-                    onClicked: root.actionRequested("folder")
-                }
-                CaptureButton {
-                    visible: !root.copied
-                    iconName: "content_copy"
-                    text: Translation.tr("Copy image")
-                    showLabel: !actions.compact
-                    onClicked: root.actionRequested("copy")
-                }
-                CaptureButton {
-                    iconName: "image_search"
-                    text: Translation.tr("Google Lens")
-                    showLabel: !actions.compact
-                    onClicked: root.actionRequested("lens")
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: Appearance.spacing.sm
+                rowSpacing: Appearance.spacing.sm
+                uniformCellWidths: true
+
+                Repeater {
+                    model: [
+                        { key: "annotate", icon: "edit", label: Translation.tr("Annotate"), available: true },
+                        { key: "copy", icon: "content_copy", label: Translation.tr("Copy image"), available: !root.copied },
+                        { key: "ocr", icon: "text_select_start", label: Translation.tr("Copy text"), available: true },
+                        { key: "folder", icon: "folder_open", label: Translation.tr("Open folder"), available: root.saved },
+                        { key: "lens", icon: "image_search", label: Translation.tr("Google Lens"), available: true }
+                    ]
+                    delegate: CaptureButton {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        visible: modelData.available
+                        framed: true
+                        showLabel: root.width >= 286
+                        highlighted: modelData.key === "annotate"
+                        iconName: modelData.icon
+                        text: modelData.label
+                        onClicked: root.actionRequested(modelData.key)
+                    }
                 }
             }
         }

@@ -36,6 +36,10 @@ options. The default uses official Arch repositories and does not invoke an
 AUR helper, enable a VPN, or expose remote services. Existing network
 management stays in place unless `--enable-networkmanager` is selected.
 
+When BlueZ is installed, full setup defaults Bluetooth to off at startup.
+The Bluetooth toggle still powers it on when needed. An explicit
+`[Policy]` setting for `AutoEnable` in `/etc/bluetooth/main.conf` takes precedence.
+
 The setup installs Hyprland, Quickshell 0.3.2 or newer, Qt modules and icon
 fonts, portals, a Polkit agent, Kitty, Fish, Firefox, Dolphin, PipeWire,
 WirePlumber, launcher, notifications, clipboard and screenshot tools. The

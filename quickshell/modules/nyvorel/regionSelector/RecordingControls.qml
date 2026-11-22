@@ -20,6 +20,8 @@ PanelWindow {
     readonly property bool paused: phase === "paused"
     readonly property bool canPause: phase === "recording" || paused
     readonly property bool pending: phase === "countdown"
+    readonly property bool barOnThisScreen: GlobalStates.barOpen && !!screen
+        && (Config.options.bar.screenList.length === 0 || Config.options.bar.screenList.includes(screen.name))
     readonly property string status: {
         switch (phase) {
         case "countdown": return Translation.tr("Starting in %1 s").arg(seconds);
@@ -46,42 +48,49 @@ PanelWindow {
     mask: Region { item: surface }
     anchors { top: true; right: true }
     margins {
-        top: 12 + (GlobalStates.barOpen && !Config.options.bar.vertical && !Config.options.bar.bottom ? Appearance.sizes.barHeight : 0)
-        right: 12 + (GlobalStates.barOpen && Config.options.bar.vertical ? Appearance.sizes.verticalBarWidth : 0)
+        top: Appearance.spacing.xl + (root.barOnThisScreen && !Config.options.bar.vertical && !Config.options.bar.bottom ? Appearance.sizes.barHeight : 0)
+        right: Appearance.spacing.xl + (root.barOnThisScreen && Config.options.bar.vertical && Config.options.bar.bottom ? Appearance.sizes.verticalBarWidth : 0)
     }
 
-    Rectangle {
+    CaptureSurface {
         id: surface
         anchors.fill: parent
-        radius: Appearance.radius.bar
-        color: Appearance.m3colors.m3surfaceContainer
-        border.color: Appearance.m3colors.m3outlineVariant
 
         RowLayout {
             id: actions
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
-            Rectangle {
-                implicitWidth: 8
-                implicitHeight: 8
-                radius: width / 2
-                color: root.phase === "recording" ? Appearance.m3colors.m3error : Appearance.m3colors.m3onSurfaceVariant
+            RowLayout {
+                Layout.rightMargin: Appearance.spacing.xs
+                spacing: Appearance.spacing.md
+
+                Rectangle {
+                    implicitWidth: 8
+                    implicitHeight: 8
+                    radius: width / 2
+                    color: root.phase === "recording" ? Appearance.material.error : Appearance.material.accent
+                }
+                StyledText {
+                    text: root.status
+                    color: Appearance.material.textPrimary
+                    font.weight: Font.DemiBold
+                }
+                StyledText {
+                    visible: root.canPause || root.phase === "stopping"
+                    text: root.elapsed
+                    color: Appearance.material.textSecondary
+                    font.family: Appearance.font.family.monospace
+                    Accessible.name: Translation.tr("Recording time %1").arg(text)
+                }
             }
-            StyledText {
-                text: root.status
-            }
-            StyledText {
-                visible: root.canPause || root.phase === "stopping"
-                text: root.elapsed
-                font.family: Appearance.font.family.monospace
-                Accessible.name: Translation.tr("Recording time %1").arg(text)
-            }
+
             CaptureButton {
                 visible: root.canPause
                 enabled: !root.busy
                 iconName: root.paused ? "play_arrow" : "pause"
                 text: root.paused ? Translation.tr("Resume") : Translation.tr("Pause")
+                framed: true
                 tooltip: ""
                 onClicked: root.controlRequested(root.paused ? "resume" : "pause")
             }
@@ -90,7 +99,9 @@ PanelWindow {
                 enabled: !root.busy
                 iconName: root.pending ? "close" : "stop"
                 text: root.pending ? Translation.tr("Cancel") : Translation.tr("Stop")
+                framed: true
                 tooltip: ""
+                iconColor: root.pending ? foregroundColor : Appearance.material.error
                 onClicked: root.controlRequested("stop")
             }
         }

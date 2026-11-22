@@ -16,6 +16,8 @@ All notable Nyvorel changes intended for public releases are recorded here.
   holding Space, and cached carousel thumbnails.
 - Reduced idle shell work and improved Settings startup. Refined the Settings
   tabs and first-run language and keyboard controls.
+- Defaulted Bluetooth to off at startup during full setup when BlueZ is
+  installed and the administrator has not set an auto-enable policy.
 
 ### Sign-in, shortcuts, and capture
 
@@ -27,9 +29,13 @@ All notable Nyvorel changes intended for public releases are recorded here.
   to defaults. Moved the wallpaper picker to Super+R.
 - Reworked the navbar search, including image clipboard history, searchable
   emoji, Google Lens, and on-demand music recognition.
+- Matched search backgrounds to the navbar and attached the Super+Tab search
+  strip to it. Improved contrast in the floating workspace grid.
 - Unified screenshots and recording under Super+Shift+S. Photo and Video
   support delayed and precision capture. Recording has separate system audio
   and microphone controls and a floating pause, resume, and stop panel.
+- Matched capture surfaces to the shell theme, improved action labels and
+  pointer interaction, and added file and folder actions to saved recordings.
 
 ## [0.1.6] - 2026-11-09
 

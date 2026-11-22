@@ -143,7 +143,7 @@ grep -qx 'nyvorel-fluid-runtime fluid' "$NYVOREL_TEST_APPEARANCE_LOG"
 mkdir -p "$tmp/source/dependencies" "$tmp/source/packaging" "$tmp/fresh-home"
 cp "$root/setup.sh" "$tmp/source/"
 cp "$root/dependencies/arch.json" "$tmp/source/dependencies/"
-cp "$root/packaging/"{nyvorel.desktop,nyvorel-graphical-login} "$tmp/source/packaging/"
+cp "$root/packaging/"{nyvorel.desktop,nyvorel-graphical-login,nyvorel-bluetooth-policy} "$tmp/source/packaging/"
 cat > "$tmp/source/install.sh" <<'MOCK'
 #!/usr/bin/env bash
 if [[ "$*" == *--dry-run* ]]; then
@@ -166,13 +166,20 @@ echo "sudo $*" >> "$NYVOREL_TEST_FULL_SETUP"
 MOCK
 chmod +x "$tmp/source/install.sh" "$tmp/bin/sudo"
 export NYVOREL_TEST_FULL_SETUP="$tmp/full-setup.log"
+source_bluetooth=""
+package_bluetooth=""
+if [[ -d /etc/bluetooth ]]; then
+  source_bluetooth=$'\n'"sudo /usr/bin/python3 -I $tmp/source/packaging/nyvorel-bluetooth-policy"
+  package_bluetooth=$'\n'"sudo /usr/bin/python3 -I $tmp/package/bin/nyvorel-bluetooth-policy"
+fi
 HOME="$tmp/fresh-home" "$tmp/source/setup.sh" --install --yes > "$tmp/full-setup.out"
-asserted_setup="$(tail -n 2 "$NYVOREL_TEST_FULL_SETUP")"
-[[ "$asserted_setup" == $'session --check\n'"sudo /usr/bin/python3 -I $tmp/source/packaging/nyvorel-graphical-login --source $tmp/source/packaging/nyvorel.desktop" ]]
+asserted_setup="$(sed -n '/^session --check$/,$p' "$NYVOREL_TEST_FULL_SETUP")"
+[[ "$asserted_setup" == "session --check$source_bluetooth"$'\n'"sudo /usr/bin/python3 -I $tmp/source/packaging/nyvorel-graphical-login --source $tmp/source/packaging/nyvorel.desktop" ]]
 : > "$NYVOREL_TEST_FULL_SETUP"
 HOME="$tmp/fresh-home" "$tmp/source/setup.sh" --install --yes --no-graphical-login > "$tmp/text-setup.out"
 grep -q 'Start the desktop with' "$tmp/text-setup.out"
-! grep -q '^sudo ' "$NYVOREL_TEST_FULL_SETUP"
+asserted_setup="$(sed -n '/^session --check$/,$p' "$NYVOREL_TEST_FULL_SETUP")"
+[[ "$asserted_setup" == "session --check$source_bluetooth" ]]
 : > "$NYVOREL_TEST_FULL_SETUP"
 if HOME="$tmp/fresh-home" NYVOREL_TEST_BROKEN_SESSION=1 "$tmp/source/setup.sh" --install --yes > "$tmp/broken-setup.out"; then
   echo 'Graphical login setup accepted a broken session' >&2; exit 1
@@ -199,7 +206,7 @@ grep -qx 'materialize --dry-run' "$NYVOREL_TEST_FULL_SETUP"
 ! grep -q '^sudo ' "$NYVOREL_TEST_FULL_SETUP"
 : > "$NYVOREL_TEST_FULL_SETUP"
 HOME="$tmp/fresh-home" "$root/packaging/nyvorel-package-install" --with-graphical-login --yes
-asserted_setup="$(tail -n 2 "$NYVOREL_TEST_FULL_SETUP")"
-[[ "$asserted_setup" == $'nyvorel-session --check\n'"sudo /usr/bin/python3 -I $tmp/package/bin/nyvorel-graphical-login --package" ]]
+asserted_setup="$(sed -n '/^nyvorel-session --check$/,$p' "$NYVOREL_TEST_FULL_SETUP")"
+[[ "$asserted_setup" == "nyvorel-session --check$package_bluetooth"$'\n'"sudo /usr/bin/python3 -I $tmp/package/bin/nyvorel-graphical-login --package" ]]
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/scripts/ci/test-graphical-login.py"
 echo 'PASS setup plan/consent/live guard/existing-install refusal and session activation'

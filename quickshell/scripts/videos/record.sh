@@ -145,7 +145,19 @@ if [[ ! -S "$socket" ]] || ! timeout 12 gsr-cli -ipc "$socket" set-paused false 
 fi
 write_state recording "$monitor" 0 "$(date +%s%3N)"
 if wait "$recorder"; then
-    notify-send -a Recorder "Recording saved" "${output##*/}"
+    (
+        # Notification actions wait for a response. Release this copy of the
+        # recording lock so a saved notification never blocks the next capture.
+        exec 9>&-
+        action=$(timeout 90s notify-send -a Recorder -i video-x-generic \
+            --action="open=Open recording" --action="folder=Open folder" \
+            "Recording saved" "${output##*/}") || exit 0
+        recording=$(realpath -e -- "$output") || exit 0
+        case "$action" in
+            open) xdg-open "$recording" ;;
+            folder) xdg-open "$(dirname -- "$recording")" ;;
+        esac
+    ) </dev/null >/dev/null 2>&1 &
 else
     notify-send -a Recorder "Recording failed" "GPU Screen Recorder could not complete the capture."
     exit 1

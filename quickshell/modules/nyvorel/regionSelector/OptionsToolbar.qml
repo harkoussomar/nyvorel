@@ -26,21 +26,18 @@ Item {
     signal toggleMicrophone()
     signal confirmCapture()
 
-    readonly property bool compact: availableWidth < 700
-    readonly property int groupGap: 8
+    readonly property bool compact: availableWidth < (recording ? 900 : 700)
+    readonly property int groupGap: Appearance.spacing.md
     readonly property real modeSpace: modeSwitch.visible ? modeSwitch.width + groupGap : 0
     readonly property real confirmSpace: confirm.visible ? confirm.width + groupGap : 0
     implicitWidth: modeSpace + actions.width + confirmSpace
     implicitHeight: actions.height
 
-    Rectangle {
+    CaptureSurface {
         id: actions
         x: root.modeSpace
-        width: buttons.width + 16
-        height: buttons.height + 16
-        radius: Appearance.radius.bar
-        color: Appearance.m3colors.m3surfaceContainer
-        border.color: Appearance.m3colors.m3outlineVariant
+        width: buttons.width + Appearance.spacing.xl
+        height: buttons.height + Appearance.spacing.xl
 
         MouseArea {
             anchors.fill: parent
@@ -50,13 +47,14 @@ Item {
         Flow {
             id: buttons
             anchors.centerIn: parent
-            spacing: 3
+            spacing: Appearance.spacing.xxs
             readonly property real naturalWidth: {
                 const visibleButtons = Array.from(children).filter(item => item.visible && item.implicitWidth > 0)
                 return visibleButtons.reduce((width, item) => width + item.implicitWidth, 0)
                     + Math.max(0, visibleButtons.length - 1) * spacing
             }
-            width: Math.max(38, Math.min(naturalWidth, root.availableWidth - root.modeSpace - root.confirmSpace - 16))
+            width: Math.max(38, Math.min(naturalWidth,
+                root.availableWidth - root.modeSpace - root.confirmSpace - Appearance.spacing.xl))
 
             Repeater {
                 model: [
@@ -71,8 +69,18 @@ Item {
                     tooltip: text + " · " + modelData.key
                     showLabel: !root.compact
                     selected: root.selectionMode === modelData.mode
+                    Accessible.role: Accessible.RadioButton
+                    Accessible.checkable: true
+                    Accessible.checked: selected
                     onClicked: root.selectMode(modelData.mode)
                 }
+            }
+
+            Item {
+                visible: root.captureOptions && !root.compact
+                implicitWidth: Appearance.spacing.md
+                implicitHeight: 36
+                Rectangle { anchors.centerIn: parent; width: 1; height: 20; color: Appearance.material.groupBorder }
             }
 
             CaptureButton {
@@ -83,6 +91,8 @@ Item {
                 showLabel: !root.compact
                 tooltip: text + " · P"
                 selected: root.precision
+                Accessible.checkable: true
+                Accessible.checked: selected
                 onClicked: root.togglePrecision()
             }
 
@@ -90,11 +100,19 @@ Item {
                 visible: root.captureOptions
                 iconName: "timer"
                 text: root.delaySeconds ? Translation.tr("%1 s").arg(root.delaySeconds) : Translation.tr("Delay")
+                showLabel: !root.compact || root.delaySeconds > 0
                 tooltip: root.delaySeconds
                     ? Translation.tr("Capture delay: %1 seconds · D").arg(root.delaySeconds)
                     : Translation.tr("Capture delay off · D")
                 selected: root.delaySeconds > 0
                 onClicked: root.cycleDelay()
+            }
+
+            Item {
+                visible: root.recording && !root.compact
+                implicitWidth: Appearance.spacing.md
+                implicitHeight: 36
+                Rectangle { anchors.centerIn: parent; width: 1; height: 20; color: Appearance.material.groupBorder }
             }
 
             CaptureButton {
@@ -128,26 +146,16 @@ Item {
         anchors.left: parent.left
         anchors.top: actions.top
         height: actions.height
+        outerControl: true
+        showLabel: !root.compact
         visible: root.captureOptions
         enabled: root.recording || root.recordingAvailable
         opacity: enabled ? 1 : 0.48
         iconName: root.recording ? "photo_camera" : "videocam"
         text: root.recording ? Translation.tr("Photo") : Translation.tr("Video")
         tooltip: (root.recording ? Translation.tr("Switch to screenshot") : Translation.tr("Switch to video")) + " · V"
-        showLabel: !root.compact
-        foregroundColor: root.recording ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnErrorContainer
+        iconColor: root.recording ? Appearance.material.accent : Appearance.colors.colTertiary
         onClicked: root.toggleRecordingMode()
-
-        background: Rectangle {
-            radius: actions.radius
-            color: root.recording
-                ? (modeSwitch.down ? Appearance.colors.colPrimaryContainerActive
-                    : modeSwitch.hovered ? Appearance.colors.colPrimaryContainerHover : Appearance.colors.colPrimaryContainer)
-                : (modeSwitch.down ? Appearance.colors.colErrorContainerActive
-                    : modeSwitch.hovered ? Appearance.colors.colErrorContainerHover : Appearance.colors.colErrorContainer)
-            border.color: root.recording ? Appearance.colors.colPrimary : Appearance.colors.colError
-            border.width: modeSwitch.visualFocus ? 2 : 1
-        }
     }
 
     CaptureButton {
@@ -156,17 +164,13 @@ Item {
         anchors.leftMargin: root.groupGap
         anchors.top: actions.top
         height: actions.height
+        outerControl: true
+        showLabel: !root.compact
         visible: root.canConfirm
         iconName: root.recording ? "radio_button_checked" : "photo_camera"
         text: root.recording ? Translation.tr("Record") : Translation.tr("Capture")
         tooltip: text + " · Enter"
-        showLabel: !root.compact
+        highlighted: true
         onClicked: root.confirmCapture()
-
-        background: Rectangle {
-            radius: actions.radius
-            color: confirm.down || confirm.hovered ? Appearance.m3colors.m3surfaceContainerHigh : actions.color
-            border.color: confirm.visualFocus ? Appearance.colors.colPrimary : actions.border.color
-        }
     }
 }
