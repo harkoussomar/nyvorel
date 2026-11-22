@@ -31,13 +31,13 @@
 <p align="center">
   <img
     src="./assets/showcase/hero-desktop.webp"
-    alt="Nyvorel desktop running on Hyprland"
+    alt="Nyvorel desktop with a blue diver wallpaper, top bar, and analog clock"
     width="100%"
   />
 </p>
 
 <p align="center">
-  <sub>Nyvorel’s consolidated Appearance page on the development branch.</sub>
+  <sub>Nyvorel running on Hyprland with a wallpaper-derived palette.</sub>
 </p>
 <!-- NYVOREL_SHOWCASE_HERO_END -->
 
@@ -139,7 +139,7 @@ modules, services, UX, lifecycle model, and tooling.
 <!-- NYVOREL_SHOWCASE_GALLERY_START -->
 ## Showcase
 
-Real Nyvorel surfaces running on the desktop — no mockups.
+Screenshots from the Nyvorel desktop.
 
 <table>
 <tr>
@@ -156,25 +156,16 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 </table>
 
 <p align="center">
-  <img src="./assets/showcase/backup-recovery.webp" alt="Nyvorel Backup and Recovery" width="100%" />
+  <img src="./assets/showcase/shortcuts.webp" alt="Nyvorel shortcut guide with editable bindings" width="100%" />
   <br />
-  <sub><b>Backup &amp; Recovery</b> — recovery readiness, backup evidence and restore health as a first-class desktop workflow.</sub>
+  <sub><b>Shortcuts</b> · Search for an action, change its key combination, or restore defaults.</sub>
 </p>
 
-<table>
-<tr>
-<td width="50%" valign="top">
-  <img src="./assets/showcase/operations-center.webp" alt="Nyvorel Operations Center" width="100%" />
+<p align="center">
+  <img src="./assets/showcase/quick-controls.webp" alt="Nyvorel quick controls and notification history attached to the navbar" width="100%" />
   <br />
-  <sub><b>Operations Center</b> — system health and actions in the desktop.</sub>
-</td>
-<td width="50%" valign="top">
-  <img src="./assets/showcase/arch-remote.webp" alt="Nyvorel Arch Remote" width="100%" />
-  <br />
-  <sub><b>Arch Remote</b> — remote access and security status at a glance.</sub>
-</td>
-</tr>
-</table>
+  <sub><b>Quick controls</b> · Adjust brightness, volume, and connectivity alongside notifications.</sub>
+</p>
 <!-- NYVOREL_SHOWCASE_GALLERY_END -->
 
 ## AUR Git candidate (not yet published)
