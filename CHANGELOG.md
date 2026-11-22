@@ -18,6 +18,9 @@ All notable Nyvorel changes intended for public releases are recorded here.
   tabs and first-run language and keyboard controls.
 - Defaulted Bluetooth to off at startup during full setup when BlueZ is
   installed and the administrator has not set an auto-enable policy.
+- Set up Kitty, Fish, Starship, and the Nerd Font on fresh installs. Prepare the
+  terminal palette and two-line prompt before the first login, with the Arch A
+  welcome, expanded system details, and seamless bottom-bar edges.
 
 ### Sign-in, shortcuts, and capture
 

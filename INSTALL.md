@@ -41,7 +41,7 @@ The Bluetooth toggle still powers it on when needed. An explicit
 `[Policy]` setting for `AutoEnable` in `/etc/bluetooth/main.conf` takes precedence.
 
 The setup installs Hyprland, Quickshell 0.3.2 or newer, Qt modules and icon
-fonts, portals, a Polkit agent, Kitty, Fish, Firefox, Dolphin, PipeWire,
+fonts, portals, a Polkit agent, Kitty, Fish, Starship, Firefox, Dolphin, PipeWire,
 WirePlumber, launcher, notifications, clipboard and screenshot tools. The
 recommended group adds applications and utility tools; OCR and recording are
 opt-in. Pacman may pull additional dependencies; review its transaction before
@@ -49,6 +49,11 @@ accepting. It then runs the backed-up user-file installer, creates an isolated
 color environment, and seeds the first wallpaper and palette. The color
 environment fetches a version-pinned binary wheel from PyPI unless
 `--wheelhouse PATH` points to a reviewed local wheel.
+
+Before login, full setup prepares the Kitty and Fish theme and the two-line
+Starship prompt. Opening Kitty in your home directory shows the Arch welcome
+art and system details above the prompt, with the Nyvorel status bar at the
+bottom. The JetBrains Mono Nerd Font supplies its icons.
 
 On a fresh Arch installation, setup installs SDDM and configures it to start
 at the next boot with the Nyvorel sign-in theme and session preselected. Use

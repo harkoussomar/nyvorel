@@ -115,6 +115,7 @@ materialize() {
   "$HELPER_ROOT/nyvorel-color-env" --install --yes
   "$HELPER_ROOT/nyvorel-first-run" --initialize --yes
   "$HELPER_ROOT/nyvorel-first-run" --check
+  "$HELPER_ROOT/nyvorel-terminal-theme-sync" --prepare
   "$HELPER_ROOT/nyvorel-session" --check
   if ! pacman -Qq sddm >/dev/null 2>&1; then
     sudo pacman -Syu --needed sddm

@@ -87,7 +87,7 @@ core=(
   qt6-positioning qt6-5compat kirigami
   noto-fonts noto-fonts-emoji ttf-dejavu ttf-material-symbols-variable
   ttf-jetbrains-mono-nerd adwaita-cursors
-  kitty fish firefox dolphin plasma-integration qt6-multimedia-ffmpeg
+  kitty fish starship firefox dolphin plasma-integration qt6-multimedia-ffmpeg
   pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber
   networkmanager libnotify fuzzel wl-clipboard cliphist grim slurp
   matugen jq bc xdg-utils xdg-user-dirs brightnessctl cava
@@ -237,6 +237,7 @@ first_run_args=(--initialize --yes)
 (( replace_existing == 0 )) || first_run_args+=(--repair)
 "$cli" first-run "${first_run_args[@]}"
 "$cli" first-run --check
+"$HOME/.local/bin/nyvorel-terminal-theme-sync" --prepare
 "$cli" session --check
 if [[ -d /etc/bluetooth ]]; then
   sudo /usr/bin/python3 -I "$root/packaging/nyvorel-bluetooth-policy"

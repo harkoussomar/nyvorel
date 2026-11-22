@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
+import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -49,8 +52,6 @@ def load_palette() -> dict[str, str]:
     data = json.loads(PALETTE_FILE.read_text(encoding="utf-8"))
     return {
         "primary": _hex(data.get("primary"), "primary"),
-        "secondary": _hex(data.get("secondary"), "secondary"),
-        "tertiary": _hex(data.get("tertiary"), "tertiary"),
         "text": _hex(data.get("on_surface") or data.get("on_background"), "on_surface"),
         "muted": _hex(data.get("on_surface_variant") or data.get("outline"), "on_surface_variant"),
         "outline": _hex(data.get("outline_variant") or data.get("outline"), "outline_variant"),
@@ -119,10 +120,7 @@ def uptime_text() -> str:
         hours, rem = divmod(rem, 3600)
         minutes = rem // 60
         if days:
-            day_label = "day" if days == 1 else "days"
-            if minutes:
-                return f"{days} {day_label}, {minutes} minutes"
-            return f"{days} {day_label}"
+            return f"{days}d {hours}h {minutes}m"
         if hours:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
@@ -130,16 +128,21 @@ def uptime_text() -> str:
         return "—"
 
 
-def cpu_text() -> str:
+def cpu_details() -> tuple[str, str]:
     try:
-        threads = sum(
-            1
-            for line in Path("/proc/cpuinfo").read_text().splitlines()
-            if line.startswith("processor")
-        )
-        load = Path("/proc/loadavg").read_text().split()[0]
-        return f"{threads} threads · {load} load"
-    except Exception:
+        cpuinfo = Path("/proc/cpuinfo").read_text()
+        model = re.search(r"(?m)^model name\s*:[ \t]*(.+)$", cpuinfo)
+        threads = len(re.findall(r"(?m)^processor\s*:", cpuinfo))
+        name = re.sub(r"\([RT]M?\)", "", model[1]).strip() if model else ""
+        return name or platform.machine() or "—", str(threads) if threads else "—"
+    except OSError:
+        return platform.machine() or "—", "—"
+
+
+def load_text() -> str:
+    try:
+        return " / ".join(f"{load:.2f}" for load in os.getloadavg())
+    except OSError:
         return "—"
 
 
@@ -153,7 +156,7 @@ def memory_text() -> str:
         total = vals["MemTotal"]
         available = vals.get("MemAvailable", vals.get("MemFree", 0))
         used = max(0, total - available)
-        return f"{used / 1048576:.1f}Gi / {total / 1048576:.0f}Gi"
+        return f"{used / 1048576:.1f} / {total / 1048576:.1f} GiB · {used / total:.0%}"
     except Exception:
         return "—"
 
@@ -161,9 +164,7 @@ def memory_text() -> str:
 def disk_text() -> str:
     try:
         usage = shutil.disk_usage(HOME)
-        used = usage.used / 1073741824
-        total = usage.total / 1073741824
-        return f"{used:.0f}Gi / {total:.0f}Gi"
+        return f"{usage.used / 2**30:.0f} / {usage.total / 2**30:.0f} GiB · {usage.used / usage.total:.0%}"
     except Exception:
         return "—"
 
@@ -184,10 +185,51 @@ def resolution() -> str:
         monitors = json.loads(raw)
         mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
         if mon:
-            return f"{mon.get('width', '?')}×{mon.get('height', '?')}"
+            size = f"{mon['width']}×{mon['height']}"
+            refresh = mon.get("refreshRate")
+            return f"{size} · {refresh:.0f} Hz" if refresh else size
     except Exception:
         pass
     return "—"
+
+
+def os_text() -> str:
+    try:
+        return platform.freedesktop_os_release().get("PRETTY_NAME") or platform.system()
+    except OSError:
+        return platform.system()
+
+
+def graphics_names() -> list[str]:
+    names = []
+    for line in run("lspci", "-mm", "-nn", timeout=0.3).splitlines():
+        try:
+            _, device_class, vendor, device, *_ = shlex.split(line)
+        except ValueError:
+            continue
+        if re.search(r"\[03[0-9a-f]{2}\]$", device_class):
+            name = re.sub(r" \[[0-9a-f]{4}\]$", "", device)
+            model = re.search(r"\[([^\]]+)\]$", name)
+            if name == "Device":
+                names.append(f"{vendor.split(' [', 1)[0]} {device}")
+            else:
+                names.append(model[1] if model else name)
+    return names
+
+
+def battery_details() -> list[str]:
+    batteries = []
+    for supply in sorted(Path("/sys/class/power_supply").glob("*")):
+        try:
+            if (supply / "type").read_text().strip() != "Battery":
+                continue
+            capacity = int((supply / "capacity").read_text())
+            status = (supply / "status").read_text().strip()
+        except (OSError, ValueError):
+            continue
+        if 0 <= capacity <= 100:
+            batteries.append(f"{capacity}% · {status}" if status and status != "Unknown" else f"{capacity}%")
+    return batteries
 
 
 ARCH_RAW = [
@@ -211,10 +253,6 @@ ARCH_RAW = [
     " `++:.                           `-/+/",
     " .`                                 `/",
 ]
-
-
-def arch_logo(p: dict[str, str]) -> list[str]:
-    return [color(line, p["primary"], bold=True) for line in ARCH_RAW]
 
 
 def frame_chars() -> dict[str, str]:
@@ -250,94 +288,93 @@ def panel_bottom(width: int, p: dict[str, str]) -> str:
     return color(f["bl"] + (f["h"] * (width - 2)) + f["br"], p["outline"])
 
 
-def panel_blank(width: int, p: dict[str, str]) -> str:
-    f = frame_chars()
-    return color(f["v"], p["outline"]) + (" " * (width - 2)) + color(f["v"], p["outline"])
-
-
-def panel_row(icon: str, label: str, value: str, width: int, p: dict[str, str], *, value_role: str = "text") -> str:
+def panel_row(icon: str, label: str, value: str, width: int, p: dict[str, str]) -> str:
     f = frame_chars()
     inner = width - 2
     left = f" {icon} {label}"
     left_w = cell_width(left)
     max_value_w = max(1, inner - left_w - 2)
     value = clip_cells(value, max_value_w)
-    gap = max(1, inner - left_w - cell_width(value))
+    gap = inner - left_w - cell_width(value) - 1
     return (
         color(f["v"], p["outline"])
         + color(left, p["muted"])
         + (" " * gap)
-        + color(value, p[value_role], bold=value_role in {"primary", "secondary", "tertiary"})
+        + color(value, p["text"])
+        + " "
         + color(f["v"], p["outline"])
     )
 
 
-def arch_panel(width: int, p: dict[str, str]) -> list[str]:
-    logo = arch_logo(p)
-    art_width = max(cell_width(line) for line in ARCH_RAW)
-    left_pad = max(0, (width - art_width) // 2)
-
-    # One leading row makes the frameless 19-row logo exactly as tall
-    # as the expanded 20-row System panel.
-    out = [" " * width]
-
-    for raw, line in zip(ARCH_RAW, logo):
-        right_pad = max(0, width - left_pad - cell_width(raw))
-        out.append((" " * left_pad) + line + (" " * right_pad))
-
-    return out
-
-
-def system_rows() -> list[tuple[str, str, str, str]]:
-    host = platform.node().split(".")[0] or "archlinux"
-    return [
-        ("󰌢", "Host", host, "text"),
-        ("󰌽", "Kernel", platform.release(), "text"),
-        ("󰥔", "Uptime", uptime_text(), "text"),
-        ("󰏖", "Packages", package_count(), "text"),
-        ("", "CPU", cpu_text(), "text"),
-        ("󰍛", "Memory", memory_text(), "text"),
-        ("󰋊", "Disk", disk_text(), "text"),
-        ("󰍹", "Display", resolution(), "text"),
+def system_rows() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").replace(":", " / ")
+    session_type = os.environ.get("XDG_SESSION_TYPE", "")
+    session = " · ".join(filter(None, (desktop, session_type.capitalize())))
+    identity = [
+        ("󰌽", "OS", os_text()),
+        ("󰌢", "Host", platform.node() or "—"),
+        ("󰒋", "Kernel", platform.release()),
+        ("󰥔", "Uptime", uptime_text()),
+        ("󰏖", "Packages", package_count()),
     ]
+    if session:
+        identity.append(("󰆍", "Session", session))
 
-
-def system_panel(width: int, p: dict[str, str]) -> list[str]:
-    out = [panel_top("System", "󰆍", width, p), panel_mid_rule(width, p), panel_blank(width, p)]
-    for row in system_rows():
-        out.append(panel_row(*row[:3], width, p, value_role=row[3]))
-        out.append(panel_blank(width, p))
-    out.append(panel_bottom(width, p))
-    return out
+    cpu, threads = cpu_details()
+    hardware = [
+        ("", "CPU", cpu),
+        ("󰔡", "Threads", threads),
+        ("󰓅", "Load 1/5/15m", load_text()),
+    ]
+    for index, name in enumerate(graphics_names(), start=1):
+        hardware.append(("󰢮", "GPU" if index == 1 else f"GPU {index}", name))
+    hardware.extend([
+        ("󰍛", "Memory", memory_text()),
+        ("󰋊", "Home disk", disk_text()),
+        ("󰍹", "Display", resolution()),
+    ])
+    for index, status in enumerate(battery_details(), start=1):
+        hardware.append(("󰁹", "Battery" if index == 1 else f"Battery {index}", status))
+    return identity, hardware
 
 
 def render() -> str:
     p = load_palette()
-    cols = shutil.get_terminal_size((120, 40)).columns
+    cols = max(1, shutil.get_terminal_size((105, 30)).columns - 1)
+    identity, hardware = system_rows()
+    if cols < 28:
+        return "\n" + "".join(
+            color(clip_cells(f"{label}  {value}", cols), p["text"]) + "\n"
+            for _, label, value in identity + hardware
+        )
 
-    arch_w = 42
-    system_w = 42
+    art = ARCH_RAW
+    art_width = max(map(len, art))
     gap = "  "
-    top_total = arch_w + len(gap) + system_w
+    side_by_side = cols >= art_width + len(gap) + 37
+    panel_width = min(66, cols - (art_width + len(gap) if side_by_side else 0))
+    panel = [panel_top("System", "󰆍", panel_width, p)]
+    panel.extend(panel_row(*row, panel_width, p) for row in identity)
+    panel.append(panel_mid_rule(panel_width, p))
+    panel.extend(panel_row(*row, panel_width, p) for row in hardware)
+    panel.append(panel_bottom(panel_width, p))
 
-    top_left = arch_panel(arch_w, p)
-    top_right = system_panel(system_w, p)
+    if not side_by_side:
+        if cols < art_width:
+            return "\n".join(["", *panel, ""])
+        left_pad = " " * ((panel_width - art_width) // 2)
+        logo = [left_pad + color(line, p["primary"], bold=True) for line in art]
+        return "\n".join(["", *logo, "", *panel, ""])
 
+    height = max(len(art), len(panel))
+    art_top = (height - len(art)) // 2
+    panel_top_offset = (height - len(panel)) // 2
     lines = [""]
-
-    if cols >= top_total:
-        height = max(len(top_left), len(top_right))
-        for i in range(height):
-            l = top_left[i] if i < len(top_left) else " " * arch_w
-            r = top_right[i] if i < len(top_right) else " " * system_w
-            lines.append(l + gap + r)
-    else:
-        lines.extend(top_left)
-        lines.append("")
-        lines.extend(top_right)
-
-    lines.append("")
-    return "\n".join(lines)
+    for index in range(height):
+        left = art[index - art_top] if art_top <= index < art_top + len(art) else ""
+        right = panel[index - panel_top_offset] if panel_top_offset <= index < panel_top_offset + len(panel) else ""
+        lines.append(color(left.ljust(art_width), p["primary"], bold=True) + gap + right)
+    return "\n".join([*lines, ""])
 
 
 def main() -> int:
