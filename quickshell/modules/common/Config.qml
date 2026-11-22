@@ -489,10 +489,6 @@ Singleton {
                 property JsonObject rect: JsonObject {
                     property bool showAimLines: true
                 }
-                property JsonObject circle: JsonObject {
-                    property int strokeWidth: 6
-                    property int padding: 10
-                }
                 property JsonObject annotation: JsonObject {
                     property bool useSatty: false
                 }
@@ -530,10 +526,6 @@ Singleton {
                     property string math: "="
                     property string shellCommand: "$"
                     property string webSearch: "?"
-                }
-                property JsonObject imageSearch: JsonObject {
-                    property string imageSearchEngineBaseUrl: "https://lens.google.com/uploadbyurl?url="
-                    property bool useCircleSelection: false
                 }
             }
 
@@ -594,7 +586,8 @@ Singleton {
             }
 
             property JsonObject screenSnip: JsonObject {
-                property string savePath: "" // only copy to clipboard when empty
+                property string savePath: ""
+                property string destination: "auto"
             }
 
             property JsonObject sounds: JsonObject {

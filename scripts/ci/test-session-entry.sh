@@ -66,12 +66,15 @@ legacy_power = re.findall(r'^\s*render_power\s*=\s*(\d+)\s*$', legacy, re.M)
 assert len(lua_power) == len(legacy_power) == 1
 assert lua_power == legacy_power and 1 <= int(lua_power[0]) <= 4
 required = {
-    '"CTRL+SUPER + T"': "quickshell:wallpaperSelectorToggle",
+    '"SUPER + R"': "quickshell:wallpaperSelectorToggle",
     '"SUPER + Y"': "quickshell:archRemoteToggle",
     '"SUPER + U"': "quickshell:backupRecoveryToggle",
 }
 for keys, target in required.items():
     assert any(keys in line and target in line for line in lua.splitlines()), (keys, target)
+assert not any('"CTRL+SUPER + T"' in line and "wallpaperSelectorToggle" in line for line in lua.splitlines())
+for service, target in (("arch-remote", "archRemoteToggle"), ("backup-recovery", "backupRecoveryToggle")):
+    assert re.search(rf'if optional_service_enabled\("{service}"\) then\n[^\n]+quickshell:{target}[^\n]+\nend', lua)
 assert 'hl.bind("SUPER + P", hl.dsp.window.pin()' in lua
 assert 'hl.bind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/nyvorel-settings --toggle")' in lua
 assert "quickshell:appearanceStudioToggle" not in lua
@@ -137,6 +140,7 @@ groups = json.load(open(sys.argv[1], encoding="utf-8"))["children"]
 binds = [binding for group in groups for section in group["children"] for binding in section["keybinds"]]
 assert len(binds) >= 50
 assert any(binding["key"] == "I" and [mod.upper() for mod in binding["mods"]] == ["SUPER"] for binding in binds)
-assert any(binding["key"] == "R" and {mod.upper() for mod in binding["mods"]} == {"CTRL", "SUPER"} for binding in binds)
+assert any(binding["key"] == "R" and [mod.upper() for mod in binding["mods"]] == ["SUPER"]
+           and "quickshell:wallpaperSelectorToggle" in binding["params"] for binding in binds)
 PY
 echo 'PASS explicit config session launch, active-session guard and package entry'

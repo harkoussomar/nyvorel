@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -1009,7 +1010,8 @@ Item {
         if (entry.kind === "runtime") {
             const runtime = entry.source
             const actions = []
-            if (runtime.managed_by_arch_remote) actions.push({label:"Open Remote", icon:"shield", action:"remote"})
+            if (runtime.managed_by_arch_remote && OptionalServices.archRemote.enabled)
+                actions.push({label:"Open Remote", icon:"shield", action:"remote"})
             else {
                 if (runtime.url) actions.push({label:"Open", icon:"open_in_new", action:"open"})
                 actions.push({label:"Terminal", icon:"terminal", action:"terminal"})

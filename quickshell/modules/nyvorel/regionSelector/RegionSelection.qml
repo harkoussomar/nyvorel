@@ -7,7 +7,6 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Controls
-import Qt.labs.synchronizer
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -19,7 +18,8 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "quickshell:regionSelector"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: screen?.name === Hyprland.focusedMonitor?.name
+        ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
     exclusionMode: ExclusionMode.Ignore
     anchors {
         left: true
@@ -29,11 +29,79 @@ PanelWindow {
     }
 
     // TODO: Ask: sidebar AI
-    enum SnipAction { Copy, Edit, Search, CharRecognition, Record, RecordWithSound } 
-    enum SelectionMode { RectCorners, Circle }
+    enum SnipAction { Copy, Edit, Search, CharRecognition, Record }
     property var action: RegionSelection.SnipAction.Copy
-    property var selectionMode: RegionSelection.SelectionMode.RectCorners
+    property string selectionMode: "region"
     signal dismiss()
+    signal modeSelected(string mode)
+    signal captureRequested(var request)
+    signal recordingRequested(var args, int delay, string screenName)
+    signal recordingModeRequested()
+    signal systemAudioToggled()
+    signal microphoneToggled()
+
+    readonly property bool isScreenshot: action === RegionSelection.SnipAction.Copy || action === RegionSelection.SnipAction.Edit
+    property bool recordingAvailable: true
+    required property bool systemAudio
+    required property bool microphone
+    readonly property bool supportsCaptureOptions: isScreenshot || isRecording
+    property bool precision: false
+    property int delaySeconds: 0
+    property var precisionRegion: null
+    readonly property bool screenMode: selectionMode === "screen"
+    readonly property bool canConfirm: screenMode || !!precisionRegion
+
+    onSelectionModeChanged: {
+        precisionRegion = null;
+        dragging = false;
+        draggingX = dragStartX;
+        draggingY = dragStartY;
+        dragDiffX = 0;
+        dragDiffY = 0;
+        clearTargetedRegion();
+    }
+
+    function cycleDelay() {
+        delaySeconds = delaySeconds === 0 ? 3 : delaySeconds === 3 ? 5 : 0;
+    }
+
+    function togglePrecision() {
+        precision = !precision;
+        if (!precision)
+            precisionRegion = null;
+    }
+
+    function confirmCapture(button = Qt.LeftButton) {
+        if (screenMode) {
+            snip({ x: 0, y: 0, width: screen.width, height: screen.height }, 0, button);
+        } else if (precisionRegion) {
+            snip(precisionRegion, 0, button);
+        }
+    }
+
+    function moveSelection(box, dx, dy) {
+        precisionRegion = {
+            x: Math.max(0, Math.min(screen.width - box.width, box.x + dx)),
+            y: Math.max(0, Math.min(screen.height - box.height, box.y + dy)),
+            width: box.width,
+            height: box.height
+        };
+    }
+
+    function nudgeSelection(dx, dy, resize) {
+        const box = precisionRegion;
+        if (!box)
+            return;
+        if (!resize) {
+            moveSelection(box, dx, dy);
+            return;
+        }
+        precisionRegion = {
+            x: box.x, y: box.y,
+            width: Math.max(1, Math.min(screen.width - box.x, box.width + dx)),
+            height: Math.max(1, Math.min(screen.height - box.y, box.height + dy))
+        };
+    }
 
     property string screenshotDir: Directories.screenshotTemp
     property color overlayColor: ColorUtils.transparentize("#000000", 0.4)
@@ -48,7 +116,12 @@ PanelWindow {
     property color imageFillColor: ColorUtils.transparentize(imageBorderColor, 0.85)
     property color onBorderColor: "#ff000000"
     readonly property var windows: [...HyprlandData.windowList].sort((a, b) => {
-        // Sort floating=true windows before others
+        if (root.specialWorkspaceId !== 0) {
+            const aOnSpecial = a.workspace?.id === root.specialWorkspaceId;
+            const bOnSpecial = b.workspace?.id === root.specialWorkspaceId;
+            if (aOnSpecial !== bOnSpecial)
+                return aOnSpecial ? -1 : 1;
+        }
         if (a.floating === b.floating) return 0;
         return a.floating ? -1 : 1;
     })
@@ -56,29 +129,34 @@ PanelWindow {
     readonly property real falsePositivePreventionRatio: 0.85
 
     readonly property HyprlandMonitor hyprlandMonitor: Hyprland.monitorFor(screen)
-    readonly property real monitorScale: hyprlandMonitor.scale
-    readonly property real monitorOffsetX: hyprlandMonitor.x
-    readonly property real monitorOffsetY: hyprlandMonitor.y
-    property int activeWorkspaceId: hyprlandMonitor.activeWorkspace?.id ?? 0
-    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    readonly property real monitorScale: hyprlandMonitor?.scale ?? 1
+    readonly property real monitorOffsetX: hyprlandMonitor?.x ?? screen?.x ?? 0
+    readonly property real monitorOffsetY: hyprlandMonitor?.y ?? screen?.y ?? 0
+    readonly property var monitorState: HyprlandData.monitors.find(monitor => monitor.name === screen?.name)
+    readonly property int activeWorkspaceId: monitorState?.activeWorkspace?.id ?? hyprlandMonitor?.activeWorkspace?.id ?? 0
+    readonly property int specialWorkspaceId: monitorState?.specialWorkspace?.id ?? 0
+    property string screenshotPath
+    property bool screenshotHandedOff: false
+    Component.onCompleted: {
+        const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        root.screenshotPath = `${root.screenshotDir}/image-${encodeURIComponent(screen.name)}-${token}.png`;
+        screenshotProc.exec(screenshotProc.captureCommand(root.screenshotPath));
+    }
     property real dragStartX: 0
     property real dragStartY: 0
     property real draggingX: 0
     property real draggingY: 0
     property real dragDiffX: 0
     property real dragDiffY: 0
-    property bool draggedAway: (dragDiffX !== 0 || dragDiffY !== 0)
+    property bool draggedAway: !!precisionRegion || dragDiffX !== 0 || dragDiffY !== 0
     property bool dragging: false
-    property list<point> points: []
-    property var mouseButton: null
     property var imageRegions: []
     readonly property list<var> windowRegions:
         root.windows
-            .filter(
-                window =>
-                    window.workspace.id
-                    === root.activeWorkspaceId
-            )
+            .filter(window => window.mapped && !window.hidden
+                && (window.workspace?.id === root.activeWorkspaceId
+                    || (root.specialWorkspaceId !== 0 && window.workspace?.id === root.specialWorkspaceId)
+                    || (window.pinned && window.monitor === root.monitorState?.id)))
             .map(window => {
                 return {
                     at: [
@@ -101,7 +179,7 @@ PanelWindow {
             })
 
     readonly property list<var> layerRegions: {
-        const layersOfThisMonitor = root.layers[root.hyprlandMonitor.name]
+        const layersOfThisMonitor = root.layers[root.screen?.name]
         const topLayers = layersOfThisMonitor?.levels["2"]
         if (!topLayers)
             return []
@@ -136,10 +214,9 @@ PanelWindow {
             }))
     }
 
-    property bool isCircleSelection: (root.selectionMode === RegionSelection.SelectionMode.Circle)
-    property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection
-    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection
-    property bool enableContentRegions: Config.options.regionSelector.targetRegions.content
+    property bool enableWindowRegions: !screenMode && Config.options.regionSelector.targetRegions.windows
+    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !screenMode
+    property bool enableContentRegions: Config.options.regionSelector.targetRegions.content && !screenMode
     property real targetRegionOpacity: Config.options.regionSelector.targetRegions.opacity
     property bool contentRegionOpacity: Config.options.regionSelector.targetRegions.contentRegionOpacity
 
@@ -153,30 +230,22 @@ PanelWindow {
     property string targetedRegionShape: "rect"
     property string targetedRegionSource: ""
     property real targetedRegionConfidence: 0
-    property bool autoTargetCapture: false
     property real targetedRegionCaptureOutset: 0 // SNIP-GEOMETRY-V2.3-LIVE
     // <<< SNIP-POLISH-V3 <<<
     function targetedRegionValid() {
-        return (root.targetedRegionX >= 0 && root.targetedRegionY >= 0)
+        return root.targetedRegionWidth > 0 && root.targetedRegionHeight > 0
+            && root.targetedRegionX < screen.width && root.targetedRegionY < screen.height
+            && root.targetedRegionX + root.targetedRegionWidth > 0
+            && root.targetedRegionY + root.targetedRegionHeight > 0;
     }
-    function setRegionToTargeted() {
-        const outset = Math.max(0, root.targetedRegionCaptureOutset)
-
-        root.regionX = Math.max(0, root.targetedRegionX - outset)
-        root.regionY = Math.max(0, root.targetedRegionY - outset)
-
-        const right = Math.min(
-            root.screen.width,
-            root.targetedRegionX + root.targetedRegionWidth + outset
-        )
-        const bottom = Math.min(
-            root.screen.height,
-            root.targetedRegionY + root.targetedRegionHeight + outset
-        )
-
-        root.regionWidth = Math.max(1, right - root.regionX)
-        root.regionHeight = Math.max(1, bottom - root.regionY)
-        root.autoTargetCapture = true
+    function targetedBounds() {
+        const outset = root.targetedRegionCaptureOutset;
+        return {
+            x: root.targetedRegionX - outset,
+            y: root.targetedRegionY - outset,
+            width: root.targetedRegionWidth + 2 * outset,
+            height: root.targetedRegionHeight + 2 * outset
+        };
     }
 
     function captureRadiusForRegion(region) {
@@ -289,10 +358,12 @@ PanelWindow {
 
 
     function updateTargetedRegion(x, y) {
+        if (screenMode || precisionRegion)
+            return;
         const target = TargetPolicy.bestTargetAt(
             x,
             y,
-            root.isCircleSelection ? [] : root.registeredShellRegions,
+            root.registeredShellRegions,
             root.imageRegions,
             root.windowRegions,
             root.layerRegionsWithoutExactShell,
@@ -309,18 +380,25 @@ PanelWindow {
             root.clearTargetedRegion()
     }
 
-    property real regionWidth: Math.abs(draggingX - dragStartX)
-    property real regionHeight: Math.abs(draggingY - dragStartY)
-    property real regionX: Math.min(dragStartX, draggingX)
-    property real regionY: Math.min(dragStartY, draggingY)
+    property real regionWidth: precisionRegion?.width ?? Math.abs(draggingX - dragStartX)
+    property real regionHeight: precisionRegion?.height ?? Math.abs(draggingY - dragStartY)
+    property real regionX: precisionRegion?.x ?? Math.min(dragStartX, draggingX)
+    property real regionY: precisionRegion?.y ?? Math.min(dragStartY, draggingY)
 
     TempScreenshotProcess {
         id: screenshotProc
-        running: true
+        running: false
         screen: root.screen
         screenshotDir: root.screenshotDir
         screenshotPath: root.screenshotPath
+        stderr: StdioCollector { id: captureError }
         onExited: (exitCode, exitStatus) => {
+            if ((exitCode !== 0 || exitStatus !== 0) && !root.isRecording) {
+                console.warn(`[Region Selector] Screen capture failed (${exitCode}): ${captureError.text.trim()}`);
+                Quickshell.execDetached(["notify-send", "-a", "Nyvorel", Translation.tr("Could not take a screenshot")]);
+                root.dismiss();
+                return;
+            }
             if (root.enableContentRegions) {
                 root.contentDetectionRequestId =
                     `${root.screen.name}:${Date.now()}`
@@ -332,30 +410,10 @@ PanelWindow {
                     root.falsePositivePreventionRatio
                 )
             }
-            root.preparationDone = !checkRecordingProc.running;
+            root.visible = true;
         }
     }
-    property bool isRecording: root.action === RegionSelection.SnipAction.Record || root.action === RegionSelection.SnipAction.RecordWithSound
-    property bool recordingShouldStop: false
-    Process {
-        id: checkRecordingProc
-        running: isRecording
-        command: ["pgrep", "-f", "(^|/)gpu-screen-recorder( |$)"]
-        onExited: (exitCode, exitStatus) => {
-            root.preparationDone = !screenshotProc.running
-            root.recordingShouldStop = (exitCode === 0);
-        }
-    }
-    property bool preparationDone: false
-    onPreparationDoneChanged: {
-        if (!preparationDone) return;
-        if (root.isRecording && root.recordingShouldStop) {
-            Quickshell.execDetached([Directories.recordScriptPath]);
-            root.dismiss();
-            return;
-        }
-        root.visible = true;
-    }
+    readonly property bool isRecording: action === RegionSelection.SnipAction.Record
 
     property string contentDetectionRequestId: ""
 
@@ -383,20 +441,15 @@ PanelWindow {
         }
     }
 
-    function getScreenshotAction() {
+    function getScreenshotAction(button) {
         switch(root.action) {
             case RegionSelection.SnipAction.Copy:
-                return ScreenshotAction.Action.Copy;
             case RegionSelection.SnipAction.Edit:
-                return ScreenshotAction.Action.Edit;
+                return button === Qt.RightButton ? ScreenshotAction.Action.Edit : ScreenshotAction.Action.Copy;
             case RegionSelection.SnipAction.Search:
                 return ScreenshotAction.Action.Search;
             case RegionSelection.SnipAction.CharRecognition:
                 return ScreenshotAction.Action.CharRecognition;
-            case RegionSelection.SnipAction.Record:
-                return ScreenshotAction.Action.Record;
-            case RegionSelection.SnipAction.RecordWithSound:
-                return ScreenshotAction.Action.RecordWithSound;
             default:
                 console.warn("[Region Selector] Unknown snip action, skipping snip.");
                 root.dismiss();
@@ -404,41 +457,50 @@ PanelWindow {
         }
     }
 
-    function snip() {
-        // Validity check
-        if (root.regionWidth <= 0 || root.regionHeight <= 0) {
-            console.warn("[Region Selector] Invalid region size, skipping snip.");
+    function snip(bounds, radius, button) {
+        const x = Math.max(0, bounds.x);
+        const y = Math.max(0, bounds.y);
+        const width = Math.min(screen.width, bounds.x + bounds.width) - x;
+        const height = Math.min(screen.height, bounds.y + bounds.height) - y;
+        if (width <= 0 || height <= 0) {
             root.dismiss();
+            return;
         }
 
-        // Clamp region to screen bounds
-        root.regionX = Math.max(0, Math.min(root.regionX, root.screen.width - root.regionWidth));
-        root.regionY = Math.max(0, Math.min(root.regionY, root.screen.height - root.regionHeight));
-        root.regionWidth = Math.max(0, Math.min(root.regionWidth, root.screen.width - root.regionX));
-        root.regionHeight = Math.max(0, Math.min(root.regionHeight, root.screen.height - root.regionY));
-
-        // Adjust action
-        if (root.action === RegionSelection.SnipAction.Copy || root.action === RegionSelection.SnipAction.Edit) {
-            root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit : RegionSelection.SnipAction.Copy;
+        if (isRecording) {
+            const args = screenMode
+                ? ["--fullscreen", "--monitor", screen.name]
+                : ["--region", `${Math.round(x + monitorOffsetX)},${Math.round(y + monitorOffsetY)} ${Math.round(width)}x${Math.round(height)}`, "--monitor", screen.name];
+            if (systemAudio)
+                args.push("--system-audio");
+            if (microphone)
+                args.push("--microphone");
+            if (!recordingAvailable)
+                return;
+            recordingRequested(args, delaySeconds, screen.name);
+            dismiss();
+            return;
         }
-        
-        const screenshotDir = Config.options.screenSnip.savePath !== "" ? //
-            Config.options.screenSnip.savePath : "";
-        var screenshotAction = root.getScreenshotAction();
+
+        const screenshotAction = getScreenshotAction(button);
+        if (screenshotAction === ScreenshotAction.Action.Copy) {
+            root.screenshotHandedOff = true;
+            root.captureRequested({
+                screenName: root.screen.name,
+                source: root.screenshotPath,
+                x, y, width, height, radius,
+                delay: root.delaySeconds
+            });
+            root.dismiss();
+            return;
+        }
+
         const command = ScreenshotAction.getCommand(
-            root.regionX * root.monitorScale, //
-            root.regionY * root.monitorScale, //
-            root.regionWidth * root.monitorScale,// 
-            root.regionHeight * root.monitorScale, //
-            root.screenshotPath, //
-            screenshotAction, //
-            screenshotDir,
-            root.autoTargetCapture
-                ? root.targetedRegionRadius
-                    * root.monitorScale
-                : 0
-        )
+            x * monitorScale, y * monitorScale, width * monitorScale, height * monitorScale,
+            screenshotPath, screenshotAction, Config.options.screenSnip.savePath, radius * monitorScale
+        );
         snipProc.command = command;
+        root.screenshotHandedOff = !root.isRecording;
 
         // Image post-processing
         snipProc.startDetached();
@@ -449,71 +511,105 @@ PanelWindow {
         id: snipProc
     }
 
+    Component.onDestruction: {
+        if (!root.screenshotHandedOff && root.screenshotPath)
+            Quickshell.execDetached(["rm", "-f", "--", root.screenshotPath]);
+    }
+
+    function handleKey(event) {
+        const key = event.key;
+        if (key === Qt.Key_Escape) {
+            dismiss();
+        } else if (key === Qt.Key_Return || key === Qt.Key_Enter) {
+            if (!canConfirm)
+                return;
+            confirmCapture();
+        } else if (supportsCaptureOptions && key === Qt.Key_P && selectionMode === "region") {
+            togglePrecision();
+        } else if (supportsCaptureOptions && key === Qt.Key_D) {
+            cycleDelay();
+        } else if (supportsCaptureOptions && key === Qt.Key_V) {
+            recordingModeRequested();
+        } else if (key === Qt.Key_1) {
+            modeSelected("region");
+        } else if (supportsCaptureOptions && (key === Qt.Key_2 || key === Qt.Key_3)) {
+            modeSelected("screen");
+        } else if (precisionRegion && [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down].includes(key)) {
+            const step = event.modifiers & Qt.ControlModifier ? 10 : 1;
+            nudgeSelection(key === Qt.Key_Left ? -step : key === Qt.Key_Right ? step : 0,
+                key === Qt.Key_Up ? -step : key === Qt.Key_Down ? step : 0, !!(event.modifiers & Qt.ShiftModifier));
+        } else {
+            return;
+        }
+        event.accepted = true;
+    }
+
     ScreencopyView {
         anchors.fill: parent
         live: false
         captureSource: root.screen
 
+        id: previewSurface
         focus: root.visible
-        Keys.onPressed: (event) => { // Esc to close
-            if (event.key === Qt.Key_Escape) {
-                root.dismiss();
-            }
-        }
+        Keys.onPressed: event => root.handleKey(event)
+
 
         MouseArea {
             id: mouseArea
             anchors.fill: parent
             cursorShape: Qt.CrossCursor
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            acceptedButtons: root.isRecording ? Qt.LeftButton : Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
 
             // Controls
             onPressed: (mouse) => {
-                root.autoTargetCapture = false
+                previewSurface.forceActiveFocus();
+                root.precisionRegion = null;
+                root.dragDiffX = 0;
+                root.dragDiffY = 0;
                 root.dragStartX = mouse.x;
                 root.dragStartY = mouse.y;
                 root.draggingX = mouse.x;
                 root.draggingY = mouse.y;
                 root.dragging = true;
-                root.mouseButton = mouse.button;
+                root.updateTargetedRegion(mouse.x, mouse.y);
             }
             onReleased: (mouse) => {
-                // Detect if it was a click -> Try to select targeted region
+                if (root.screenMode) {
+                    root.dragging = false;
+                    root.confirmCapture(mouse.button);
+                    return;
+                }
+                if (root.precision && root.supportsCaptureOptions && !root.screenMode
+                    && mouse.button === Qt.LeftButton) {
+                    if (root.regionWidth > 0 && root.regionHeight > 0)
+                        root.precisionRegion = { x: root.regionX, y: root.regionY, width: root.regionWidth, height: root.regionHeight };
+                    root.dragging = false;
+                    return;
+                }
+                // A click selects the target beneath the pointer if there is one.
                 if (root.draggingX === root.dragStartX && root.draggingY === root.dragStartY) {
                     if (root.targetedRegionValid()) {
-                        root.setRegionToTargeted();
+                        root.snip(root.targetedBounds(), root.targetedRegionRadius, mouse.button);
+                        return;
                     }
                 }
-                // Circle dragging?
-                else if (root.selectionMode === RegionSelection.SelectionMode.Circle) {
-                    const padding = Config.options.regionSelector.circle.padding + Config.options.regionSelector.circle.strokeWidth / 2;
-                    const dragPoints = (root.points.length > 0) ? root.points : [{ x: mouseArea.mouseX, y: mouseArea.mouseY }];
-                    const maxX = Math.max(...dragPoints.map(p => p.x));
-                    const minX = Math.min(...dragPoints.map(p => p.x));
-                    const maxY = Math.max(...dragPoints.map(p => p.y));
-                    const minY = Math.min(...dragPoints.map(p => p.y));
-                    root.regionX = minX - padding;
-                    root.regionY = minY - padding;
-                    root.regionWidth = maxX - minX + padding * 2;
-                    root.regionHeight = maxY - minY + padding * 2;
-                }
-                root.snip();
+                root.snip({ x: root.regionX, y: root.regionY,
+                    width: root.regionWidth, height: root.regionHeight }, 0, mouse.button);
             }
             onPositionChanged: (mouse) => {
                 root.updateTargetedRegion(mouse.x, mouse.y);
-                if (!root.dragging) return;
+                if (!root.dragging || root.screenMode) return;
                 root.draggingX = mouse.x;
                 root.draggingY = mouse.y;
                 root.dragDiffX = mouse.x - root.dragStartX;
                 root.dragDiffY = mouse.y - root.dragStartY;
-                root.points.push({ x: mouse.x, y: mouse.y });
             }
             
             Loader {
                 z: 2
                 anchors.fill: parent
-                active: root.selectionMode === RegionSelection.SelectionMode.RectCorners
+                active: !root.screenMode
                 sourceComponent: RectCornersSelectionDetails {
                     regionX: root.regionX
                     regionY: root.regionY
@@ -526,18 +622,16 @@ PanelWindow {
                 }
             }
 
-            Loader {
-                z: 2
+            Rectangle {
+                visible: root.screenMode && (mouseArea.containsMouse || root.screen?.name === Hyprland.focusedMonitor?.name)
                 anchors.fill: parent
-                active: root.selectionMode === RegionSelection.SelectionMode.Circle
-                sourceComponent: CircleSelectionDetails {
-                    color: root.selectionBorderColor
-                    overlayColor: root.overlayColor
-                    points: root.points
-                }
+                color: "transparent"
+                border.width: 2
+                border.color: Appearance.colors.colPrimary
             }
 
             CursorGuide {
+                visible: !root.supportsCaptureOptions
                 z: 9999
                 x: root.dragging ? root.regionX + root.regionWidth : mouseArea.mouseX
                 y: root.dragging ? root.regionY + root.regionHeight : mouseArea.mouseY
@@ -553,10 +647,7 @@ PanelWindow {
             // just like native Settings/window detection.
             Repeater {
                 model: ScriptModel {
-                    values:
-                        root.isCircleSelection
-                            ? []
-                            : root.registeredShellRegions
+                    values: root.screenMode ? [] : root.registeredShellRegions
                 }
 
                 delegate: TargetRegion {
@@ -694,67 +785,94 @@ PanelWindow {
                 }
             }
 
-            // Controls
-            Row {
-                id: regionSelectionControls
-                z: 10
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
-                    bottom: parent.bottom
-                    bottomMargin: -height
-                }
-                opacity: 0
-                Connections {
-                    target: root
-                    function onVisibleChanged() {
-                        if (!visible) return;
-                        regionSelectionControls.anchors.bottomMargin = 8;
-                        regionSelectionControls.opacity = 1;
-                    }
-                }
-                Behavior on opacity {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on anchors.bottomMargin {
-                    animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-                }
-                spacing: 6
+            MouseArea {
+                z: 7
+                x: root.regionX
+                y: root.regionY
+                width: root.regionWidth
+                height: root.regionHeight
+                enabled: !!root.precisionRegion
+                visible: enabled
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
 
-                OptionsToolbar {
-                    Synchronizer on action {
-                        property alias source: root.action
-                    }
-                    Synchronizer on selectionMode {
-                        property alias source: root.selectionMode
-                    }
-                    onDismiss: root.dismiss();
+                property point pressPoint
+                property var initialRegion
+
+                onPressed: mouse => {
+                    previewSurface.forceActiveFocus();
+                    pressPoint = mapToItem(mouseArea, mouse.x, mouse.y);
+                    initialRegion = root.precisionRegion;
                 }
-                Item {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                    }
-                    implicitWidth: closeFab.implicitWidth
-                    implicitHeight: closeFab.implicitHeight
-                    StyledRectangularShadow {
-                        target: closeFab
-                        radius: closeFab.buttonRadius
-                    }
-                    FloatingActionButton {
-                        id: closeFab
-                        baseSize: 48
-                        iconText: "close"
-                        onClicked: root.dismiss();
-                        StyledToolTip {
-                            text: Translation.tr("Close")
+                onPositionChanged: mouse => {
+                    if (!pressed)
+                        return;
+                    const point = mapToItem(mouseArea, mouse.x, mouse.y);
+                    root.moveSelection(initialRegion, point.x - pressPoint.x, point.y - pressPoint.y);
+                }
+            }
+
+            Repeater {
+                model: root.precisionRegion ? 4 : 0
+
+                delegate: Rectangle {
+                    id: handle
+
+                    required property int index
+                    readonly property bool onRight: index % 2 === 1
+                    readonly property bool onBottom: index >= 2
+                    width: 12
+                    height: 12
+                    x: root.regionX + (onRight ? root.regionWidth : 0) - width / 2
+                    y: root.regionY + (onBottom ? root.regionHeight : 0) - height / 2
+                    z: 8
+                    radius: 3
+                    color: Appearance.colors.colPrimary
+                    border.color: Appearance.colors.colOnPrimary
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -5
+                        cursorShape: handle.onRight === handle.onBottom ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor
+                        onPositionChanged: mouse => {
+                            if (!pressed || !root.precisionRegion)
+                                return;
+                            const point = mapToItem(mouseArea, mouse.x, mouse.y);
+                            const box = root.precisionRegion;
+                            const left = handle.onRight ? box.x : Math.max(0, Math.min(box.x + box.width - 1, point.x));
+                            const top = handle.onBottom ? box.y : Math.max(0, Math.min(box.y + box.height - 1, point.y));
+                            const right = handle.onRight ? Math.min(root.screen.width, Math.max(box.x + 1, point.x)) : box.x + box.width;
+                            const bottom = handle.onBottom ? Math.min(root.screen.height, Math.max(box.y + 1, point.y)) : box.y + box.height;
+                            root.precisionRegion = { x: left, y: top, width: right - left, height: bottom - top };
                         }
-                        colBackground: Appearance.colors.colTertiaryContainer
-                        colBackgroundHover: Appearance.colors.colTertiaryContainerHover
-                        colRipple: Appearance.colors.colTertiaryContainerActive
-                        colOnBackground: Appearance.colors.colOnTertiaryContainer
                     }
                 }
             }
-            
+
+            OptionsToolbar {
+                id: captureToolbar
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Math.min(22, parent.height / 20)
+                availableWidth: parent.width - 24
+                z: 11
+
+                selectionMode: root.selectionMode
+                captureOptions: root.supportsCaptureOptions
+                recordingAvailable: root.recordingAvailable
+                precision: root.precision
+                delaySeconds: root.delaySeconds
+                recording: root.isRecording
+                systemAudio: root.systemAudio
+                microphone: root.microphone
+                canConfirm: root.canConfirm
+                onSelectMode: mode => root.modeSelected(mode)
+                onTogglePrecision: root.togglePrecision()
+                onCycleDelay: root.cycleDelay()
+                onToggleRecordingMode: root.recordingModeRequested()
+                onToggleSystemAudio: root.systemAudioToggled()
+                onToggleMicrophone: root.microphoneToggled()
+                onConfirmCapture: root.confirmCapture()
+            }
         }
     }
 }

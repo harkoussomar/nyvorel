@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-grim -g "$(slurp)" /tmp/image.png
-imageLink=$(curl -sF files[]=@/tmp/image.png 'https://uguu.se/upload' | jq -r '.files[0].url')
-xdg-open "https://lens.google.com/uploadbyurl?url=${imageLink}"
-rm /tmp/image.png
+set -eu
+
+region=$(slurp) || exit 0
+[[ -n "$region" ]] || exit 0
+image=$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/nyvorel-lens-region.XXXXXX.png")
+trap 'rm -f -- "$image"' EXIT
+grim -t png -g "$region" "$image"
+helper="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/nyvorel/scripts/system/google-lens-search"
+"$helper" "$image"

@@ -1,7 +1,6 @@
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
-import qs.modules.common.functions
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import Quickshell
@@ -14,10 +13,10 @@ Rectangle {
     property real maxHeight
     property bool blur: false
     property string blurText: "Image hidden"
+    readonly property bool supportsEffects: GraphicsInfo.api !== GraphicsInfo.Software
 
     property string imageDecodePath: Directories.cliphistDecode
-    property string imageDecodeFileName: `${entryNumber}`
-    property string imageDecodeFilePath: `${imageDecodePath}/${imageDecodeFileName}`
+    property string imageDecodeFilePath
     property string source
 
     property int entryNumber: {
@@ -48,27 +47,44 @@ Rectangle {
     implicitWidth: imageWidth * scale
 
     Component.onCompleted: {
+        if (root.entryNumber <= 0)
+            return;
+        // The entry can change during teardown. Keep ownership of the file
+        // created at startup even when another delegate renders the same entry.
+        const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        root.imageDecodeFilePath = `${root.imageDecodePath}/${root.entryNumber}-${token}`;
         decodeImageProcess.running = true;
     }
 
     Process {
         id: decodeImageProcess
-        command: ["bash", "-c", `[ -f ${imageDecodeFilePath} ] || echo '${StringUtils.shellSingleQuoteEscape(root.entry)}' | ${Cliphist.cliphistBinary} decode > '${imageDecodeFilePath}'`]
+        command: ["bash", "-o", "pipefail", "-c", `
+            umask 077
+            mkdir -p -- "$1" || exit 1
+            trap 'rm -f -- "$4.tmp"' EXIT
+            if [[ "$2" == *cliphist* ]]; then
+                printf '%s' "$3" | "$2" decode
+            else
+                "$2" decode "$3"
+            fi >"$4.tmp" && test -s "$4.tmp" && mv -- "$4.tmp" "$4"
+        `, "nyvorel-clipboard-preview", root.imageDecodePath, Cliphist.cliphistBinary,
+            String(root.entryNumber), root.imageDecodeFilePath]
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 root.source = imageDecodeFilePath;
             } else {
-                console.error("[CliphistImage] Failed to decode image for entry:", root.entry);
+                console.error("[CliphistImage] Failed to decode image for entry", root.entryNumber);
                 root.source = "";
             }
         }
     }
 
     Component.onDestruction: {
-        Quickshell.execDetached(["bash", "-c", `[ -f '${imageDecodeFilePath}' ] && rm -f '${imageDecodeFilePath}'`]);
+        if (root.imageDecodeFilePath)
+            Quickshell.execDetached(["rm", "-f", "--", root.imageDecodeFilePath, root.imageDecodeFilePath + ".tmp"]);
     }
 
-    layer.enabled: true
+    layer.enabled: root.supportsEffects
     layer.effect: OpacityMask {
         maskSource: Rectangle {
             width: image.width
@@ -81,7 +97,8 @@ Rectangle {
         id: image
         anchors.fill: parent
 
-        source: Qt.resolvedUrl(root.source)
+        source: root.source ? Qt.resolvedUrl(root.source) : ""
+        visible: opacity > 0 && !root.blur
         fillMode: Image.PreserveAspectFit
         antialiasing: true
         asynchronous: true
@@ -94,37 +111,39 @@ Rectangle {
 
     Loader {
         id: blurLoader
-        active: root.blur
+        active: root.blur && root.supportsEffects
         anchors.fill: image
         sourceComponent: GaussianBlur {
             source: image
             radius: 35
             samples: radius * 2 + 1
+        }
+    }
 
-            Rectangle {
-                anchors.fill: parent
-                color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.5)
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        visible: root.blur
+        color: root.supportsEffects ? Qt.alpha(Appearance.m3colors.m3surfaceContainer, 0.65)
+            : Appearance.m3colors.m3surfaceContainer
 
-                Column {
-                    anchors {
-                        left: parent.left
-                        right: parent.right
-                        verticalCenter: parent.verticalCenter
-                    }
-                    MaterialSymbol {
-                        visible: width <= image.width
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: "visibility_off"
-                        font.pixelSize: 28
-                    }
-                    StyledText {
-                        visible: width <= image.width
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.blurText
-                        color: Appearance.colors.colOnSurface
-                        font.pixelSize: Appearance.font.pixelSize.smallie
-                    }
-                }
+        Column {
+            width: parent.width
+            anchors.verticalCenter: parent.verticalCenter
+
+            MaterialSymbol {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "visibility_off"
+                iconSize: 24
+                color: Appearance.m3colors.m3onSurface
+            }
+            StyledText {
+                width: parent.width
+                text: root.blurText
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                color: Appearance.m3colors.m3onSurface
+                font.pixelSize: Appearance.font.pixelSize.smaller
             }
         }
     }

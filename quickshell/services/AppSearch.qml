@@ -2,6 +2,7 @@ pragma Singleton
 
 import qs.modules.common
 import qs.modules.common.functions
+import QtQuick
 import Quickshell
 
 /**
@@ -53,23 +54,71 @@ Singleton {
         entry: a
     }))
 
+    property var launcherIndex: []
+    property bool launcherReady: false
+
+    onListChanged: launcherIndexUpdate.restart()
+    Component.onCompleted: launcherIndexUpdate.start()
+
+    Timer {
+        id: launcherIndexUpdate
+        interval: 55
+        onTriggered: {
+            root.launcherIndex = [...root.list].sort((a, b) => a.name.localeCompare(b.name)).map(entry => ({
+                name: Fuzzy.prepare(entry.name),
+                aliases: [entry.genericName, entry.id, ...entry.keywords].filter(Boolean).map(name => name.toLowerCase()),
+                entry
+            }))
+            root.launcherReady = true
+        }
+    }
+
+    function launcherQuery(search) {
+        if (!search)
+            return launcherIndex.map(item => item.entry)
+
+        const term = search.toLowerCase()
+        const named = matchNames(search, launcherIndex)
+        const byId = new Map(named.map(app => [app.id, app]))
+        const aliasRanks = new Map()
+        for (const item of launcherIndex) {
+            const rank = item.aliases.includes(term) ? 2 : item.aliases.some(name => name.startsWith(term)) ? 4
+                : item.aliases.some(name => name.includes(term)) ? 5 : 6
+            if (rank < 6) {
+                aliasRanks.set(item.entry.id, rank)
+                byId.set(item.entry.id, item.entry)
+            }
+        }
+        const rank = app => {
+            const name = app.name.toLowerCase()
+            if (name === term) return 0
+            if (name.startsWith(term)) return 1
+            return Math.min(name.includes(term) ? 3 : 6, aliasRanks.get(app.id) ?? 6)
+        }
+        return [...byId.values()].sort((a, b) => rank(a) - rank(b))
+    }
+
     readonly property var preppedIcons: list.map(a => ({
         name: Fuzzy.prepare(`${a.icon} `),
         entry: a
     }))
 
-    function fuzzyQuery(search: string): var { // Idk why list<DesktopEntry> doesn't work
+    function fuzzyQuery(search: string): var {
+        return matchNames(search, preppedNames)
+    }
+
+    function matchNames(search, index) {
         if (root.sloppySearch) {
-            const results = list.map(obj => ({
-                entry: obj,
-                score: Levendist.computeScore(obj.name.toLowerCase(), search.toLowerCase())
+            const results = index.map(({entry}) => ({
+                entry,
+                score: Levendist.computeScore(entry.name.toLowerCase(), search.toLowerCase())
             })).filter(item => item.score > root.scoreThreshold)
                 .sort((a, b) => b.score - a.score)
             return results
                 .map(item => item.entry)
         }
 
-        return Fuzzy.go(search, preppedNames, {
+        return Fuzzy.go(search, index, {
             all: true,
             key: "name"
         }).map(r => {

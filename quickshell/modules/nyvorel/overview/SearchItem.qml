@@ -19,6 +19,9 @@ RippleButton {
 
     property LauncherSearchResult entry
     property string query
+    required property color selectionFill
+    required property color selectionBorder
+    required property color hoverFill
 
 
     property bool entryShown:
@@ -115,20 +118,8 @@ RippleButton {
         root.clipboardInfo.isImage === true
 
 
-    readonly property list<string> urls:
-        root.clipboardInfo.urls
-            ? root.clipboardInfo.urls
-            : []
-
-
     readonly property bool clipboardIsLink:
         root.clipboardInfo.isLink === true
-
-
-    readonly property string clipboardKind:
-        root.clipboardInfo.kind
-            ? root.clipboardInfo.kind
-            : "Text"
 
 
     readonly property string clipboardKindIcon:
@@ -194,26 +185,12 @@ RippleButton {
         Appearance.rounding.normal
 
 
-    // Much less aggressive than the previous large orange block.
-    colBackground:
-        root.keyboardDown
-            ? Appearance.colors.colLayer2Active
-            : root.focus
-                ? Appearance.colors.colSecondaryContainer
-                : root.hovered
-                    ? Appearance.colors.colLayer2Hover
-                    : ColorUtils.transparentize(
-                        Appearance.colors.colLayer2,
-                        1
-                    )
-
-
-    colBackgroundHover:
-        Appearance.colors.colLayer2Hover
-
-
-    colRipple:
-        Appearance.colors.colLayer2Active
+    toggled: root.listCurrent || root.activeFocus
+    colBackground: root.keyboardDown ? root.hoverFill : "transparent"
+    colBackgroundHover: root.hoverFill
+    colBackgroundToggled: "transparent"
+    colBackgroundToggledHover: "transparent"
+    colRippleToggled: root.selectionBorder
 
 
     // ============================================================
@@ -379,14 +356,24 @@ RippleButton {
             root.horizontalMargin
     }
 
+    Rectangle {
+        anchors.fill: root.background
+        z: -0.5
+        radius: root.buttonRadius
+        visible: root.toggled
+        color: root.selectionFill
+        border.color: root.selectionBorder
+    }
+
 
     onClicked: {
+        const execute = root.itemExecute
         GlobalStates.overviewOpen =
             false
 
 
-        if (root.itemExecute)
-            root.itemExecute()
+        if (execute)
+            execute()
     }
 
 
@@ -780,7 +767,7 @@ RippleButton {
                 visible:
                     (
                         root.hovered
-                        || root.focus
+                        || root.listCurrent || root.activeFocus
                     )
                     && root.itemClickActionName.length
                         > 0
@@ -846,337 +833,64 @@ RippleButton {
         }
 
 
-        // ========================================================
-        // Clipboard result
-        // ========================================================
-
         ColumnLayout {
-            visible:
-                root.isClipboardEntry
-
-
-            Layout.fillWidth:
-                true
-
-
-            spacing:
-                7
-
-
-            // ----------------------------------------------------
-            // Clipboard header
-            // ----------------------------------------------------
+            visible: root.isClipboardEntry
+            Layout.fillWidth: true
+            spacing: 4
 
             RowLayout {
-                Layout.fillWidth:
-                    true
-
-                Layout.preferredHeight:
-                    30
-
-
-                spacing:
-                    7
-
-
-                Rectangle {
-                    implicitWidth:
-                        clipboardKindRow.implicitWidth
-                        + 14
-
-                    implicitHeight:
-                        25
-
-
-                    radius:
-                        height / 2
-
-
-                    color:
-                        Appearance.colors.colLayer2
-
-
-                    Row {
-                        id: clipboardKindRow
-
-                        anchors.centerIn:
-                            parent
-
-                        spacing:
-                            5
-
-
-                        MaterialSymbol {
-                            anchors.verticalCenter:
-                                parent.verticalCenter
-
-                            text:
-                                root.clipboardKindIcon
-
-                            iconSize:
-                                14
-
-                            color:
-                                Appearance.colors.colSubtext
-                        }
-
-
-                        StyledText {
-                            anchors.verticalCenter:
-                                parent.verticalCenter
-
-                            text:
-                                root.clipboardKind
-
-                            font {
-                                pixelSize:
-                                    Appearance.font.pixelSize.smaller
-
-                                weight:
-                                    Font.DemiBold
-                            }
-
-                            color:
-                                Appearance.colors.colOnLayer2
-                        }
-                    }
-                }
-
-
-                Item {
-                    Layout.fillWidth:
-                        true
-                }
-
-
-                Loader {
-                    visible:
-                        !root.clipboardIsImage
-                        && root.itemName
-                            === Quickshell.clipboardText
-
-
-                    active:
-                        visible
-
-
-                    sourceComponent:
-                        Rectangle {
-                            implicitWidth:
-                                25
-
-                            implicitHeight:
-                                25
-
-                            radius:
-                                height / 2
-
-                            color:
-                                Appearance.colors.colPrimary
-
-
-                            MaterialSymbol {
-                                anchors.centerIn:
-                                    parent
-
-                                text:
-                                    "check"
-
-                                iconSize:
-                                    15
-
-                                color:
-                                    Appearance.m3colors.m3onPrimary
-                            }
-                        }
-                }
-
-
-                RowLayout {
-                    spacing:
-                        2
-
-
-                    Repeater {
-                        model:
-                            (
-                                root.entry.actions
-                                ?? []
-                            ).slice(
-                                0,
-                                2
-                            )
-
-
-                        delegate:
-                            ResultActionButton {
-                                required property var modelData
-
-                                actionData:
-                                    modelData
-                            }
-                    }
-                }
-            }
-
-
-            // ----------------------------------------------------
-            // Image preview
-            // ----------------------------------------------------
-
-            Loader {
-                active:
-                    root.clipboardIsImage
-
-
-                visible:
-                    active
-
-
-                Layout.fillWidth:
-                    true
-
-
-                sourceComponent:
-                    ColumnLayout {
-                        spacing:
-                            6
-
-
-                        CliphistImage {
-                            Layout.fillWidth:
-                                true
-
-
-                            entry:
-                                root.cliphistRawString
-
-
-                            maxWidth:
-                                parent.width
-
-
-                            // Compact rows keep keyboard navigation calm.
-                            // The selected image expands for inspection.
-                            maxHeight:
-                                root.listCurrent
-                                    ? 144
-                                    : 64
-
-
-                            blur:
-                                root.blurImage
-                        }
-
-
-                        StyledText {
-                            Layout.fillWidth:
-                                true
-
-
-                            text:
-                                root.imageMetadata()
-
-
-                            font.pixelSize:
-                                Appearance.font.pixelSize.smaller
-
-
-                            color:
-                                Appearance.colors.colSubtext
-
-
-                            elide:
-                                Text.ElideRight
-                        }
-                    }
-            }
-
-
-            // ----------------------------------------------------
-            // Clipboard text / URL
-            // ----------------------------------------------------
-
-            RowLayout {
-                visible:
-                    !root.clipboardIsImage
-
-
-                Layout.fillWidth:
-                    true
-
-
-                spacing:
-                    8
-
+                Layout.fillWidth: true
+                spacing: 8
 
                 MaterialSymbol {
-                    visible:
-                        root.clipboardIsLink
-
-
-                    Layout.alignment:
-                        Qt.AlignTop
-
-
-                    text:
-                        "link"
-
-
-                    iconSize:
-                        18
-
-
-                    color:
-                        Appearance.colors.colSubtext
+                    text: root.clipboardKindIcon
+                    iconSize: 18
+                    color: Appearance.colors.colSubtext
                 }
 
-
                 StyledText {
-                    Layout.fillWidth:
-                        true
+                    Layout.fillWidth: true
+                    text: root.clipboardIsImage ? root.imageMetadata() : root.itemName
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                    maximumLineCount: root.listCurrent && !root.clipboardIsImage ? 2 : 1
+                    elide: Text.ElideRight
+                    color: Appearance.colors.colOnLayer0
+                }
 
+                MaterialSymbol {
+                    visible: !root.clipboardIsImage && root.itemName === Quickshell.clipboardText
+                    text: "check"
+                    iconSize: 16
+                    color: Appearance.colors.colPrimary
+                }
 
-                    text:
-                        root.itemName
+                RowLayout {
+                    spacing: 2
+                    opacity: root.listCurrent || root.hovered ? 1 : 0
 
+                    Repeater {
+                        model: root.entry?.actions ?? []
 
-                    textFormat:
-                        Text.PlainText
-
-
-                    wrapMode:
-                        Text.Wrap
-
-
-                    maximumLineCount:
-                        3
-
-
-                    elide:
-                        Text.ElideRight
-
-
-                    font {
-                        pixelSize:
-                            Appearance.font.pixelSize.small
-
-                        family:
-                            Appearance.font.family[
-                                root.fontType
-                            ]
+                        delegate: ResultActionButton {
+                            required property var modelData
+                            actionData: modelData
+                        }
                     }
-
-
-                    color:
-                        Appearance.m3colors.m3onSurface
                 }
             }
 
+            Loader {
+                active: root.isClipboardEntry && root.clipboardIsImage
+                visible: active
+                Layout.fillWidth: true
 
-            Item {
-                implicitHeight:
-                    2
+                sourceComponent: CliphistImage {
+                    entry: root.cliphistRawString
+                    maxWidth: root.width - 36
+                    maxHeight: root.listCurrent ? 132 : 55
+                    blur: root.blurImage
+                }
             }
         }
     }

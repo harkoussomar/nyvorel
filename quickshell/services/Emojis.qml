@@ -13,29 +13,19 @@ import Quickshell.Io
 Singleton {
     id: root
     property string emojiScriptPath: `${Directories.config}/hypr/hyprland/scripts/fuzzel-emoji.sh`
-	property string lineBeforeData: "### DATA ###"
-    property list<var> list
-    readonly property var preparedEntries: list.map(a => ({
-        name: Fuzzy.prepare(`${a}`),
-        entry: a
-    }))
-    function fuzzyQuery(search: string): var {
-        if (root.sloppySearch) {
-            const results = entries.slice(0, 100).map(str => ({
-                entry: str,
-                score: Levendist.computeTextMatchScore(str.toLowerCase(), search.toLowerCase())
-            })).filter(item => item.score > root.scoreThreshold)
-                .sort((a, b) => b.score - a.score)
-            return results
-                .map(item => item.entry)
-        }
+    property list<string> list
+    property bool loaded: false
+    readonly property var preparedEntries: list.map(entry => ({ name: Fuzzy.prepare(entry), entry }))
 
-        return Fuzzy.go(search, preparedEntries, {
-            all: true,
-            key: "name"
-        }).map(r => {
-            return r.obj.entry
-        });
+    function fuzzyQuery(search: string): var {
+        const term = search.trim().toLowerCase()
+        if (!term)
+            return root.list
+        const words = term.split(/\s+/)
+        const direct = root.list.filter(entry => words.every(word => entry.toLowerCase().includes(word)))
+        if (direct.length)
+            return direct
+        return Fuzzy.go(term, preparedEntries, {key: "name"}).map(result => result.obj.entry)
     }
 
     function load() {
@@ -44,21 +34,27 @@ Singleton {
 
     function updateEmojis(fileContent) {
         const lines = fileContent.split("\n")
-        const dataIndex = lines.indexOf(root.lineBeforeData)
-        if (dataIndex === -1) {
-            console.warn("No data section found in emoji script file.")
-            return
-        }
-        const emojis = lines.slice(dataIndex + 1).filter(line => line.trim() !== "")
-        root.list = emojis.map(line => line.trim())
+        const start = lines.indexOf("### DATA ###")
+        const end = lines.indexOf("NYVOREL_EMOJI_DATA", start + 1)
+        const seen = new Set()
+        root.list = start < 0 ? [] : lines.slice(start + 1, end < 0 ? lines.length : end)
+            .map(line => line.trim()).filter(line => {
+                const glyph = line.match(/^(\S+)\s+/)?.[1]
+                if (!glyph || seen.has(glyph))
+                    return false
+                seen.add(glyph)
+                return true
+            })
+        root.loaded = true
     }
 
-    FileView { 
+    FileView {
         id: emojiFileView
         path: Qt.resolvedUrl(root.emojiScriptPath)
         onLoadedChanged: {
-            const fileContent = emojiFileView.text()
-            root.updateEmojis(fileContent)
+            if (emojiFileView.loaded)
+                root.updateEmojis(emojiFileView.text())
         }
+        onLoadFailed: error => { root.loaded = true }
     }
 }

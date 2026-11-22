@@ -403,13 +403,14 @@
     },
     {
       "id": "screen-recording",
-      "commands_any_of": [
-        "gpu-screen-recorder"
+      "commands_all_of": [
+        "gpu-screen-recorder",
+        "gsr-cli"
       ],
       "arch_packages_any_of": [
         "gpu-screen-recorder"
       ],
-      "feature": "GPU screen recording.",
+      "feature": "GPU screen recording with pause, resume, and stop controls.",
       "evidence": [
         "quickshell/modules/nyvorel/regionSelector/RegionSelection.qml",
         "quickshell/scripts/videos/record.sh"

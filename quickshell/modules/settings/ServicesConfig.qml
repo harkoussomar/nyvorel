@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.services
 import qs.modules.common
+import qs.modules.common.utils as Utils
 import qs.modules.common.widgets
 
 SettingsTabbedPage {
@@ -10,7 +11,8 @@ SettingsTabbedPage {
         { id: "recognition", label: Translation.tr("AI & recognition"), icon: "neurology" },
         { id: "search-web", label: Translation.tr("Search & web"), icon: "search" },
         { id: "weather-network", label: Translation.tr("Weather & network"), icon: "weather_mix" },
-        { id: "storage-performance", label: Translation.tr("Storage & performance"), icon: "folder_managed" }
+        { id: "storage-performance", label: Translation.tr("Storage & performance"), icon: "folder_managed" },
+        { id: "optional-tools", label: Translation.tr("Optional tools"), icon: "extension" }
     ]
 
     // Layout-only values. Corner geometry always uses Appearance.radius.*.
@@ -695,7 +697,7 @@ SettingsTabbedPage {
                 iconName: "music_cast"
 
                 InfoBox {
-                    iconName: "music_search"
+                    iconName: "graphic_eq"
                     text: Translation.tr("Recognition runs only when requested. It launches the existing SongRec script and reports an error if the songrec dependency is unavailable.")
                 }
 
@@ -1121,11 +1123,36 @@ SettingsTabbedPage {
                     }
                 }
 
+                FieldLabel {
+                    title: Translation.tr("Screenshot output")
+                    subtitle: Translation.tr("Choose what happens when you capture a screenshot with the selector.")
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: [
+                            {key: "copy", label: Translation.tr("Copy"), icon: "content_copy"},
+                            {key: "save", label: Translation.tr("Save"), icon: "save"},
+                            {key: "both", label: Translation.tr("Both"), icon: "file_copy"}
+                        ]
+                        delegate: ChoiceChip {
+                            required property var modelData
+                            label: modelData.label
+                            iconName: modelData.icon
+                            selected: Utils.ScreenshotAction.outputMode === modelData.key
+                            onClicked: Config.options.screenSnip.destination = modelData.key
+                        }
+                    }
+                }
+
                 PathField {
                     title: Translation.tr("Screenshots folder")
                     iconName: "screenshot"
-                    subtitle: Translation.tr("Leave empty to copy the screenshot without saving it to a directory.")
-                    placeholder: Translation.tr("Leave empty for clipboard only")
+                    subtitle: Translation.tr("Saved screenshots go here. An empty path uses Pictures/Screenshots.")
+                    placeholder: Translation.tr("Pictures/Screenshots")
                     currentValue: Config.options.screenSnip.savePath
 
                     onEdited: value => {
@@ -1219,6 +1246,43 @@ SettingsTabbedPage {
                     }
                 }
             }
+        }
+    }
+
+    SettingsCard {
+        visible: root.currentSection === "optional-tools"
+        title: Translation.tr("Tool access and shortcuts")
+        subtitle: Translation.tr("Enable the tools you use. Their shortcuts are available for your own bindings when turned off.")
+        iconName: "extension"
+
+        PreferenceSwitchRow {
+            title: Translation.tr("Arch Remote")
+            subtitle: Translation.tr("Open the remote access control center with Super + Y.")
+            iconName: "shield"
+            enabled: !OptionalServices.archRemote.saving
+            switchChecked: OptionalServices.archRemote.enabled
+            onUserToggled: checked => OptionalServices.archRemote.setEnabled(checked)
+        }
+
+        PreferenceSwitchRow {
+            title: Translation.tr("Backup & Recovery")
+            subtitle: Translation.tr("Open the backup and recovery center with Super + U.")
+            iconName: "settings_backup_restore"
+            enabled: !OptionalServices.backupRecovery.saving
+            switchChecked: OptionalServices.backupRecovery.enabled
+            onUserToggled: checked => OptionalServices.backupRecovery.setEnabled(checked)
+        }
+
+        InfoBox {
+            visible: OptionalServices.archRemote.writeFailed || OptionalServices.backupRecovery.writeFailed
+            warning: true
+            text: Translation.tr("Could not save the preference. Try again.")
+        }
+
+        InfoBox {
+            visible: OptionalServices.shortcutReloadFailed
+            warning: true
+            text: Translation.tr("Hyprland could not reload the shortcuts. The preference will apply to the shortcuts after your next sign-in.")
         }
     }
 

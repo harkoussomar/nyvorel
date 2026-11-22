@@ -22,7 +22,6 @@ import qs.modules.nyvorel.screenCorners
 import qs.modules.nyvorel.sessionScreen
 import qs.modules.nyvorel.sidebarLeft
 import qs.modules.nyvorel.sidebarRight
-import qs.modules.nyvorel.overlay
 import qs.modules.nyvorel.verticalBar
 
 Scope {
@@ -35,7 +34,6 @@ PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
     PanelLoader { component: NotificationPopup {} }
     PanelLoader { component: OnScreenDisplay {} }
     PanelLoader { component: OnScreenKeyboard {} }
-    PanelLoader { component: Overlay {} }
     PanelLoader { component: Overview {} }
     PanelLoader { component: ArchRemote {} }
     PanelLoader { component: BackupRecovery {} }

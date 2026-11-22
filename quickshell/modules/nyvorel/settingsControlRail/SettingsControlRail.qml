@@ -10,9 +10,14 @@ Item {
     property var pages: []
     property int currentPage: 0
     property bool expanded: false
+    readonly property int aboutPageIndex: pages.length - 1
+    readonly property var aboutPage: pages[aboutPageIndex]
+    readonly property int leftInset: 4
+    readonly property int rightInset: expanded ? 12 : 4
 
     signal searchRequested()
     signal pageRequested(int index)
+    signal configRequested()
 
     implicitWidth: root.expanded ? 210 : 58
 
@@ -32,7 +37,9 @@ Item {
         required property string iconName
         required property string label
         property bool selected: false
+        property bool iconOnly: false
         property real iconRotation: 0
+        readonly property bool showLabel: root.expanded && !iconOnly
 
         Layout.fillWidth: true
         Layout.minimumWidth: 0
@@ -63,11 +70,11 @@ Item {
                 id: navigationIcon
                 anchors {
                     verticalCenter: parent.verticalCenter
-                    left: root.expanded ? parent.left : undefined
-                    horizontalCenter: root.expanded
+                    left: button.showLabel ? parent.left : undefined
+                    horizontalCenter: button.showLabel
                         ? undefined
                         : parent.horizontalCenter
-                    leftMargin: root.expanded ? 12 : 0
+                    leftMargin: button.showLabel ? 12 : 0
                 }
                 text: button.iconName
                 iconSize: 20
@@ -93,7 +100,7 @@ Item {
             }
 
             StyledText {
-                visible: root.expanded
+                visible: button.showLabel
                 anchors {
                     left: navigationIcon.right
                     right: parent.right
@@ -112,7 +119,7 @@ Item {
         }
 
         StyledToolTip {
-            extraVisibleCondition: !root.expanded && button.hovered
+            extraVisibleCondition: !button.showLabel && button.hovered
             delay: 450
             text: button.label
         }
@@ -120,12 +127,15 @@ Item {
 
     Flickable {
         id: navigationScroller
-        anchors.fill: parent
         anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+            bottom: footer.top
             topMargin: 8
             bottomMargin: 8
-            leftMargin: 4
-            rightMargin: 12
+            leftMargin: root.leftInset
+            rightMargin: root.rightInset
         }
         clip: true
         contentWidth: width
@@ -153,7 +163,7 @@ Item {
             }
 
             Repeater {
-                model: root.pages
+                model: root.pages.slice(0, root.aboutPageIndex)
 
                 delegate: ColumnLayout {
                     required property int index
@@ -162,7 +172,7 @@ Item {
                     spacing: 3
 
                     StyledText {
-                        visible: root.expanded && (index === 0 || index === 3 || index === 6)
+                        visible: root.expanded && (index === 0 || modelData.group !== root.pages[index - 1]?.group)
                         Layout.fillWidth: true
                         Layout.topMargin: index === 0 ? 8 : 15
                         Layout.leftMargin: 12
@@ -183,6 +193,39 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    GridLayout {
+        id: footer
+
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            leftMargin: root.leftInset
+            rightMargin: root.rightInset
+            bottomMargin: 8
+        }
+        columns: root.expanded ? 2 : 1
+        columnSpacing: 4
+        rowSpacing: 4
+
+        NavigationButton {
+            visible: root.aboutPage !== undefined
+            iconName: root.aboutPage?.icon ?? "info"
+            label: root.aboutPage?.name ?? Translation.tr("About")
+            selected: root.currentPage === root.aboutPageIndex
+            onClicked: root.pageRequested(root.aboutPageIndex)
+        }
+
+        NavigationButton {
+            iconName: "data_object"
+            label: Translation.tr("Open configuration file")
+            iconOnly: true
+            Layout.fillWidth: !root.expanded
+            Layout.preferredWidth: 44
+            onClicked: root.configRequested()
         }
     }
 }

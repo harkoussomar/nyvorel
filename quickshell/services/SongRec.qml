@@ -1,103 +1,102 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
-import qs.modules.common
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.modules.common
 
 Singleton {
     id: root
 
     enum MonitorSource { Monitor, Input }
 
-    property var monitorSource: SongRec.MonitorSource.Monitor
+    property int monitorSource: SongRec.MonitorSource.Monitor
     property int timeoutInterval: Config.options.musicRecognition.interval
     property int timeoutDuration: Config.options.musicRecognition.timeout
-    readonly property bool running: recognizeMusicProc.running
+    readonly property bool running: recognition.running
+    property bool cancelling: false
+    property var recognizedTrack: null
 
-    function toggleRunning(running) {
-        if (recognizeMusicProc.running && !running === true) root.manuallyStopped = true;
-        if (running != undefined) {
-            recognizeMusicProc.running = running
+    function toggleRunning(requested) {
+        const start = requested === undefined ? !running : requested
+        if (cancelling || start === running)
+            return
+        if (start) {
+            cancelling = false
+            notification.running = false
+            recognition.running = true
         } else {
-            recognizeMusicProc.running = !root.running
+            cancelling = true
+            recognition.running = false
         }
-        musicReconizedProc.running = false
     }
 
     function toggleMonitorSource(source) {
-        if (source !== undefined) {
-            root.monitorSource = source
-            return
-        }
-        root.monitorSource = (root.monitorSource === SongRec.MonitorSource.Monitor) ? SongRec.MonitorSource.Input : SongRec.MonitorSource.Monitor
+        const next = monitorSource === SongRec.MonitorSource.Monitor ? SongRec.MonitorSource.Input : SongRec.MonitorSource.Monitor
+        monitorSource = source === undefined ? next : source
     }
-    function monitorSourceToString(source) {
-        if (source === SongRec.MonitorSource.Monitor) {
-            return "monitor"
-        } else {
-            return "input"
-        }
-    }
-    readonly property string monitorSourceString: monitorSourceToString(monitorSource)
-    property var recognizedTrack: ({ title:"", subtitle:"", url:""})
-    property bool manuallyStopped: false
 
-    function handleRecognition(jsonText) {
-        try {
-            var obj = JSON.parse(jsonText)
-            root.recognizedTrack = {
-                title: obj.track.title,
-                subtitle: obj.track.subtitle,
-                url: obj.track.url
-            }
-            musicReconizedProc.running = true
-        } catch(e) {
-            Quickshell.execDetached(["notify-send", Translation.tr("Couldn't recognize music"), Translation.tr("Perhaps what you're listening to is too niche"), "-a", "Shell"])
+    function notifyFailure(code) {
+        let message
+        switch (code) {
+        case 2: message = Translation.tr("No match. Keep the track playing and try again."); break
+        case 3: message = Translation.tr("SongRec or an audio dependency is missing."); break
+        case 4: message = Translation.tr("The selected audio source is unavailable."); break
+        case 5: message = Translation.tr("Could not record audio from the selected source."); break
+        default: message = Translation.tr("Could not reach the music recognition service. Try again."); break
         }
+        Quickshell.execDetached(["notify-send", "-a", "Nyvorel", Translation.tr("Music recognition"), message])
     }
 
     Process {
-        id: recognizeMusicProc
-        running: false
-        command: [`${Directories.scriptPath}/musicRecognition/recognize-music.sh`, "-i", root.timeoutInterval, "-t", root.timeoutDuration, "-s", root.monitorSourceString]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (root.manuallyStopped) {
-                    root.manuallyStopped = false
-                    return
-                }
-                handleRecognition(this.text)
+        id: recognition
+        command: [Quickshell.shellPath("scripts/musicRecognition/recognize-music.sh"),
+            "-i", String(root.timeoutInterval), "-t", String(root.timeoutDuration),
+            "-s", root.monitorSource === SongRec.MonitorSource.Monitor ? "monitor" : "input"]
+        stdout: StdioCollector { id: response }
+        onExited: (code, status) => {
+            if (root.cancelling) {
+                root.cancelling = false
+                return
             }
-        }
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode === 1) {
-                Quickshell.execDetached(["notify-send", Translation.tr("Couldn't recognize music"), Translation.tr("Make sure you have songrec installed"), "-a", "Shell"])
+            if (code !== 0 || status !== 0) {
+                root.notifyFailure(code)
+                return
+            }
+            try {
+                const track = JSON.parse(response.text).track
+                if (!track?.title)
+                    throw new Error("Missing track title")
+                root.recognizedTrack = track
+                notification.running = true
+            } catch (error) {
+                root.notifyFailure(2)
             }
         }
     }
 
     Process {
-        id: musicReconizedProc
-        running: false
-        command: [
-            "notify-send",
-            Translation.tr("Music Recognized"), 
-            root.recognizedTrack.title + " - " + root.recognizedTrack.subtitle, 
-            "-A", "Shazam",
-            "-A", "YouTube",
-            "-a", "Shell"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (this.text === "") return
-                if (this.text == 0) {
-                    Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", root.recognizedTrack.url]);
-                } else {
-                    Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", "https://www.youtube.com/results?search_query=" + root.recognizedTrack.title + " - " + root.recognizedTrack.subtitle]);
-                }
-            }
+        id: notification
+        command: {
+            const track = root.recognizedTrack
+            if (!track)
+                return []
+            const description = [track.title, track.subtitle].filter(Boolean).join(" · ")
+            return ["timeout", "20s", "notify-send", "-a", "Nyvorel", "-t", "12000",
+                "--action=shazam=Shazam", "--action=youtube=YouTube",
+                Translation.tr("Music recognized"), description]
+        }
+        stdout: StdioCollector { id: selection }
+        onExited: {
+            const track = root.recognizedTrack
+            const action = selection.text.trim()
+            if (!track || (action !== "shazam" && action !== "youtube"))
+                return
+            const query = encodeURIComponent([track.title, track.subtitle].filter(Boolean).join(" "))
+            const url = action === "youtube" ? "https://www.youtube.com/results?search_query=" + query
+                : /^https:\/\/(www\.)?shazam\.com\//i.test(track.url ?? "") ? track.url : "https://www.shazam.com/search/" + query
+            Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", url])
         }
     }
 }

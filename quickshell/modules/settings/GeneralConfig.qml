@@ -10,7 +10,7 @@ SettingsTabbedPage {
     id: root
     sections: [
         { id: "system", label: Translation.tr("System"), icon: "tune" },
-        { id: "input", label: Translation.tr("Input"), icon: "touchpad" },
+        { id: "input", label: Translation.tr("Touchpad"), icon: "touchpad_mouse" },
         { id: "locale-time", label: Translation.tr("Locale & time"), icon: "language" },
         { id: "feedback", label: Translation.tr("Feedback"), icon: "notifications" },
         { id: "privacy-content", label: Translation.tr("Privacy & content"), icon: "shield" }
@@ -641,9 +641,9 @@ SettingsTabbedPage {
         spacing: 12
 
         SettingsCard {
-            title: Translation.tr("Touchpad scrolling")
-            subtitle: Translation.tr("Tune everyday two-finger scrolling independently from the temporary Super-held fast-scroll mode.")
-            iconName: "touchpad"
+            title: Translation.tr("Scroll speed")
+            subtitle: Translation.tr("Set two-finger scroll speed for normal use and while holding Super.")
+            iconName: "swipe_vertical"
 
             ColumnLayout {
                 Layout.fillWidth: true

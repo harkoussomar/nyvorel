@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
-import qs.modules.common.functions
 
 Process {
     id: screenshotProc
@@ -10,5 +9,10 @@ Process {
     property string screenshotDir: Directories.screenshotTemp
     required property ShellScreen screen
     property string screenshotPath: `${screenshotDir}/image-${screen.name}`
-    command: ["bash", "-c", `mkdir -p '${StringUtils.shellSingleQuoteEscape(screenshotDir)}' && grim -o '${StringUtils.shellSingleQuoteEscape(screen.name)}' '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`]
+    command: captureCommand(screenshotPath)
+
+    function captureCommand(path) {
+        return ["bash", "-c", 'mkdir -p -- "$1" && exec grim -t png -o "$2" "$3"',
+            "nyvorel-capture", screenshotDir, screen.name, path];
+    }
 }

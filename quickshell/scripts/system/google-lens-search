@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -u
+umask 077
+
+consume=false
+if [[ ${1:-} == --consume-capture ]]; then
+    consume=true
+    shift
+fi
+image=${1:-}
+[[ -f "$image" && -s "$image" ]] || exit 1
+work=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/nyvorel-lens.XXXXXX") || {
+    if "$consume"; then rm -f -- "$image"; fi
+    exit 1
+}
+cleanup() {
+    if "$consume"; then rm -f -- "$image"; fi
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+launch="$(dirname -- "$0")/nyvorel-app-launch"
+notify() { notify-send -a Nyvorel "Google Lens" "$1" || true; }
+
+# Use the same direct file upload used by Chromium's Lens form.
+if magick "$image" -strip -background white -alpha remove -resize '2048x2048>' -quality 92 "$work/region.jpg"; then
+    redirect=$(curl --silent --show-error --connect-timeout 6 --max-time 20 \
+        --output /dev/null --write-out '%{redirect_url}' \
+        --form "encoded_image=@$work/region.jpg;type=image/jpeg;filename=region.jpg" \
+        'https://lens.google.com/v3/upload?ep=cntpubb&re=df&s=4') || redirect=""
+    if [[ "$redirect" == https://www.google.com/search\?*vsrid=* ||
+          "$redirect" == https://lens.google.com/search\?*vsrid=* ]]; then
+        "$launch" --open "$redirect" && exit 0
+    fi
+fi
+
+# Google also provides a browser upload flow for local files.
+fallback_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/nyvorel/lens"
+if mkdir -p -- "$fallback_dir" && install -m 600 -- "$image" "$fallback_dir/region.png"; then
+    if printf '%s' "$fallback_dir/region.png" | wl-copy --type text/plain; then
+        notify 'Direct upload failed. The image path is copied. Choose Upload a file in Google Lens and paste it into the file picker.'
+    else
+        notify "Direct upload failed. Upload this file in Google Lens: $fallback_dir/region.png"
+    fi
+    "$launch" --open 'https://www.google.com/imghp'
+else
+    notify 'Could not send the selected image. Capture it again and retry.'
+    exit 1
+fi

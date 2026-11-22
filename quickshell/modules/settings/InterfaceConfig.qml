@@ -10,7 +10,7 @@ SettingsTabbedPage {
     sections: [
         { id: "surfaces", label: Translation.tr("Shell surfaces"), icon: "dashboard_customize" },
         { id: "lock-feedback", label: Translation.tr("Lock & feedback"), icon: "lock" },
-        { id: "overlays", label: Translation.tr("Tools & overlays"), icon: "select_window" },
+        { id: "overlays", label: Translation.tr("Capture tools"), icon: "select_window" },
         { id: "sidebars", label: Translation.tr("Navigation & sidebars"), icon: "side_navigation" },
         { id: "typography", label: Translation.tr("Typography"), icon: "text_format" }
     ]
@@ -28,8 +28,6 @@ SettingsTabbedPage {
     property bool shortcutTypographyExpanded: false
     property bool lockSecurityExpanded: false
     property bool lockAppearanceExpanded: false
-    property bool crosshairExpanded: false
-    property bool floatingImageExpanded: false
     property bool regionStylesExpanded: false
     property bool sidebarCornerAdvancedExpanded: false
     property bool overviewOrderingExpanded: false
@@ -1235,7 +1233,7 @@ SettingsTabbedPage {
     }
 
     // =========================================================================
-    // TOOLS & OVERLAYS
+    // CAPTURE TOOLS
     // =========================================================================
 
     ColumnLayout {
@@ -1245,128 +1243,8 @@ SettingsTabbedPage {
         spacing: 12
 
         SettingsCard {
-            title: Translation.tr("Overlay behavior")
-            subtitle: Translation.tr("Configure the shared overlay surface, then expand individual overlay tools only when needed.")
-            iconName: "select_window"
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: width >= root.wideBreakpoint ? 2 : 1
-                columnSpacing: 8
-                rowSpacing: 8
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Opening zoom animation")
-                    subtitle: Translation.tr("Animate the overlay surface when it opens.")
-                    iconName: "high_density"
-                    switchChecked:
-                        Config.options.overlay.openingZoomAnimation
-
-                    onUserToggled: checked => {
-                        Config.options.overlay.openingZoomAnimation = checked
-                    }
-                }
-
-                PreferenceSwitchRow {
-                    title: Translation.tr("Darken background")
-                    subtitle: Translation.tr("Dim the rest of the screen while the overlay is open.")
-                    iconName: "texture"
-                    switchChecked: Config.options.overlay.darkenScreen
-
-                    onUserToggled: checked => {
-                        Config.options.overlay.darkenScreen = checked
-                    }
-                }
-            }
-
-            ExpandButton {
-                collapsedText: Translation.tr("Crosshair overlay")
-                expandedText: Translation.tr("Hide crosshair overlay")
-                expanded: root.crosshairExpanded
-
-                onClicked: {
-                    root.crosshairExpanded = !root.crosshairExpanded
-                }
-            }
-
-            ColumnLayout {
-                visible: root.crosshairExpanded
-                Layout.fillWidth: true
-                spacing: 8
-
-                FieldLabel {
-                    title: Translation.tr("Valorant-format crosshair code")
-                    subtitle: Translation.tr("Press Super+G to open the overlay and pin the configured crosshair.")
-                }
-
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Crosshair code")
-                    text: Config.options.crosshair.code
-                    wrapMode: TextEdit.Wrap
-
-                    onTextChanged: {
-                        Config.options.crosshair.code = text
-                    }
-                }
-
-                RippleButtonWithIcon {
-                    Layout.fillWidth: true
-                    implicitHeight: root.compactControlHeight
-                    buttonRadius: Appearance.radius.control
-                    materialIcon: "open_in_new"
-                    mainText: Translation.tr("Open visual crosshair editor")
-
-                    colBackground: Appearance.colors.colLayer1
-                    colBackgroundHover: Appearance.colors.colLayer1Hover
-                    colRipple: Appearance.colors.colLayer1Active
-
-                    onClicked: {
-                        Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", `https://www.vcrdb.net/builder?c=${Config.options.crosshair.code}`])
-                    }
-
-                    StyledToolTip {
-                        text: "www.vcrdb.net"
-                    }
-                }
-            }
-
-            ExpandButton {
-                collapsedText: Translation.tr("Floating image overlay")
-                expandedText: Translation.tr("Hide floating image overlay")
-                expanded: root.floatingImageExpanded
-
-                onClicked: {
-                    root.floatingImageExpanded = !root.floatingImageExpanded
-                }
-            }
-
-            ColumnLayout {
-                visible: root.floatingImageExpanded
-                Layout.fillWidth: true
-                spacing: 8
-
-                FieldLabel {
-                    title: Translation.tr("Image source")
-                    subtitle: Translation.tr("Source used by the existing floating-image overlay.")
-                }
-
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Image URL or source")
-                    text: Config.options.overlay.floatingImage.imageSource
-                    wrapMode: TextEdit.Wrap
-
-                    onTextChanged: {
-                        Config.options.overlay.floatingImage.imageSource = text
-                    }
-                }
-            }
-        }
-
-        SettingsCard {
             title: Translation.tr("Region selector")
-            subtitle: Translation.tr("Customize screen-snipping suggestions and the Google Lens selection gesture.")
+            subtitle: Translation.tr("Configure selection suggestions and rectangle guides.")
             iconName: "screenshot_frame_2"
 
             FieldLabel {
@@ -1420,41 +1298,6 @@ SettingsTabbedPage {
                 }
             }
 
-            FieldLabel {
-                Layout.topMargin: 2
-                title: Translation.tr("Google Lens selection")
-                subtitle: Translation.tr("Choose the default gesture used for image-search selection.")
-            }
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: 8
-
-                ChoiceChip {
-                    label: Translation.tr("Rectangle")
-                    iconName: "activity_zone"
-                    selected:
-                        !Config.options.search.imageSearch.useCircleSelection
-
-                    onClicked: {
-                        Config.options.search.imageSearch.useCircleSelection =
-                            false
-                    }
-                }
-
-                ChoiceChip {
-                    label: Translation.tr("Circle to Search")
-                    iconName: "gesture"
-                    selected:
-                        Config.options.search.imageSearch.useCircleSelection
-
-                    onClicked: {
-                        Config.options.search.imageSearch.useCircleSelection =
-                            true
-                    }
-                }
-            }
-
             ExpandButton {
                 collapsedText: Translation.tr("Selection styles")
                 expandedText: Translation.tr("Hide selection styles")
@@ -1483,43 +1326,6 @@ SettingsTabbedPage {
                     }
                 }
 
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: width >= root.wideBreakpoint ? 2 : 1
-                    columnSpacing: 8
-                    rowSpacing: 8
-
-                    ConfigSpinBox {
-                        Layout.fillWidth: true
-                        icon: "eraser_size_3"
-                        text: Translation.tr("Circle stroke width")
-                        value:
-                            Config.options.regionSelector.circle.strokeWidth
-                        from: 1
-                        to: 20
-                        stepSize: 1
-
-                        onValueChanged: {
-                            Config.options.regionSelector.circle.strokeWidth =
-                                value
-                        }
-                    }
-
-                    ConfigSpinBox {
-                        Layout.fillWidth: true
-                        icon: "screenshot_frame_2"
-                        text: Translation.tr("Circle padding")
-                        value: Config.options.regionSelector.circle.padding
-                        from: 0
-                        to: 100
-                        stepSize: 5
-
-                        onValueChanged: {
-                            Config.options.regionSelector.circle.padding =
-                                value
-                        }
-                    }
-                }
             }
         }
     }

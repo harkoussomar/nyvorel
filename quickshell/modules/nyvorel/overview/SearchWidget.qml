@@ -1,1050 +1,287 @@
 pragma ComponentBehavior: Bound
 
-import Qt.labs.synchronizer
-import Qt5Compat.GraphicalEffects
-
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-
-import Quickshell
-
+import QtQuick.Controls as Controls
 import qs
-import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.modules.common.widgets
+import qs.services
 
-
-Item {
+FocusScope {
     id: root
 
-
-    readonly property string xdgConfigHome:
-        Directories.config
-
-
-    readonly property int typingDebounceInterval:
-        160
-
-
-    readonly property int typingResultLimit:
-        12
-
-
-    property string searchingText:
-        LauncherSearch.query
-
-    // SEARCH-CLIPBOARD-V2
+    property real availableWidth: 720
+    property real availableHeight: 680
+    property bool attachedToBar: false
+    readonly property string searchingText: searchBar.searchInput.text
+    readonly property bool emojiMode: LauncherSearch.mode === "emoji"
+    readonly property var activeView: emojiMode ? emojiResults : appResults
+    property var resultValues: []
     property string selectedResultKey: ""
+    property bool navigatingEmoji: false
+    property bool selectionMoved: false
+    readonly property color resultsBackground: attachedToBar
+        ? ColorUtils.mix(ColorUtils.applyAlpha(Appearance.barVisual.attachedSurfaceFill, 1), Appearance.m3colors.m3onSurface, 0.91)
+        : ColorUtils.applyAlpha(Appearance.m3colors.m3surfaceContainer, 1)
+    readonly property color surfaceOutline: attachedToBar
+        ? ColorUtils.mix(resultsBackground, Appearance.m3colors.m3onSurface, 0.88)
+        : Appearance.m3colors.m3outlineVariant
+    readonly property color resultHighlight: ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.78)
+    readonly property color resultOutline: ColorUtils.mix(resultsBackground, Appearance.colors.colPrimary, 0.40)
+    readonly property color resultHover: ColorUtils.mix(resultsBackground, Appearance.m3colors.m3onSurface, 0.91)
 
-
-    readonly property bool showResults:
-        root.searchingText !== ""
-
-
-    // OVERVIEW-UI-PRIORITY-V2.4
-    // Keep all global modes on one row on the 1920×1080 desktop while
-    // preserving the compact command-palette character.
-    readonly property real paletteWidth:
-        Math.min(
-            740,
-            Math.max(
-                700,
-                Appearance.sizes.searchWidth + 260
-            )
-        )
-
-
-    readonly property var prefixList: [
-        Config.options.search.prefix.action,
-        Config.options.search.prefix.app,
-        Config.options.search.prefix.clipboard,
-        Config.options.search.prefix.emojis,
-        Config.options.search.prefix.math,
-        Config.options.search.prefix.shellCommand,
-        Config.options.search.prefix.webSearch
-    ]
-
-
-    implicitWidth:
-        searchWidgetContent.implicitWidth
-        + Appearance.sizes.elevationMargin * 2
-
-
-    implicitHeight:
-        searchWidgetContent.implicitHeight
-        + Appearance.sizes.elevationMargin * 2
-
-
-    // ============================================================
-    // Search control
-    // ============================================================
+    implicitWidth: Math.min(720, Math.max(1, availableWidth - 32))
+    implicitHeight: content.implicitHeight + 16
+    focus: true
 
     function focusFirstItem() {
-        if (appResults.count > 0)
-            appResults.currentIndex = 0
+        selectIndex(0, false)
     }
-
 
     function focusSearchInput() {
         searchBar.forceFocus()
     }
 
-
-    function disableExpandAnimation() {
-        // Kept for API compatibility with Overview.qml.
-        searchBar.animateWidth = false
-    }
-
-
     function cancelSearch() {
-        searchBar.searchInput.selectAll()
-
-        LauncherSearch.query = ""
-
-        searchBar.searchInput.text = ""
-
-        searchBar.animateWidth = true
+        setSearchingText("")
     }
-
 
     function setSearchingText(text) {
-        searchBar.searchInput.text =
-            text
-
-        searchBar.searchInput.cursorPosition =
-            text.length
-
-        LauncherSearch.query =
-            text
+        searchBar.searchInput.text = text
+        searchBar.searchInput.cursorPosition = text.length
+        LauncherSearch.query = text
     }
 
-
-    function currentPrefix() {
-        return LauncherSearch.prefixForMode(
-            LauncherSearch.mode
-        )
+    function selectIndex(index, scroll) {
+        const count = resultValues.length
+        const next = count ? Math.min(Math.max(index, 0), count - 1) : -1
+        activeView.currentIndex = next
+        selectedResultKey = resultValues[next]?.key ?? ""
+        if (scroll && next >= 0)
+            activeView.positionViewAtIndex(next, ListView.Contain)
     }
 
-
-    function setMode(prefix) {
-        LauncherSearch.setModeFromPrefix(prefix)
-
-        root.setSearchingText(
-            LauncherSearch.query
-        )
-
-        root.focusSearchInput()
-        root.selectedResultKey = ""
-        root.focusFirstItem()
+    function syncResults() {
+        // A refresh of the same query (clipboard update, math answer, etc.)
+        // should preserve the user's selection by identity.
+        const previous = selectionMoved ? selectedResultKey : ""
+        resultValues = LauncherSearch.results
+        const index = previous ? resultValues.findIndex(entry => entry.key === previous) : -1
+        selectIndex(index === -1 ? 0 : index, index !== -1)
     }
 
-
-    function applyResultModel(resetSelection = false) {
-        const previousKey =
-            resetSelection
-                ? ""
-                : root.selectedResultKey
-
-        const nextValues =
-            (LauncherSearch.results ?? [])
-                .slice(0, root.typingResultLimit)
-
-        resultModel.values = nextValues
-
-        let nextIndex = -1
-
-        if (previousKey.length > 0) {
-            nextIndex =
-                nextValues.findIndex(
-                    entry =>
-                        (
-                            entry
-                            && entry.key
-                                ? entry.key
-                                : ""
-                        )
-                        === previousKey
-                )
-        }
-
-        if (nextIndex < 0 && nextValues.length > 0)
-            nextIndex = 0
-
-        appResults.currentIndex = nextIndex
-
-        root.selectedResultKey =
-            nextIndex >= 0
-                ? (
-                    nextValues[nextIndex]
-                    && nextValues[nextIndex].key
-                        ? nextValues[nextIndex].key
-                        : ""
-                )
-                : ""
+    function activate(index) {
+        const entry = resultValues[index]
+        if (!entry)
+            return
+        GlobalStates.overviewOpen = false
+        entry.execute()
     }
 
-
-    // ============================================================
-    // Keyboard input
-    // ============================================================
-
-    Keys.onPressed: event => {
-        if (
-            event.key === Qt.Key_Escape
-        ) {
+    function handleKey(event) {
+        const count = resultValues.length
+        if (!count)
+            return
+        const index = activeView.currentIndex
+        const rowSize = emojiMode ? emojiResults.columns : 1
+        const pageRows = Math.max(1, Math.floor(activeView.height / (emojiMode ? emojiResults.cellHeight : 52)) - 1)
+        let next = index
+        if (event.key === Qt.Key_Down)
+            next = index + rowSize
+        else if (event.key === Qt.Key_Up)
+            next = index - rowSize
+        else if (event.key === Qt.Key_PageDown)
+            next = index + rowSize * pageRows
+        else if (event.key === Qt.Key_PageUp)
+            next = index - rowSize * pageRows
+        else if (emojiMode && (navigatingEmoji || !LauncherSearch.queryText)
+                && event.modifiers === Qt.NoModifier && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
+            next = index + (event.key === Qt.Key_Right ? 1 : -1)
+        else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            event.accepted = true
+            activate(index)
+            return
+        } else if (event.key === Qt.Key_Delete && event.modifiers === Qt.ShiftModifier
+                && LauncherSearch.mode === "clipboard") {
+            event.accepted = true
+            const raw = resultValues[index]?.rawValue
+            if (raw)
+                Cliphist.deleteEntry(raw)
+            return
+        } else {
             return
         }
+        event.accepted = true
+        navigatingEmoji = emojiMode
+        selectionMoved = true
+        selectIndex(next, true)
+    }
 
+    onSearchingTextChanged: {
+        selectedResultKey = ""
+        navigatingEmoji = false
+        selectionMoved = false
+        LauncherSearch.query = searchingText
+    }
 
-        if (
-            event.key === Qt.Key_Backspace
-        ) {
-            if (
-                !searchBar.searchInput.activeFocus
-            ) {
-                root.focusSearchInput()
+    onVisibleChanged: {
+        if (visible)
+            Qt.callLater(focusSearchInput)
+    }
 
-
-                if (
-                    event.modifiers
-                    & Qt.ControlModifier
-                ) {
-                    let text =
-                        searchBar.searchInput.text
-
-                    let pos =
-                        searchBar.searchInput.cursorPosition
-
-
-                    if (pos > 0) {
-                        const left =
-                            text.slice(
-                                0,
-                                pos
-                            )
-
-                        const match =
-                            left.match(
-                                /(\s*\S+)\s*$/
-                            )
-
-                        const deleteLen =
-                            match
-                                ? match[0].length
-                                : 1
-
-
-                        searchBar.searchInput.text =
-                            text.slice(
-                                0,
-                                pos - deleteLen
-                            )
-                            + text.slice(pos)
-
-
-                        searchBar.searchInput.cursorPosition =
-                            pos - deleteLen
-                    }
-                } else {
-                    if (
-                        searchBar.searchInput.cursorPosition
-                        > 0
-                    ) {
-                        const pos =
-                            searchBar.searchInput.cursorPosition
-
-                        const text =
-                            searchBar.searchInput.text
-
-
-                        searchBar.searchInput.text =
-                            text.slice(
-                                0,
-                                pos - 1
-                            )
-                            + text.slice(pos)
-
-
-                        searchBar.searchInput.cursorPosition =
-                            pos - 1
-                    }
-                }
-
-
-                searchBar.searchInput.cursorPosition =
-                    searchBar.searchInput.text.length
-
-
-                event.accepted =
-                    true
-            }
-
-            return
-        }
-
-
-        if (
-            event.text
-            && event.text.length === 1
-            && event.key !== Qt.Key_Enter
-            && event.key !== Qt.Key_Return
-            && event.key !== Qt.Key_Delete
-            && event.text.charCodeAt(0) >= 0x20
-        ) {
-            if (
-                !searchBar.searchInput.activeFocus
-            ) {
-                root.focusSearchInput()
-
-
-                const pos =
-                    searchBar.searchInput.cursorPosition
-
-                const text =
-                    searchBar.searchInput.text
-
-
-                searchBar.searchInput.text =
-                    text.slice(0, pos)
-                    + event.text
-                    + text.slice(pos)
-
-
-                searchBar.searchInput.cursorPosition =
-                    pos + 1
-
-
-                event.accepted =
-                    true
-
-
-                root.focusFirstItem()
-            }
+    Connections {
+        target: LauncherSearch
+        function onResultsChanged() { root.syncResults() }
+        function onQueryChanged() {
+            if (root.searchingText !== LauncherSearch.query)
+                root.setSearchingText(LauncherSearch.query)
         }
     }
 
+    Component.onCompleted: {
+        setSearchingText(LauncherSearch.query)
+        syncResults()
+    }
 
-    // ============================================================
-    // Mode chip
-    // ============================================================
+    Column {
+        id: content
 
-    component ModeChip: Rectangle {
-        id: modeChip
+        width: parent.width
+        y: 12
+        spacing: 6
 
+        SearchBar {
+            id: searchBar
 
-        required property string label
-        required property string icon
-        required property string prefix
-
-
-        readonly property bool active:
-            root.currentPrefix()
-                === modeChip.prefix
-
-
-        implicitWidth:
-            chipContent.implicitWidth + 18
-
-        implicitHeight:
-            29
-
-
-        radius:
-             height / 2
-
-
-        color:
-             modeChip.active
-                ? Appearance.colors.colSecondaryContainer
-                : chipMouse.containsMouse
-                    ? Appearance.colors.colLayer2Hover
-                    : Appearance.colors.colLayer1
-
-
-        // Stronger selected-state hierarchy.
-        border.width:
-             (modeChip.active ? 1 : 0)
-
-        border.color:
-             modeChip.active
-                ? Appearance.colors.colSecondary
-                : "transparent"
-
-
-        Behavior on color {
-            animation:
-                Appearance.animation.elementMoveFast
-                    .colorAnimation
-                    .createObject(this)
+            width: content.width
+            surfaceColor: root.resultsBackground
+            hoverColor: root.resultHover
+            activeColor: root.resultHighlight
+            activeOutline: root.resultOutline
+            outline: root.surfaceOutline
+            onInputKeyPressed: event => root.handleKey(event)
         }
 
+        Rectangle {
+            id: resultSurface
 
-        Row {
-            id: chipContent
-
-            anchors.centerIn:
-                parent
-
-            spacing:
-                5
-
-
-            MaterialSymbol {
-                anchors.verticalCenter:
-                    parent.verticalCenter
-
-                text:
-                    modeChip.icon
-
-                iconSize:
-                    15
-
-                color:
-                    modeChip.active
-                        ? Appearance.m3colors.m3onSecondaryContainer
-                        : Appearance.colors.colSubtext
-            }
-
+            visible: root.searchingText.length > 0
+            width: content.width
+            height: Math.min(Math.max(64, root.availableHeight - 100), Math.min(540,
+                root.resultValues.length === 0 ? 48 : root.activeView.contentHeight + 12))
+            radius: Appearance.radius.card
+            color: root.resultsBackground
+            border.color: root.surfaceOutline
 
             StyledText {
-                anchors.verticalCenter:
-                    parent.verticalCenter
-
-                text:
-                    modeChip.label
-
-                font {
-                    pixelSize:
-                        Appearance.font.pixelSize.smaller
-
-                    weight:
-                        modeChip.active
-                            ? Font.DemiBold
-                            : Font.Normal
-                }
-
-                color:
-                    modeChip.active
-                        ? Appearance.m3colors.m3onSecondaryContainer
-                        : Appearance.colors.colOnLayer1
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                visible: root.resultValues.length === 0
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                color: Appearance.colors.colSubtext
+                text: LauncherSearch.emptyMessage
             }
-        }
-
-
-        MouseArea {
-            id: chipMouse
-
-            anchors.fill:
-                parent
-
-            hoverEnabled:
-                true
-
-            cursorShape:
-                Qt.PointingHandCursor
-
-
-            onClicked:
-                root.setMode(
-                    modeChip.prefix
-                )
-        }
-    }
-
-
-    // ============================================================
-    // Clipboard sub-filter chip
-    // ============================================================
-
-    component ClipboardFilterChip: Rectangle {
-        id: filterChip
-
-        required property string label
-        required property string icon
-        required property string filterName
-
-        readonly property bool active:
-            LauncherSearch.clipboardFilter
-            === filterChip.filterName
-
-        implicitWidth:
-            filterContent.implicitWidth + 18
-
-        implicitHeight:
-            27
-
-        radius:
-             height / 2
-
-        color:
-             filterChip.active
-                ? Appearance.colors.colPrimaryContainer
-                : filterMouse.containsMouse
-                    ? Appearance.colors.colLayer2Hover
-                    : Appearance.colors.colLayer1
-
-        border.width:
-             (filterChip.active ? 1 : 0)
-
-        border.color:
-             filterChip.active
-                ? Appearance.colors.colPrimary
-                : "transparent"
-
-        Row {
-            id: filterContent
-            anchors.centerIn: parent
-            spacing: 5
-
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                text: filterChip.icon
-                iconSize: 14
-                color:
-                    filterChip.active
-                        ? Appearance.colors.colOnPrimaryContainer
-                        : Appearance.colors.colSubtext
-            }
-
-            StyledText {
-                anchors.verticalCenter: parent.verticalCenter
-                text: filterChip.label
-                font {
-                    pixelSize:
-                        Appearance.font.pixelSize.smaller
-                    weight:
-                        filterChip.active
-                            ? Font.DemiBold
-                            : Font.Normal
-                }
-                color:
-                    filterChip.active
-                        ? Appearance.colors.colOnPrimaryContainer
-                        : Appearance.colors.colOnLayer1
-            }
-        }
-
-        MouseArea {
-            id: filterMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-
-            onClicked: {
-                LauncherSearch.setClipboardFilter(
-                    filterChip.filterName
-                )
-                root.focusSearchInput()
-            }
-        }
-    }
-
-
-    // ============================================================
-    // Surface
-    // ============================================================
-
-    StyledRectangularShadow {
-        visible:
-            true
-
-        target:
-            searchWidgetContent
-    }
-
-
-
-    Rectangle {
-        id: searchWidgetContent
-
-
-        anchors {
-            top:
-                parent.top
-
-            horizontalCenter:
-                parent.horizontalCenter
-
-            topMargin:
-                Appearance.sizes.elevationMargin
-        }
-
-
-        clip:
-            true
-
-
-        implicitWidth:
-            root.paletteWidth
-
-
-        implicitHeight:
-            columnLayout.implicitHeight
-
-
-        radius:
-              Appearance.rounding.large
-
-
-        color:
-              Appearance.colors.colBackgroundSurfaceContainer
-
-        border.width: 0
-        border.color: "transparent"
-
-
-        Behavior on implicitHeight {
-            enabled:
-                GlobalStates.overviewOpen
-
-            animation:
-                Appearance.animation.elementMove
-                    .numberAnimation
-                    .createObject(this)
-        }
-
-
-        ColumnLayout {
-            id: columnLayout
-
-
-            width:
-                parent.width
-
-
-            spacing:
-                0
-
-
-            // ====================================================
-            // Search bar
-            // ====================================================
-
-            SearchBar {
-                id: searchBar
-
-
-                property real verticalPadding:
-                    5
-
-
-                Layout.fillWidth:
-                    true
-
-                Layout.leftMargin:
-                    8
-
-                Layout.rightMargin:
-                    8
-
-                Layout.topMargin:
-                    verticalPadding
-
-                Layout.bottomMargin:
-                    verticalPadding
-
-
-                Synchronizer on searchingText {
-                    property alias source:
-                        root.searchingText
-                }
-            }
-
-
-            // ====================================================
-            // Search modes
-            //
-            // Prefixes remain available for keyboard users, but are
-            // now also discoverable in the UI.
-            // ====================================================
-
-            Item {
-                visible:
-                    GlobalStates.overviewOpen
-
-                Layout.fillWidth:
-                    true
-
-                implicitHeight:
-                    Math.max(
-                        38,
-                        modeFlow.implicitHeight + 10
-                    )
-
-
-                Flow {
-                    id: modeFlow
-
-                    anchors {
-                        left:
-                            parent.left
-
-                        right:
-                            parent.right
-
-                        top:
-                            parent.top
-
-                        leftMargin:
-                            10
-
-                        rightMargin:
-                            10
-
-                        topMargin:
-                            5
-                    }
-
-                    spacing:
-                        6
-
-
-                    ModeChip {
-                        label:
-                            "All"
-
-                        icon:
-                            "search"
-
-                        prefix:
-                            ""
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Apps"
-
-                        icon:
-                            "apps"
-
-                        prefix:
-                            Config.options.search.prefix.app
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Clipboard"
-
-                        icon:
-                            "content_paste"
-
-                        prefix:
-                            Config.options.search.prefix.clipboard
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Actions"
-
-                        icon:
-                            "bolt"
-
-                        prefix:
-                            Config.options.search.prefix.action
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Emoji"
-
-                        icon:
-                            "emoji_emotions"
-
-                        prefix:
-                            Config.options.search.prefix.emojis
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Math"
-
-                        icon:
-                            "calculate"
-
-                        prefix:
-                            Config.options.search.prefix.math
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Web"
-
-                        icon:
-                            "travel_explore"
-
-                        prefix:
-                            Config.options.search.prefix.webSearch
-                    }
-
-
-                    ModeChip {
-                        label:
-                            "Shell"
-
-                        icon:
-                            "terminal"
-
-                        prefix:
-                            Config.options.search.prefix.shellCommand
-                    }
-                }
-            }
-
-
-            // CLIPBOARD-FILTERS-V2.2
-            Item {
-                visible:
-                    LauncherSearch.mode
-                    === "clipboard"
-
-                Layout.fillWidth:
-                    true
-
-                implicitHeight:
-                    visible ? 35 : 0
-
-                Row {
-                    anchors {
-                        left: parent.left
-                        verticalCenter: parent.verticalCenter
-                        leftMargin: 10
-                    }
-
-                    spacing: 6
-
-                    ClipboardFilterChip {
-                        label: "All"
-                        icon: "select_all"
-                        filterName: "all"
-                    }
-
-                    ClipboardFilterChip {
-                        label: "Text"
-                        icon: "notes"
-                        filterName: "text"
-                    }
-
-                    ClipboardFilterChip {
-                        label: "Images"
-                        icon: "image"
-                        filterName: "image"
-                    }
-
-                    ClipboardFilterChip {
-                        label: "Links"
-                        icon: "link"
-                        filterName: "link"
-                    }
-                }
-            }
-
-
-            // ====================================================
-            // Separator
-            // ====================================================
-
-            Rectangle {
-                visible:
-                    root.showResults
-
-                Layout.fillWidth:
-                    true
-
-                height:
-                    1
-
-                color:
-                    Appearance.colors.colOutlineVariant
-            }
-
-
-            // ====================================================
-            // Results
-            // ====================================================
 
             ListView {
                 id: appResults
 
+                anchors.fill: parent
+                anchors.topMargin: 6
+                anchors.bottomMargin: 6
+                visible: !root.emojiMode && count > 0
+                model: root.emojiMode ? null : root.resultValues
+                clip: true
+                spacing: 1
+                cacheBuffer: 120
+                boundsBehavior: Flickable.StopAtBounds
+                keyNavigationEnabled: false
+                keyNavigationWraps: false
+                highlightMoveDuration: 0
 
-                visible:
-                    root.showResults
-
-
-                Layout.fillWidth:
-                    true
-
-
-                implicitHeight:
-                    Math.min(
-                        520,
-                        appResults.contentHeight
-                        + topMargin
-                        + bottomMargin
-                    )
-
-
-                clip:
-                    true
-
-
-                topMargin:
-                    8
-
-                bottomMargin:
-                    8
-
-                spacing:
-                    2
-
-
-                boundsBehavior:
-                    Flickable.StopAtBounds
-
-
-                KeyNavigation.up:
-                    searchBar
-
-
-                highlightMoveDuration:
-                    90
-
-
-                ScrollBar.vertical:
-                    ScrollBar {
-                        policy:
-                            ScrollBar.AsNeeded
-                    }
-
-
-                onFocusChanged: {
-                    if (
-                        focus
-                        && appResults.count > 0
-                    ) {
-                        appResults.currentIndex = 0
-                    }
+                Controls.ScrollBar.vertical: Controls.ScrollBar {
+                    policy: Controls.ScrollBar.AsNeeded
                 }
 
+                delegate: SearchItem {
+                    required property var modelData
 
-                onCurrentIndexChanged: {
-                    const current =
-                        appResults.currentItem
+                    width: appResults.width - 6
+                    focusPolicy: Qt.NoFocus
+                    entry: modelData
+                    query: LauncherSearch.queryText
+                    selectionFill: root.resultHighlight
+                    selectionBorder: root.resultOutline
+                    hoverFill: root.resultHover
+                }
+            }
 
-                    root.selectedResultKey =
-                        current
-                        && current.modelData
-                        && current.modelData.key
-                            ? current.modelData.key
-                            : ""
+            GridView {
+                id: emojiResults
+
+                property int columns: Math.max(1, Math.floor(width / 54))
+
+                anchors.fill: parent
+                anchors.margins: 6
+                visible: root.emojiMode && count > 0
+                model: root.emojiMode ? root.resultValues : null
+                cellWidth: width / columns
+                cellHeight: 50
+                clip: true
+                cacheBuffer: 120
+                boundsBehavior: Flickable.StopAtBounds
+                keyNavigationEnabled: false
+                keyNavigationWraps: false
+
+                Controls.ScrollBar.vertical: Controls.ScrollBar {
+                    policy: Controls.ScrollBar.AsNeeded
                 }
 
+                delegate: Item {
+                    id: cell
 
-                Connections {
-                    target:
-                        root
+                    required property int index
+                    required property var modelData
+                    readonly property bool selected: GridView.isCurrentItem
 
+                    width: emojiResults.cellWidth
+                    height: emojiResults.cellHeight
 
-                    function onSearchingTextChanged() {
-                        root.selectedResultKey = ""
-                    }
-                }
+                    RippleButton {
+                        id: glyphButton
 
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        focusPolicy: Qt.NoFocus
+                        buttonRadius: Appearance.radius.control
+                        toggled: cell.selected
+                        colBackgroundHover: root.resultHover
+                        colBackgroundToggled: "transparent"
+                        colBackgroundToggledHover: "transparent"
+                        colRippleToggled: root.resultOutline
+                        Accessible.name: cell.modelData.name
+                        Accessible.description: Translation.tr("Copy emoji")
+                        onClicked: root.activate(cell.index)
 
-                Connections {
-                    target:
-                        LauncherSearch
-
-
-                    function onResultsChanged() {
-                        root.applyResultModel(false)
-                    }
-                }
-
-
-                // SEARCH-CLIPBOARD-V2.1-FINAL-REPAIR
-                model:
-                    ScriptModel {
-                        id: resultModel
-
-                        objectProp:
-                            "key"
-                    }
-
-
-                delegate:
-                    SearchItem {
-                        id: searchItem
-
-
-                        required property var modelData
-
-
-                        anchors.left:
-                            parent?.left
-
-                        anchors.right:
-                            parent?.right
-
-
-                        entry:
-                            modelData
-
-
-                        query:
-                            StringUtils.cleanOnePrefix(
-                                root.searchingText,
-                                root.prefixList
-                            )
-
-
-                        Keys.onPressed: event => {
-                            if (
-                                event.key !== Qt.Key_Tab
-                            ) {
-                                return
-                            }
-
-
-                            if (
-                                LauncherSearch.results.length
-                                === 0
-                            ) {
-                                return
-                            }
-
-
-                            const tabbedText =
-                                searchItem.modelData.name
-
-
-                            LauncherSearch.completeText(
-                                tabbedText
-                            )
-
-
-                            searchBar.searchInput.text =
-                                LauncherSearch.query
-
-
-                            searchBar.searchInput.cursorPosition =
-                                tabbedText.length
-
-
-                            event.accepted =
-                                true
-
-
-                            root.focusSearchInput()
+                        contentItem: StyledText {
+                            text: cell.modelData.iconName
+                            font.pixelSize: 25
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                         }
                     }
+
+                    Rectangle {
+                        anchors.fill: glyphButton
+                        z: -1
+                        radius: glyphButton.buttonRadius
+                        visible: cell.selected
+                        color: root.resultHighlight
+                        border.color: root.resultOutline
+                    }
+                }
             }
         }
     }

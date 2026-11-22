@@ -15,9 +15,13 @@ Singleton {
     property string pressPasteCommand: "ydotool key -d 1 29:1 47:1 47:0 29:0"
     property bool sloppySearch: Config.options?.search.sloppy ?? false
     property real scoreThreshold: 0.2
+    property bool loaded: false
+    property bool refreshFailed: false
+    property bool refreshPending: false
+    readonly property bool refreshing: readProc.running
     property list<string> entries: []
     readonly property var preparedEntries: entries.map(a => ({
-        name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
+            name: Fuzzy.prepare(root.entryText(a)),
         entry: a
     }))
 
@@ -101,7 +105,7 @@ Singleton {
                 : root.maxSearchResults
         const limit =
             Number.isFinite(requestedLimit)
-            && requestedLimit > 0
+            && requestedLimit >= 0
                 ? Math.floor(requestedLimit)
                 : root.maxSearchResults
 
@@ -112,20 +116,15 @@ Singleton {
                 ? requestedType
                 : "all"
 
-        const candidates =
-            validType === "all"
-                ? root.entries
-                : root.entries.filter(
-                    entry =>
-                        root.entryKind(entry).toLowerCase()
-                        === validType
-                )
+        const candidates = validType === "all" ? root.entries : root.entries.filter(
+            entry => root.entryKind(entry).toLowerCase() === validType)
+        const take = matches => limit === 0 ? matches : matches.slice(0, limit)
 
         if (search.trim() === "")
-            return candidates.slice(0, limit)
+            return take(candidates)
 
         if (root.sloppySearch) {
-            return candidates
+            return take(candidates
                 .map(str => ({
                     entry: str,
                     score:
@@ -142,29 +141,20 @@ Singleton {
                     (a, b) =>
                         b.score - a.score
                 )
-                .slice(0, limit)
-                .map(item => item.entry)
+                .map(item => item.entry))
         }
 
-        const preparedCandidates =
-            candidates.map(entry => ({
-                name:
-                    Fuzzy.prepare(
-                        root.entryText(entry)
-                    ),
-                entry
-            }))
+        const preparedCandidates = validType === "all" ? root.preparedEntries
+            : root.preparedEntries.filter(item => root.entryKind(item.entry).toLowerCase() === validType)
 
-        return Fuzzy.go(
+        return take(Fuzzy.go(
             search,
             preparedCandidates,
             {
-                all: true,
                 key: "name"
             }
         )
-            .slice(0, limit)
-            .map(r => r.obj.entry)
+            .map(r => r.obj.entry))
     }
 
     // Backwards compatibility for callers outside Overview.
@@ -181,17 +171,21 @@ Singleton {
     }
 
     function refresh() {
+        if (readProc.running) {
+            refreshPending = true
+            return
+        }
         readProc.buffer = []
         readProc.running = true
     }
 
     function copy(entry) {
-        if (root.cliphistBinary.includes("cliphist")) // Classic cliphist
-            Quickshell.execDetached(["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode | wl-copy`]);
-        else { // Stash
-            const entryNumber = entry.split("\t")[0];
-            Quickshell.execDetached(["bash", "-c", `${root.cliphistBinary} decode ${entryNumber} | wl-copy`]);
-        }
+        const id = root.entryId(entry)
+        if (!/^\d+$/.test(id))
+            return
+        const decode = root.cliphistBinary.includes("cliphist")
+            ? "printf '%s' \"$2\" | \"$1\" decode | wl-copy" : "\"$1\" decode \"$2\" | wl-copy"
+        Quickshell.execDetached(["bash", "-o", "pipefail", "-c", decode, "nyvorel-clipboard", root.cliphistBinary, id])
     }
 
     function paste(entry) {
@@ -216,12 +210,12 @@ Singleton {
 
     Process {
         id: deleteProc
-        property string entry: ""
-        command: ["bash", "-c", `echo '${StringUtils.shellSingleQuoteEscape(deleteProc.entry)}' | ${root.cliphistBinary} delete`]
         function deleteEntry(entry) {
-            deleteProc.entry = entry;
-            deleteProc.running = true;
-            deleteProc.entry = "";
+            const id = root.entryId(entry)
+            if (running || !/^\d+$/.test(id))
+                return
+            command = ["bash", "-c", "printf '%s' \"$2\" | \"$1\" delete", "nyvorel-clipboard", root.cliphistBinary, id]
+            running = true
         }
         onExited: (exitCode, exitStatus) => {
             root.refresh();
@@ -264,7 +258,8 @@ Singleton {
         id: readProc
         property list<string> buffer: []
 
-        command: [root.cliphistBinary, "list"]
+        command: root.cliphistBinary.includes("cliphist")
+            ? [root.cliphistBinary, "-preview-width", "2048", "list"] : [root.cliphistBinary, "list"]
 
         stdout: SplitParser {
             onRead: (line) => {
@@ -273,10 +268,16 @@ Singleton {
         }
 
         onExited: (exitCode, exitStatus) => {
+            root.refreshFailed = exitCode !== 0
+            root.loaded = true
             if (exitCode === 0) {
                 root.entries = readProc.buffer
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)
+            }
+            if (root.refreshPending) {
+                root.refreshPending = false
+                Qt.callLater(root.refresh)
             }
         }
     }

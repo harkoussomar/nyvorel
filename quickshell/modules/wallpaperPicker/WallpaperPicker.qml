@@ -94,6 +94,7 @@ Scope {
     property var beforeSwitch: null
     property var committedLook: null
     property var recent: []
+    property var galleryImages: ({})
 
     function duration(milliseconds: int): int {
         return Appearance.reducedMotion ? 0 : Math.round(milliseconds * Appearance.motionScale)
@@ -116,6 +117,7 @@ Scope {
         if (!monitorName && Quickshell.screens.length)
             monitorName = Quickshell.screens[0].name
         comparing = false
+        galleryImages = ({})
         folderToolsOpen = false
         returnFolder = ""
         if (needsFolderFallback) {
@@ -143,7 +145,7 @@ Scope {
         Qt.callLater(loadFolderFallback)
         Qt.callLater(updateRegion)
         requestStatus("open-status")
-        Qt.callLater(() => keys.forceActiveFocus())
+        Qt.callLater(keys.forceActiveFocus)
     }
 
     function validatePreview(): void {
@@ -227,6 +229,24 @@ Scope {
         return needsFolderFallback ? !!folderEntries[index]?.directory : !!library.get(index, "fileIsDir")
     }
 
+    function loadGalleryImages(): void {
+        if (!opened || !gallery.count || (!recentOnly && folderLoading) || galleryLoader.running)
+            return
+        const center = Math.max(0, gallery.currentIndex)
+        const nearby = [0, -1, 1, -2, 2, -3, 3].map(offset => center + offset)
+        const paths = nearby.filter(index => index >= 0 && index < gallery.count && !galleryFolder(index))
+            .map(index => galleryPath(index))
+            .filter(path => path.length > 0 && galleryImages[path] === undefined)
+        if (!paths.length)
+            return
+        galleryLoader.paths = paths
+        galleryLoader.session = previewSession
+        galleryLoader.exec([
+            FileUtils.trimFileProtocol(Quickshell.shellPath("scripts/system/nyvorel-wallpaper-image")),
+            "--gallery", "512", ...paths
+        ])
+    }
+
     function centerCard(animated: bool): void {
         if (!opened || gallery.currentIndex < 0 || gallery.stride <= 0)
             return
@@ -260,6 +280,7 @@ Scope {
             returnFolder = ""
         }
         centerCard(false)
+        galleryDebounce.restart()
     }
 
     function toggleRecent(): void {
@@ -460,9 +481,16 @@ Scope {
     onOpenedChanged: {
         if (ready && opened && !busy) {
             begin()
+        } else if (ready && opened) {
+            closingTimer.stop()
+            closing = false
+            Qt.callLater(restoreCarousel)
+            Qt.callLater(keys.forceActiveFocus)
         } else if (!opened) {
             comparing = false
             previewDebounce.stop()
+            galleryDebounce.stop()
+            galleryLoader.running = false
             if (ready && monitor && preview.visible && !closing) {
                 closing = true
                 closingTimer.restart()
@@ -530,6 +558,42 @@ Scope {
         id: previewDebounce
         interval: 115
         onTriggered: root.generatePreview()
+    }
+
+    Timer {
+        id: galleryDebounce
+        interval: 45
+        onTriggered: root.loadGalleryImages()
+    }
+
+    Process {
+        id: galleryLoader
+        property var paths: []
+        property int session: 0
+        stdout: SplitParser {
+            onRead: line => {
+                if (!root.opened || galleryLoader.session !== root.previewSession)
+                    return
+                try {
+                    const item = JSON.parse(line)
+                    if (galleryLoader.paths.includes(item.path))
+                        root.galleryImages = Object.assign({}, root.galleryImages, {[item.path]: item.image})
+                } catch (error) {}
+            }
+        }
+        onExited: {
+            if (!root.opened || session !== root.previewSession) {
+                galleryDebounce.restart()
+                return
+            }
+            const images = Object.assign({}, root.galleryImages)
+            for (const path of paths) {
+                if (images[path] === undefined)
+                    images[path] = ""
+            }
+            root.galleryImages = images
+            galleryDebounce.restart()
+        }
     }
 
     Timer {
@@ -707,8 +771,9 @@ Scope {
                         const centered = Math.round((contentX + leftMargin - originX) / stride)
                         root.pickAt(centered)
                     }
-                    onWidthChanged: Qt.callLater(() => root.centerCard(false))
+                    onWidthChanged: Qt.callLater(root.centerCard, false)
                     onCountChanged: Qt.callLater(root.restoreCarousel)
+                    onCurrentIndexChanged: galleryDebounce.restart()
 
                     WheelHandler {
                         acceptedDevices: PointerDevice.Mouse
@@ -775,14 +840,34 @@ Scope {
                                     anchors.bottomMargin: 24
                                     clip: true
 
-                                    WallpaperPreviewPhoto {
-                                        wallpaperPath: slot.isFolder ? "" : slot.path
-                                        sourceSize: Qt.size(Math.ceil(card.width * Math.min(2, Screen.devicePixelRatio)),
-                                                            Math.ceil(card.height * Math.min(2, Screen.devicePixelRatio)))
-                                        opacity: !slot.isFolder && status === Image.Ready ? 1 : 0
+                                    Image {
+                                        id: galleryPhoto
+                                        readonly property string path: slot.isFolder ? "" : slot.path
+                                        readonly property var thumbnail: root.galleryImages[path]
+                                        property bool useOriginal: false
+                                        anchors.fill: parent
+                                        asynchronous: true
+                                        fillMode: Image.PreserveAspectCrop
+                                        sourceSize: Qt.size(512, 512)
+                                        source: path && thumbnail !== undefined
+                                            ? root.imageUrl(!useOriginal && thumbnail ? thumbnail : path) : ""
+                                        opacity: status === Image.Ready ? 1 : 0
+                                        onPathChanged: useOriginal = false
+                                        onStatusChanged: {
+                                            if (status === Image.Error && thumbnail && !useOriginal)
+                                                useOriginal = true
+                                        }
                                         Behavior on opacity {
                                             NumberAnimation { duration: root.duration(140) }
                                         }
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        visible: !slot.isFolder && !card.showComparison && galleryPhoto.status !== Image.Ready
+                                        text: galleryPhoto.status === Image.Error ? "broken_image" : "image"
+                                        iconSize: 32
+                                        color: Appearance.colors.colSubtext
                                     }
 
                                     WallpaperPreviewPhoto {

@@ -37,7 +37,7 @@
 </p>
 
 <p align="center">
-  <sub>Nyvorel running as a cohesive Hyprland + Quickshell desktop environment.</sub>
+  <sub>Nyvorel’s consolidated Appearance page on the development branch.</sub>
 </p>
 <!-- NYVOREL_SHOWCASE_HERO_END -->
 
@@ -59,6 +59,8 @@ Impulse and has since been extensively redesigned with its own identity,
 modules, services, UX, lifecycle model, and tooling.
 
 > **Current stable release:** [`v0.1.6`](https://github.com/harkoussomar/nyvorel/releases/tag/v0.1.6)
+> The desktop workflows below describe the development branch. For stable
+> installations, follow the README included with the release.
 
 ## At a glance
 
@@ -81,22 +83,22 @@ modules, services, UX, lifecycle model, and tooling.
 
 ### Shell & interaction
 
-- Quickshell-based desktop shell
-- workspace and session surfaces
-- notifications and on-screen display
-- media controls
-- appearance workflows
-- network operations and live speed testing
-- utility and system surfaces
+- Horizontal and vertical bars with configurable utilities, workspace icons,
+  weather, and tray controls
+- Keyboard-first launcher with app, clipboard, emoji, math, and action search
+- Screenshot and screen recording controls with precision selection, delay,
+  and independent system audio and microphone switches
+- Notifications, media controls, network operations, and battery controls
+- Editable shortcut guide backed by the active Hyprland bindings
 
 </td>
 <td width="50%" valign="top">
 
 ### System workflows
 
-- Operations Center
-- Backup & Recovery
-- Arch Remote
+- Operations Workbench with Overview, Runtime, Jobs, and Diagnostics
+- Optional Backup & Recovery and Arch Remote tools
+- Graphical SDDM sign-in and a Quickshell session lock
 - managed Quickshell lifecycle
 - systemd user services
 - desktop-aware helpers
@@ -109,7 +111,9 @@ modules, services, UX, lifecycle model, and tooling.
 
 ### Integrated appearance
 
-- shared desktop styling workflows
+- Appearance controls in Settings with theme sources, motion, corners,
+  app theming, and saved looks
+- A floating wallpaper carousel with live palette preview and cached thumbnails
 - terminal theme synchronization
 - Fish and Kitty integration
 - application style synchronization
@@ -146,7 +150,7 @@ Real Nyvorel surfaces running on the desktop — no mockups.
 </td>
 <td width="50%" valign="top">
   <p>Open Settings with <kbd>Super</kbd> + <kbd>I</kbd>. The Appearance page contains theme sources, surfaces and motion, corners, app theming, and saved looks.</p>
-  <p>Open the wallpaper picker with <kbd>Ctrl</kbd> + <kbd>Super</kbd> + <kbd>T</kbd> to preview a wallpaper and its generated theme before applying it.</p>
+  <p>Open the wallpaper picker with <kbd>Super</kbd> + <kbd>R</kbd> to preview a wallpaper and its generated theme before applying it.</p>
 </td>
 </tr>
 </table>
@@ -276,16 +280,47 @@ Nyvorel checks the running bindings for conflicts before applying the change.
 **Restore defaults** clears edits made in the guide and restores the bindings
 defined in your configuration files.
 
+Tap **Super** and type to search. Use **↑** and **↓** to select a result and
+**Enter** to open or copy it. **Super + V** opens clipboard history, **Super + .**
+opens emoji, and **Super + Tab** opens the workspace overview. In search,
+**Alt + L** starts Google Lens and **Alt + M** starts or stops music recognition.
+Use `;` for clipboard history, `:` for emoji, `/` for actions, `=` for math,
+`?` for the web, `>` for applications, or `$` to run a shell command.
+
 | Shortcut | Action |
 | --- | --- |
 | Tap Super | Search and launch |
+| Super + / or Super + \ | Open the editable shortcut guide |
 | Super + I | Open Settings |
-| Ctrl + Super + T | Change wallpaper |
+| Super + R | Change wallpaper |
 | Super + A | Open Operations |
+| Super + Tab | Open the workspace overview |
+| Super + V | Open clipboard history |
+| Super + . | Open the emoji picker |
 | Super + N | Open notifications and controls |
+| Super + Shift + S | Open screenshots and recording |
+| Super + Shift + A | Search a selected region with Google Lens |
+| Super + Shift + X | Copy recognized text from a selected region |
 | Super + L | Lock the desktop |
-| Super + Y | Open Arch Remote |
-| Super + U | Open Backup & Recovery |
+| Super + Y | Open Arch Remote when enabled |
+| Super + U | Open Backup & Recovery when enabled |
+
+In the capture selector, press **1** for Region or **2** for Screen. Press
+**V** to switch between Photo and Video. Both modes offer a capture delay
+with **D**. In Region, press **P** for precision mode, then drag inside the
+selection to move it or drag a corner to resize it. Press **Enter** to capture
+or **Esc** to dismiss the selector. Use the floating controls to pause,
+resume, or stop a recording. **System audio** records the default output,
+and **Microphone** records the default input. You can enable either or both.
+Reopen the selector during a recording to take a screenshot.
+
+Set the screenshot destination under **Settings → Services → Storage &
+performance → Screenshot output**. Use the screenshot preview to annotate,
+copy recognized text, open the destination folder, or search with Google Lens.
+
+Arch Remote and Backup & Recovery start disabled. You can enable either in
+**Settings → Services → Optional tools**. Turning a tool off frees its shortcut
+for your own bindings and preserves any existing tool configuration.
 
 ## First-run guide
 

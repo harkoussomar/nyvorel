@@ -1,477 +1,136 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
-
 import Quickshell
-
 import qs
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
-
+import qs.services
 
 RowLayout {
     id: root
 
+    property alias searchInput: input
+    required property color surfaceColor
+    required property color hoverColor
+    required property color activeColor
+    required property color activeOutline
+    property color outline: Appearance.m3colors.m3outlineVariant
+    readonly property color focusOutline: Appearance.colors.colPrimary
+    signal inputKeyPressed(var event)
+
     spacing: 7
 
-    property bool animateWidth: false
-    property alias searchInput: searchInput
-    property string searchingText
-
-
     function forceFocus() {
-        searchInput.forceActiveFocus()
+        input.forceActiveFocus()
     }
 
-
-    enum SearchPrefixType {
-        Action,
-        App,
-        Clipboard,
-        Emojis,
-        Math,
-        ShellCommand,
-        WebSearch,
-        DefaultSearch
+    function openLens() {
+        GlobalStates.overviewOpen = false
+        GlobalStates.superReleaseMightTrigger = false
+        Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "search"])
     }
 
-
-    // SEARCH-CLIPBOARD-V2
-    readonly property int searchPrefixType: {
-        switch (LauncherSearch.mode) {
-        case "action":
-            return SearchBar.SearchPrefixType.Action
-        case "app":
-            return SearchBar.SearchPrefixType.App
-        case "clipboard":
-            return SearchBar.SearchPrefixType.Clipboard
-        case "emoji":
-            return SearchBar.SearchPrefixType.Emojis
-        case "math":
-            return SearchBar.SearchPrefixType.Math
-        case "shell":
-            return SearchBar.SearchPrefixType.ShellCommand
-        case "web":
-            return SearchBar.SearchPrefixType.WebSearch
-        default:
-            return SearchBar.SearchPrefixType.DefaultSearch
-        }
+    Shortcut {
+        sequence: "Alt+L"
+        enabled: root.visible
+        onActivated: root.openLens()
     }
 
-
-    readonly property string modeIcon: {
-        switch (root.searchPrefixType) {
-        case SearchBar.SearchPrefixType.Action:
-            return "settings_suggest"
-
-        case SearchBar.SearchPrefixType.App:
-            return "apps"
-
-        case SearchBar.SearchPrefixType.Clipboard:
-            return "content_paste"
-
-        case SearchBar.SearchPrefixType.Emojis:
-            return "add_reaction"
-
-        case SearchBar.SearchPrefixType.Math:
-            return "calculate"
-
-        case SearchBar.SearchPrefixType.ShellCommand:
-            return "terminal"
-
-        case SearchBar.SearchPrefixType.WebSearch:
-            return "travel_explore"
-
-        default:
-            return "search"
-        }
+    Shortcut {
+        sequence: "Alt+M"
+        enabled: root.visible
+        onActivated: SongRec.toggleRunning()
     }
 
+    Controls.TextField {
+        id: input
 
-    readonly property string modeLabel: {
-        switch (root.searchPrefixType) {
-        case SearchBar.SearchPrefixType.Action:
-            return "Actions"
-
-        case SearchBar.SearchPrefixType.App:
-            return "Apps"
-
-        case SearchBar.SearchPrefixType.Clipboard:
-            return "Clipboard"
-
-        case SearchBar.SearchPrefixType.Emojis:
-            return "Emoji"
-
-        case SearchBar.SearchPrefixType.Math:
-            return "Math"
-
-        case SearchBar.SearchPrefixType.ShellCommand:
-            return "Shell"
-
-        case SearchBar.SearchPrefixType.WebSearch:
-            return "Web"
-
-        default:
-            return "Search"
-        }
-    }
-
-
-    readonly property string modePlaceholder: {
-        switch (root.searchPrefixType) {
-        case SearchBar.SearchPrefixType.Action:
-            return "Search actions…"
-
-        case SearchBar.SearchPrefixType.App:
-            return "Search applications…"
-
-        case SearchBar.SearchPrefixType.Clipboard:
-            return "Search clipboard history…"
-
-        case SearchBar.SearchPrefixType.Emojis:
-            return "Search emojis…"
-
-        case SearchBar.SearchPrefixType.Math:
-            return "Calculate…"
-
-        case SearchBar.SearchPrefixType.ShellCommand:
-            return "Run a shell command…"
-
-        case SearchBar.SearchPrefixType.WebSearch:
-            return "Search the web…"
-
-        default:
-            return "Search apps, commands or the web…"
-        }
-    }
-
-
-    // ============================================================
-    // Current mode
-    //
-    // Fixed width deliberately keeps the overall palette geometry
-    // stable when switching between modes.
-    // ============================================================
-
-    Rectangle {
-        Layout.alignment:
-            Qt.AlignVCenter
-
-        Layout.preferredWidth:
-            108
-
-        implicitHeight:
-            40
-
-        radius:
-             height / 2
-
-
-        color:
-             root.searchPrefixType
-                === SearchBar.SearchPrefixType.DefaultSearch
-                    ? Appearance.colors.colSurfaceContainerHigh
-                    : Appearance.colors.colSecondaryContainer
-
-        border.width:
-             0
-
-        border.color:
-             "transparent"
-
-
-        Behavior on color {
-            animation:
-                Appearance.animation.elementMoveFast
-                    .colorAnimation
-                    .createObject(this)
-        }
-
-
-        Row {
-            anchors.centerIn:
-                parent
-
-            spacing:
-                6
-
-
-            MaterialSymbol {
-                anchors.verticalCenter:
-                    parent.verticalCenter
-
-                text:
-                    root.modeIcon
-
-                iconSize:
-                    18
-
-                color:
-                    root.searchPrefixType
-                        === SearchBar.SearchPrefixType.DefaultSearch
-                            ? Appearance.colors.colOnSurfaceVariant
-                            : Appearance.m3colors.m3onSecondaryContainer
-            }
-
-
-            StyledText {
-                anchors.verticalCenter:
-                    parent.verticalCenter
-
-                text:
-                    root.modeLabel
-
-                font {
-                    pixelSize:
-                        Appearance.font.pixelSize.smaller
-
-                    weight:
-                        Font.DemiBold
-                }
-
-                color:
-                    root.searchPrefixType
-                        === SearchBar.SearchPrefixType.DefaultSearch
-                            ? Appearance.colors.colOnSurfaceVariant
-                            : Appearance.m3colors.m3onSecondaryContainer
-            }
-        }
-    }
-
-
-    // ============================================================
-    // Search input
-    // ============================================================
-
-    ToolbarTextField {
-        id: searchInput
-
-        Layout.fillWidth:
-            true
-
-        Layout.topMargin:
-            4
-
-        Layout.bottomMargin:
-            4
-
-
-        implicitHeight:
-            40
-
-
-        focus:
-            GlobalStates.overviewOpen
-
-
-        font.pixelSize:
-            Appearance.font.pixelSize.small
-
-
-        placeholderText:
-            root.modePlaceholder
-
-
-        onTextChanged:
-            LauncherSearch.query = text
-
-
-        onAccepted: {
-            if (appResults.count <= 0)
-                return
-
-            const firstItem =
-                appResults.itemAtIndex(0)
-
-            if (
-                firstItem
-                && firstItem.clicked
-            ) {
-                firstItem.clicked()
+        Layout.fillWidth: true
+        Layout.preferredHeight: 48
+        leftPadding: 16
+        rightPadding: 16
+        selectByMouse: true
+        color: Appearance.m3colors.m3onSurface
+        placeholderTextColor: Appearance.m3colors.m3onSurfaceVariant
+        selectionColor: root.activeColor
+        selectedTextColor: color
+        font.family: Appearance.font.family.main
+        font.pixelSize: Appearance.font.pixelSize.normal
+        Accessible.name: Translation.tr("Search")
+        placeholderText: {
+            switch (LauncherSearch.mode) {
+            case "clipboard": return Translation.tr("Search clipboard history…")
+            case "emoji": return Translation.tr("Find an emoji…")
+            case "app": return Translation.tr("Find an application…")
+            case "action": return Translation.tr("Find an action…")
+            case "math": return Translation.tr("Enter a calculation…")
+            case "shell": return Translation.tr("Enter a shell command…")
+            case "web": return Translation.tr("Search the web…")
+            default: return Translation.tr("Find apps, actions, and answers…")
             }
         }
 
+        Keys.onPressed: event => root.inputKeyPressed(event)
 
-        Keys.onPressed: event => {
-            if (event.key !== Qt.Key_Tab)
-                return
-
-            if (
-                LauncherSearch.results.length
-                === 0
-            ) {
-                return
-            }
-
-
-            const tabbedText =
-                LauncherSearch.results[0].name
-
-
-            LauncherSearch.completeText(
-                tabbedText
-            )
-
-            searchInput.text =
-                LauncherSearch.query
-
-            searchInput.cursorPosition =
-                searchInput.text.length
-
-
-            event.accepted =
-                true
+        background: Rectangle {
+            radius: Appearance.radius.control
+            color: root.surfaceColor
+            border.color: input.activeFocus ? root.focusOutline : root.outline
         }
     }
-
-
-    // ============================================================
-    // Image search
-    // ============================================================
 
     IconToolbarButton {
-        Layout.topMargin:
-            4
+        id: lensButton
 
-        Layout.bottomMargin:
-            4
+        Layout.preferredWidth: 44
+        Layout.preferredHeight: 48
+        buttonRadius: Appearance.radius.control
+        rippleEnabled: false
+        colText: Appearance.m3colors.m3onSurface
+        readonly property string label: Translation.tr("Search a screen region with Google Lens")
+        text: "image_search"
+        Accessible.name: label
+        onClicked: root.openLens()
 
+        background: Rectangle {
+            radius: lensButton.buttonRadius
+            color: lensButton.down ? root.activeColor : lensButton.hovered ? root.hoverColor : root.surfaceColor
+            border.width: lensButton.visualFocus ? 2 : 1
+            border.color: lensButton.visualFocus ? root.focusOutline : root.outline
+        }
 
-        implicitWidth:
-            36
+        StyledToolTip { text: lensButton.label + " · Alt+L" }
+    }
 
-        implicitHeight:
-            36
+    IconToolbarButton {
+        id: musicButton
 
-
+        Layout.preferredWidth: 44
+        Layout.preferredHeight: 48
+        buttonRadius: Appearance.radius.control
+        rippleEnabled: false
+        colText: Appearance.m3colors.m3onSurface
+        readonly property string label: SongRec.running ? Translation.tr("Stop music recognition") : Translation.tr("Recognize music")
+        text: SongRec.running ? "stop_circle" : "music_note"
+        toggled: SongRec.running
+        Accessible.name: label
         onClicked: {
-            GlobalStates.overviewOpen =
-                false
-
-            Quickshell.execDetached([
-                "qs",
-                "-p",
-                Quickshell.shellPath(""),
-                "ipc",
-                "call",
-                "region",
-                "search"
-            ])
-        }
-
-
-        text:
-            "image_search"
-
-
-        StyledToolTip {
-            text:
-                Translation.tr("Google Lens")
-        }
-    }
-
-
-    // ============================================================
-    // Music recognition
-    // ============================================================
-
-    IconToolbarButton {
-        id: songRecButton
-
-        Layout.topMargin:
-            4
-
-        Layout.bottomMargin:
-            4
-
-        Layout.rightMargin:
-            2
-
-
-        implicitWidth:
-            36
-
-        implicitHeight:
-            36
-
-
-        toggled:
-            SongRec.running
-
-
-        onClicked:
             SongRec.toggleRunning()
-
-
-        text:
-            "music_cast"
-
-
-        StyledToolTip {
-            text:
-                Translation.tr("Recognize music")
+            root.forceFocus()
         }
 
+        background: Rectangle {
+            radius: musicButton.buttonRadius
+            color: musicButton.toggled || musicButton.down ? root.activeColor
+                : musicButton.hovered ? root.hoverColor : root.surfaceColor
+            border.width: musicButton.visualFocus ? 2 : 1
+            border.color: musicButton.visualFocus ? root.focusOutline
+                : musicButton.toggled ? root.activeOutline : root.outline
+        }
 
-        colText:
-            toggled
-                ? Appearance.colors.colOnPrimary
-                : Appearance.colors.colOnSurfaceVariant
-
-
-        background:
-            MaterialShape {
-                RotationAnimation on rotation {
-                    running:
-                        songRecButton.toggled
-
-                    duration:
-                        12000
-
-                    easing.type:
-                        Easing.Linear
-
-                    loops:
-                        Animation.Infinite
-
-                    from:
-                        0
-
-                    to:
-                        360
-                }
-
-
-                shape:
-                    songRecButton.toggled
-                        ? MaterialShape.Shape.SoftBurst
-                        : MaterialShape.Shape.Circle
-
-
-                color: {
-                    if (songRecButton.toggled) {
-                        return songRecButton.hovered
-                            ? Appearance.colors.colPrimaryHover
-                            : Appearance.colors.colPrimary
-                    }
-
-                    return songRecButton.hovered
-                        ? Appearance.colors.colSurfaceContainerHigh
-                        : ColorUtils.transparentize(
-                            Appearance.colors.colSurfaceContainerHigh
-                        )
-                }
-
-
-                Behavior on color {
-                    animation:
-                        Appearance.animation.elementMoveFast
-                            .colorAnimation
-                            .createObject(this)
-                }
-            }
+        StyledToolTip { text: musicButton.label + " · Alt+M" }
     }
 }

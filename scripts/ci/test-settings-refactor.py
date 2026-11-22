@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "quickshell/modules/nyvorel/settingsControlRail/SettingsSearchIndex.js"
 PAGES = [
     "Appearance", "Bar & workspaces", "Desktop", "Windows & controls",
-    "System & language", "Services", "Advanced", "About",
+    "System & language", "Services", "About",
 ]
 
 
@@ -17,14 +17,18 @@ def check_search() -> None:
     source = INDEX.read_text(encoding="utf-8")
     entries = json.loads(source.split("var entries = ", 1)[1].strip()[:-1])
     assert len({entry["id"] for entry in entries}) == len(entries), "duplicate setting ID"
-    for entry in entries:
+    actions = [entry for entry in entries if "action" in entry]
+    assert len(actions) == 1 and actions[0]["action"] == "open-config"
+    assert "pageIndex" not in actions[0], "Opening the configuration should not navigate to a page"
+    pages = [entry for entry in entries if "action" not in entry]
+    for entry in pages:
         assert 0 <= entry["pageIndex"] < len(PAGES), entry
         assert entry["page"] == PAGES[entry["pageIndex"]], entry
         if entry["path"] == "Page":
             assert entry["label"] == entry["page"], entry
         else:
             assert not entry["path"].endswith("Config"), entry
-    assert {entry["pageIndex"] for entry in entries} == set(range(len(PAGES)))
+    assert {entry["pageIndex"] for entry in pages} == set(range(len(PAGES)))
     labels = {entry["label"] for entry in entries}
     assert "Open Appearance Studio" not in labels
     assert "Lock provider" not in labels and "Hyprlock" not in labels
@@ -32,6 +36,8 @@ def check_search() -> None:
     assert "Monochrome app icons" in labels
     assert "Keyboard layout" in labels
     assert "Shell language" in labels
+    for label in ("Arch Remote", "Backup & Recovery"):
+        assert any(entry["label"] == label and entry.get("pageSection") == "optional-tools" for entry in entries)
     assert any(entry["label"] == "Screen edges" and entry.get("appearanceSection") == "screen"
                for entry in entries)
     assert "Quick sliders" not in labels

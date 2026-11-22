@@ -4,7 +4,6 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 
 import QtQuick
-import QtQuick.Shapes
 
 import Quickshell
 import Quickshell.Wayland
@@ -122,7 +121,7 @@ LazyLoader {
                 && Config.options.bar.bottom
             readonly property bool joinedRight: joinedVertical
                 && Config.options.bar.bottom
-            readonly property real joinedInset: 18
+            readonly property real joinedInset: attachedSurface.inset
             readonly property real barEdgeInset: Appearance.sizes.elevationMargin
                 + (Config.options.bar.cornerStyle === 1
                     ? Appearance.sizes.hyprlandGapsOut : 0)
@@ -438,11 +437,6 @@ LazyLoader {
                 id: popupBackground
 
                 readonly property real margin: root.contentMargin
-                readonly property color joinedFill: Config.options.bar.showBackground
-                    ? Appearance.barVisual.attachedSurfaceFill : root.popupColor
-                readonly property color joinedBorder: Appearance.colors.colLayer0Border
-                readonly property real joinedRadius: root.popupRadius
-                readonly property real joinedBorderWidth: 1
 
                 anchors {
                     fill: root.attachedToBar ? undefined : parent
@@ -526,79 +520,16 @@ LazyLoader {
                         ? popupWindow.morphScaleY : 1
                 }
 
-                // Draw one contour with its open edge against the bar.
-                // Rotation maps that edge to the other bar positions.
-                Shape {
+                AttachedBarSurface {
                     id: attachedSurface
 
+                    anchors.fill: parent
                     visible: root.attachedToBar
-                    preferredRendererType: Shape.CurveRenderer
-                    transformOrigin: Item.TopLeft
-                    width: popupWindow.joinedVertical ? popupBackground.height : popupBackground.width
-                    height: popupWindow.joinedVertical ? popupBackground.width : popupBackground.height
-                    x: popupWindow.joinedRight || popupWindow.joinedBottom ? popupBackground.width : 0
-                    y: popupWindow.joinedBottom || (popupWindow.joinedVertical && !popupWindow.joinedRight)
-                        ? popupBackground.height : 0
-                    rotation: popupWindow.joinedBottom ? 180
-                        : popupWindow.joinedVertical ? (popupWindow.joinedRight ? 90 : -90) : 0
-
-                    // Keep the full stroke inside the exposed edge of the clip.
-                    readonly property real outerEdge: Math.max(0, height - popupBackground.joinedBorderWidth / 2)
-                    readonly property real shoulder: Math.min(popupWindow.joinedInset, outerEdge / 3)
-                    readonly property real corner: Math.min(popupBackground.joinedRadius,
-                        popupWindow.joinedInset, outerEdge / 4)
-                    readonly property real rightSide: width - shoulder
-
-                    ShapePath {
-                        fillColor: popupBackground.joinedFill
-                        strokeColor: popupBackground.joinedBorder
-                        strokeWidth: popupBackground.joinedBorderWidth
-                        capStyle: ShapePath.FlatCap
-                        joinStyle: ShapePath.RoundJoin
-                        startX: 0
-                        startY: 0
-
-                        PathArc {
-                            x: attachedSurface.shoulder
-                            y: attachedSurface.shoulder
-                            radiusX: attachedSurface.shoulder
-                            radiusY: attachedSurface.shoulder
-                            direction: PathArc.Clockwise
-                        }
-                        PathLine {
-                            x: attachedSurface.shoulder
-                            y: attachedSurface.outerEdge - attachedSurface.corner
-                        }
-                        PathArc {
-                            x: attachedSurface.shoulder + attachedSurface.corner
-                            y: attachedSurface.outerEdge
-                            radiusX: attachedSurface.corner
-                            radiusY: attachedSurface.corner
-                            direction: PathArc.Counterclockwise
-                        }
-                        PathLine {
-                            x: attachedSurface.rightSide - attachedSurface.corner
-                            y: attachedSurface.outerEdge
-                        }
-                        PathArc {
-                            x: attachedSurface.rightSide
-                            y: attachedSurface.outerEdge - attachedSurface.corner
-                            radiusX: attachedSurface.corner
-                            radiusY: attachedSurface.corner
-                            direction: PathArc.Counterclockwise
-                        }
-                        PathLine {
-                            x: attachedSurface.rightSide
-                            y: attachedSurface.shoulder
-                        }
-                        PathArc {
-                            x: attachedSurface.width
-                            y: 0
-                            radiusX: attachedSurface.shoulder
-                            radiusY: attachedSurface.shoulder
-                            direction: PathArc.Clockwise
-                        }
-                    }
+                    vertical: popupWindow.joinedVertical
+                    reverse: popupWindow.joinedRight || popupWindow.joinedBottom
+                    cornerRadius: root.popupRadius
+                    fillColor: Appearance.barVisual.attachedSurfaceFill
+                    strokeColor: Appearance.colors.colLayer0Border
                 }
 
                 // Clip a full-size content plane as the surface grows. Text

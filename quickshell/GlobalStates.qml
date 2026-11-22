@@ -10,6 +10,7 @@ pragma ComponentBehavior: Bound
 Singleton {
     id: root
     property bool barOpen: true
+    property string searchAttachedScreen: ""
     property bool crosshairOpen: false
     property bool sidebarLeftOpen: false
     property bool sidebarRightOpen: false
@@ -186,6 +187,9 @@ Singleton {
 
     function openExclusiveSurface(id) {
         if (!root.exclusiveSurfaceIds.includes(id))
+            return
+        if ((id === "archRemote" && !OptionalServices.archRemote.enabled)
+            || (id === "backupRecovery" && !OptionalServices.backupRecovery.enabled))
             return
 
         root.exclusiveSurfaceSyncing = true

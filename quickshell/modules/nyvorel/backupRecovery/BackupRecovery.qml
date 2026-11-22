@@ -56,6 +56,8 @@ Scope {
     }
 
     function openCenter() {
+        if (!OptionalServices.backupRecovery.enabled)
+            return
         presentationCloseTimer.stop()
         root.presentationClosing = false
         root.placementPending = true
@@ -63,6 +65,14 @@ Scope {
         if (!cursorPositionProc.running) {
             cursorPositionProc.command = ["hyprctl", "-j", "cursorpos"]
             cursorPositionProc.running = true
+        }
+    }
+
+    Connections {
+        target: OptionalServices.backupRecovery
+        function onEnabledChanged() {
+            if (!OptionalServices.backupRecovery.enabled && (GlobalStates.backupRecoveryOpen || root.placementPending))
+                root.closeCenter()
         }
     }
 

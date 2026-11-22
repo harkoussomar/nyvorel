@@ -97,10 +97,10 @@ ApplicationWindow {
         },
         {
             name: Translation.tr("Windows & controls"),
-            description: Translation.tr("Dock, sidebars, overlays and lock screen"),
+            description: Translation.tr("Dock, sidebars, capture tools and lock screen"),
             group: Translation.tr("Everyday use"),
             icon: "dashboard_customize",
-            sections: [Translation.tr("Shell surfaces"), Translation.tr("Lock & feedback"), Translation.tr("Tools & overlays"), Translation.tr("Navigation & sidebars"), Translation.tr("Typography")],
+            sections: [Translation.tr("Shell surfaces"), Translation.tr("Lock & feedback"), Translation.tr("Capture tools"), Translation.tr("Navigation & sidebars"), Translation.tr("Typography")],
             component: "modules/settings/InterfaceConfig.qml"
         },
         {
@@ -108,7 +108,7 @@ ApplicationWindow {
             description: Translation.tr("Sound, power, input and language"),
             group: Translation.tr("Everyday use"),
             icon: "tune",
-            sections: [Translation.tr("System"), Translation.tr("Input"), Translation.tr("Locale & time"), Translation.tr("Feedback"), Translation.tr("Privacy & content")],
+            sections: [Translation.tr("System"), Translation.tr("Touchpad"), Translation.tr("Locale & time"), Translation.tr("Feedback"), Translation.tr("Privacy & content")],
             component: "modules/settings/GeneralConfig.qml"
         },
         {
@@ -116,21 +116,12 @@ ApplicationWindow {
             description: Translation.tr("Search, weather, network and storage"),
             group: Translation.tr("Everyday use"),
             icon: "cloud",
-            sections: [Translation.tr("AI & recognition"), Translation.tr("Search & web"), Translation.tr("Weather & network"), Translation.tr("Storage & performance")],
+            sections: [Translation.tr("AI & recognition"), Translation.tr("Search & web"), Translation.tr("Weather & network"), Translation.tr("Storage & performance"), Translation.tr("Optional tools")],
             component: "modules/settings/ServicesConfig.qml"
-        },
-        {
-            name: Translation.tr("Advanced"),
-            description: Translation.tr("Configuration file"),
-            group: Translation.tr("More"),
-            icon: "construction",
-            sections: [Translation.tr("Configuration file")],
-            component: "modules/settings/AdvancedConfig.qml"
         },
         {
             name: Translation.tr("About"),
             description: Translation.tr("Version, diagnostics and project links"),
-            group: Translation.tr("More"),
             icon: "info",
             sections: [Translation.tr("Overview"), Translation.tr("Runtime"), Translation.tr("System & project")],
             component: "modules/settings/About.qml"
@@ -146,6 +137,13 @@ ApplicationWindow {
 
     function openWallpaperPicker(): void {
         Quickshell.execDetached(["qs", "ipc", "-c", "nyvorel", "call", "wallpaperPicker", "open"])
+    }
+
+    function openConfigFile(): void {
+        Quickshell.execDetached([
+            Quickshell.shellPath("scripts/system/nyvorel-app-launch"),
+            "--open", CF.FileUtils.trimFileProtocol(Config.filePath)
+        ])
     }
 
     function prepareSearchPage(entry): void {
@@ -378,7 +376,7 @@ ApplicationWindow {
         const candidates = []
         for (let i = 0; i < entries.length; ++i) {
             const entry = entries[i]
-            if (!entry || entry.pageIndex === undefined || !entry.label)
+            if (!entry || !entry.label || (entry.pageIndex === undefined && entry.action !== "open-config"))
                 continue
 
             const label = root.normalizedSearchText(entry.label)
@@ -405,10 +403,17 @@ ApplicationWindow {
     }
 
     function navigateInlineSearch(entry) {
-        if (!entry || entry.pageIndex === undefined)
+        if (!entry)
             return
         headerSearchResults.close()
         headerSearchInput.clear()
+        if (entry.action === "open-config") {
+            root.openConfigFile()
+            frameFocus.forceActiveFocus()
+            return
+        }
+        if (entry.pageIndex === undefined)
+            return
         const pageIndex = Number(entry.pageIndex)
         if (pageIndex < 0 || pageIndex >= root.pages.length)
             return
@@ -1292,6 +1297,7 @@ ApplicationWindow {
                         expanded: root.navigationExpanded
 
                         onPageRequested: index => root.switchToPage(index)
+                        onConfigRequested: root.openConfigFile()
                     }
 
                     Item {

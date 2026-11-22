@@ -13,237 +13,38 @@ Singleton {
 
     property string query: ""
 
-    // SEARCH-CLIPBOARD-V2
-    property string mode: "all"
-    property string queryText: ""
-    property bool syncingCanonicalQuery: false
-
-    // CLIPBOARD-FILTERS-V2.2
-    property string clipboardFilter: "all"
-    readonly property var clipboardFilterNames: [
-        "all",
-        "text",
-        "image",
-        "link"
-    ]
-
-    function setClipboardFilter(filterName) {
-        const normalized =
-            `${filterName ?? "all"}`.toLowerCase()
-
-        root.clipboardFilter =
-            root.clipboardFilterNames.includes(normalized)
-                ? normalized
-                : "all"
-    }
+    readonly property var parsedQuery: parseQuery(query)
+    readonly property string mode: parsedQuery.mode
+    readonly property string queryText: parsedQuery.text
 
     readonly property var modeDescriptors: [
-        { name: "action", prefix: Config.options.search.prefix.action },
-        { name: "app", prefix: Config.options.search.prefix.app },
-        { name: "clipboard", prefix: Config.options.search.prefix.clipboard },
-        { name: "emoji", prefix: Config.options.search.prefix.emojis },
-        { name: "math", prefix: Config.options.search.prefix.math },
-        { name: "shell", prefix: Config.options.search.prefix.shellCommand },
-        { name: "web", prefix: Config.options.search.prefix.webSearch }
-    ]
+        { mode: "action", prefix: Config.options.search.prefix.action },
+        { mode: "app", prefix: Config.options.search.prefix.app },
+        { mode: "clipboard", prefix: Config.options.search.prefix.clipboard },
+        { mode: "emoji", prefix: Config.options.search.prefix.emojis },
+        { mode: "math", prefix: Config.options.search.prefix.math },
+        { mode: "shell", prefix: Config.options.search.prefix.shellCommand },
+        { mode: "web", prefix: Config.options.search.prefix.webSearch }
+    ].filter(item => item.prefix).sort((a, b) => b.prefix.length - a.prefix.length)
 
-    function descriptorForMode(modeName) {
-        return root.modeDescriptors.find(
-            item => item.name === modeName
-        )
+    function parseQuery(input) {
+        const provider = modeDescriptors.find(item => input.startsWith(item.prefix))
+        return provider ? { mode: provider.mode, text: input.slice(provider.prefix.length) }
+            : { mode: "all", text: input }
     }
-
-    function prefixForMode(modeName) {
-        if (modeName === "all")
-            return ""
-
-        const descriptor =
-            root.descriptorForMode(modeName)
-
-        return descriptor
-            ? descriptor.prefix
-            : ""
-    }
-
-    function modeForPrefix(prefix) {
-        if (!prefix || prefix.length === 0)
-            return "all"
-
-        const descriptor =
-            root.modeDescriptors.find(
-                item => item.prefix === prefix
-            )
-
-        return descriptor
-            ? descriptor.name
-            : "all"
-    }
-
-    function parseSerializedQuery(value) {
-        const input = `${value ?? ""}`
-        const descriptors =
-            root.modeDescriptors
-                .filter(
-                    item =>
-                        item.prefix
-                        && item.prefix.length > 0
-                )
-                .slice()
-                .sort(
-                    (a, b) =>
-                        b.prefix.length - a.prefix.length
-                )
-
-        for (const descriptor of descriptors) {
-            if (input.startsWith(descriptor.prefix)) {
-                return {
-                    mode: descriptor.name,
-                    text: input.slice(descriptor.prefix.length)
-                }
-            }
-        }
-
-        return {
-            mode: "all",
-            text: input
-        }
-    }
-
-    function serializedQuery(modeName, textValue) {
-        return root.prefixForMode(modeName)
-            + `${textValue ?? ""}`
-    }
-
-    function syncCanonicalStateFromQuery() {
-        if (root.syncingCanonicalQuery)
-            return
-
-        const parsed = root.parseSerializedQuery(root.query)
-        const modeChanged =
-            root.mode !== parsed.mode
-
-        root.syncingCanonicalQuery = true
-
-        if (
-            modeChanged
-            && (
-                root.mode === "clipboard"
-                || parsed.mode === "clipboard"
-            )
-        ) {
-            root.clipboardFilter = "all"
-        }
-
-        root.mode = parsed.mode
-        root.queryText = parsed.text
-        root.syncingCanonicalQuery = false
-    }
-
-    function syncQueryFromCanonicalState() {
-        if (root.syncingCanonicalQuery)
-            return
-
-        const next =
-            root.serializedQuery(root.mode, root.queryText)
-
-        if (root.query === next)
-            return
-
-        root.syncingCanonicalQuery = true
-        root.query = next
-        root.syncingCanonicalQuery = false
-    }
-
-    function setMode(modeName) {
-        const valid =
-            modeName === "all"
-            || root.descriptorForMode(modeName) !== undefined
-
-        const nextMode = valid ? modeName : "all"
-        const modeChanged =
-            root.mode !== nextMode
-
-        root.syncingCanonicalQuery = true
-
-        if (
-            modeChanged
-            && (
-                root.mode === "clipboard"
-                || nextMode === "clipboard"
-            )
-        ) {
-            root.clipboardFilter = "all"
-        }
-
-        root.mode = nextMode
-        root.query =
-            root.serializedQuery(nextMode, root.queryText)
-        root.syncingCanonicalQuery = false
-    }
-
-    function setModeFromPrefix(prefix) {
-        root.setMode(root.modeForPrefix(prefix))
-    }
-
-    function setQueryText(value) {
-        root.syncingCanonicalQuery = true
-        root.queryText = `${value ?? ""}`
-        root.query =
-            root.serializedQuery(root.mode, root.queryText)
-        root.syncingCanonicalQuery = false
-    }
-
-    function setModeAndText(modeName, value) {
-        const valid =
-            modeName === "all"
-            || root.descriptorForMode(modeName) !== undefined
-
-        root.syncingCanonicalQuery = true
-        root.mode = valid ? modeName : "all"
-        root.queryText = `${value ?? ""}`
-        root.query =
-            root.serializedQuery(root.mode, root.queryText)
-        root.syncingCanonicalQuery = false
-    }
-
-    function completeText(value) {
-        const parsed =
-            root.parseSerializedQuery(value)
-
-        root.setQueryText(
-            parsed.mode === root.mode
-            && parsed.mode !== "all"
-                ? parsed.text
-                : value
-        )
-    }
-
-    onQueryChanged:
-        root.syncCanonicalStateFromQuery()
-
-    onModeChanged:
-        root.syncQueryFromCanonicalState()
-
-    onQueryTextChanged:
-        root.syncQueryFromCanonicalState()
-
-    Component.onCompleted:
-        root.syncCanonicalStateFromQuery()
 
     function ensurePrefix(prefix) {
-        root.setModeFromPrefix(prefix)
+        const nextPrefix = prefix ?? ""
+        if (nextPrefix !== "" || mode !== "all")
+            query = nextPrefix + queryText
     }
 
-    // https://specifications.freedesktop.org/menu/latest/category-registry.html
-    property list<string> mainRegisteredCategories: ["AudioVideo", "Development", "Education", "Game", "Graphics", "Network", "Office", "Science", "Settings", "System", "Utility"]
-    property list<string> appCategories: DesktopEntries.applications.values.reduce((acc, entry) => {
-        for (const category of entry.categories) {
-            if (!acc.includes(category) && mainRegisteredCategories.includes(category)) {
-                acc.push(category);
-            }
-        }
-        return acc;
-    }, []).sort()
+    onModeChanged: {
+        if (mode === "clipboard")
+            Cliphist.refresh()
+        else if (mode === "emoji" && !Emojis.loaded)
+            Emojis.load()
+    }
 
     // Load user action scripts from ~/.config/nyvorel/actions/
     // Uses FolderListModel to auto-reload when scripts are added/removed
@@ -351,227 +152,223 @@ Singleton {
         return StringUtils.stringListContainsSubstring(entry.toLowerCase(), unsafeKeywords);
     }
 
-    Timer {
-        id: nonAppResultsTimer
-        interval: Config.options.search.nonAppResultDelay
-        onTriggered: {
-            let expr = root.query;
-            if (expr.startsWith(Config.options.search.prefix.math)) {
-                expr = expr.slice(Config.options.search.prefix.math.length);
-            }
-            mathProc.calculateExpression(expr);
+    readonly property string mathRequest: {
+        const parsed = parsedQuery
+        const text = parsed.text.trim()
+        if (parsed.mode === "math")
+            return text
+        // An unprefixed title such as "7-Zip" should still be an app search.
+        const calculation = /^[\d\s.,()+*/%^×÷−-]+$/.test(text) && /\d/.test(text) && /[+*/%^×÷−-]/.test(text)
+        return parsed.mode === "all" && calculation ? text : ""
+    }
+
+    readonly property string emptyMessage: {
+        if (mode === "clipboard") {
+            if (Cliphist.refreshing && !Cliphist.loaded)
+                return Translation.tr("Loading clipboard history…")
+            if (Cliphist.refreshFailed)
+                return Translation.tr("Could not read clipboard history")
+            return queryText.trim() ? Translation.tr("No matching clipboard entries") : Translation.tr("Clipboard history is empty")
         }
+        if (mode === "emoji")
+            return Emojis.loaded ? Translation.tr("No matching emoji") : Translation.tr("Loading emoji…")
+        if (mode === "app" && !AppSearch.launcherReady)
+            return Translation.tr("Loading applications…")
+        if (mode === "math" && mathRequest)
+            return mathTimer.running || mathProc.running ? Translation.tr("Calculating…") : Translation.tr("No calculation result")
+        return Translation.tr("No results")
+    }
+
+    onMathRequestChanged: {
+        mathResult = ""
+        if (mathRequest)
+            mathTimer.restart()
+        else
+            mathTimer.stop()
+    }
+
+    Timer {
+        id: mathTimer
+        interval: Config.options.search.nonAppResultDelay
+        onTriggered: mathProc.calculate()
     }
 
     Process {
         id: mathProc
-        property list<string> baseCommand: ["qalc", "-t"]
-        function calculateExpression(expression) {
-            mathProc.running = false;
-            mathProc.command = baseCommand.concat(expression);
-            mathProc.running = true;
+        property string expression
+        function calculate() {
+            if (running || !root.mathRequest)
+                return
+            expression = root.mathRequest
+            command = ["timeout", "5s", "qalc", "-t", "--", expression]
+            running = true
         }
-        stdout: SplitParser {
-            onRead: data => {
-                root.mathResult = data;
+        stdout: StdioCollector { id: answer }
+        onExited: (code, status) => {
+            if (expression === root.mathRequest) {
+                const value = answer.text.trim()
+                root.mathResult = code === 0 && status === 0 && value && !/^error\b/im.test(value) ? value : ""
+            } else if (root.mathRequest && !mathTimer.running) {
+                Qt.callLater(mathProc.calculate)
             }
         }
     }
 
-    property list<var> results: {
-        // Search results are handled here
-        ////////////////// Skip? //////////////////
-        if (root.query == "")
-            return [];
+    function createResult(role, values) {
+        return resultComp.createObject(null, Object.assign({ provider: role }, values))
+    }
 
-        ///////////// Special cases ///////////////
-        if (root.query.startsWith(Config.options.search.prefix.clipboard)) {
-            // Clipboard
-            const searchString = root.queryText;
-            return Cliphist.queryEntries({
-                text: searchString,
-                type: root.clipboardFilter,
-                limit: Cliphist.maxSearchResults
-            }).map((entry, index, array) => {
-                const shouldBlurImage =
-                    Cliphist.entryShouldBlur(
-                        entry,
-                        root.clipboardWorkSafetyActive
-                    );
-                const type = `#${Cliphist.entryKind(entry)}`;
-                return resultComp.createObject(null, {
-                    rawValue: entry,
-                    name: StringUtils.cleanCliphistEntry(entry),
-                    verb: "",
-                    type: type,
-                    execute: () => {
-                        Cliphist.copy(entry);
-                    },
-                    actions: [resultComp.createObject(null, {
-                            name: Translation.tr("Copy"),
-                            iconName: "content_copy",
-                            iconType: LauncherSearchResult.IconType.Material,
-                            execute: () => {
-                                Cliphist.copy(entry);
-                            }
-                        }), resultComp.createObject(null, {
-                            name: Translation.tr("Delete"),
-                            iconName: "delete",
-                            iconType: LauncherSearchResult.IconType.Material,
-                            execute: () => {
-                                Cliphist.deleteEntry(entry);
-                            }
-                        })],
-                    blurImage: shouldBlurImage
-                });
-            }).filter(Boolean);
-        } else if (root.query.startsWith(Config.options.search.prefix.emojis)) {
-            // Clipboard
-            const searchString = root.queryText;
-            return Emojis.fuzzyQuery(searchString).map(entry => {
-                const emoji = entry.match(/^\s*(\S+)/)?.[1] || "";
-                return resultComp.createObject(null, {
-                    rawValue: entry,
-                    name: entry.replace(/^\s*\S+\s+/, ""),
-                    iconName: emoji,
-                    iconType: LauncherSearchResult.IconType.Text,
-                    verb: Translation.tr("Copy"),
-                    type: Translation.tr("Emoji"),
-                    execute: () => {
-                        Quickshell.clipboardText = entry.match(/^\s*(\S+)/)?.[1];
-                    }
-                });
-            }).filter(Boolean);
-        }
+    function clipboardResults(text) {
+        return Cliphist.queryEntries({ text, limit: 0 }).map(entry => createResult("clipboard", {
+            key: Cliphist.entryKey(entry),
+            rawValue: entry,
+            name: StringUtils.cleanCliphistEntry(entry),
+            type: `#${Cliphist.entryKind(entry)}`,
+            execute: () => Cliphist.copy(entry),
+            actions: [
+                { name: Translation.tr("Copy"), iconName: "content_copy",
+                    iconType: LauncherSearchResult.IconType.Material, execute: () => Cliphist.copy(entry) },
+                { name: Translation.tr("Delete"), iconName: "delete",
+                    iconType: LauncherSearchResult.IconType.Material, execute: () => Cliphist.deleteEntry(entry) }
+            ],
+            blurImage: Cliphist.entryShouldBlur(entry, clipboardWorkSafetyActive)
+        }))
+    }
 
-        ////////////////// Init ///////////////////
-        nonAppResultsTimer.restart();
-        const mathResultObject = resultComp.createObject(null, {
-            name: root.mathResult,
-            verb: Translation.tr("Copy"),
-            type: Translation.tr("Math result"),
-            fontType: LauncherSearchResult.FontType.Monospace,
-            iconName: 'calculate',
-            iconType: LauncherSearchResult.IconType.Material,
-            execute: () => {
-                Quickshell.clipboardText = root.mathResult;
-            }
-        });
-        const appResultObjects = AppSearch.fuzzyQuery(StringUtils.cleanPrefix(root.query, Config.options.search.prefix.app)).map(entry => {
-            return resultComp.createObject(null, {
-                type: Translation.tr("App"),
-                id: entry.id,
-                name: entry.name,
-                iconName: entry.icon,
+    function emojiResults(text) {
+        return Emojis.fuzzyQuery(text).map(entry => {
+            const [glyph, ...keywords] = entry.split(/\s+/)
+            return createResult("emoji", {
+                key: `emoji:${glyph}`,
+                rawValue: entry,
+                name: keywords.join(" "),
+                iconName: glyph,
+                iconType: LauncherSearchResult.IconType.Text,
+                verb: Translation.tr("Copy"),
+                type: Translation.tr("Emoji"),
+                execute: () => { Quickshell.clipboardText = glyph }
+            })
+        })
+    }
+
+    function appResults(text) {
+        return AppSearch.launcherQuery(text).map(entry => createResult("app", {
+            type: Translation.tr("App"),
+            id: entry.id,
+            name: entry.name,
+            iconName: entry.icon,
+            iconType: LauncherSearchResult.IconType.System,
+            verb: Translation.tr("Open"),
+            execute: () => launchApp(entry, entry),
+            comment: entry.comment,
+            runInTerminal: entry.runInTerminal,
+            genericName: entry.genericName,
+            keywords: entry.keywords,
+            actions: entry.actions.map(action => ({
+                name: action.name,
+                iconName: action.icon,
                 iconType: LauncherSearchResult.IconType.System,
-                verb: Translation.tr("Open"),
-                execute: () => {
-                    if (!entry.runInTerminal)
-                        Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--cwd", entry.workingDirectory, "--", ...entry.command]);
-                    else {
-                        // Probably needs more proper escaping, but this will do for now
-                        Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--", ...["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(entry.command.join(' '))}'`]]);
-                    }
-                },
-                comment: entry.comment,
-                runInTerminal: entry.runInTerminal,
-                genericName: entry.genericName,
-                keywords: entry.keywords,
-                actions: entry.actions.map(action => {
-                    return resultComp.createObject(null, {
-                        name: action.name,
-                        iconName: action.icon,
-                        iconType: LauncherSearchResult.IconType.System,
-                        execute: () => {
-                            if (!action.runInTerminal)
-                                Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--cwd", entry.workingDirectory, "--", ...action.command]);
-                            else {
-                                Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--", ...["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(action.command.join(' '))}'`]]);
-                            }
-                        }
-                    });
-                })
-            });
-        });
-        const commandResultObject = resultComp.createObject(null, {
-            name: root.queryText.replace("file://", ""),
+                execute: () => launchApp(entry, action)
+            }))
+        }))
+    }
+
+    function launchApp(entry, action) {
+        const launcher = Quickshell.shellPath("scripts/system/nyvorel-app-launch")
+        if (!action.runInTerminal) {
+            Quickshell.execDetached([launcher, "--cwd", entry.workingDirectory, "--", ...action.command])
+            return
+        }
+        const args = action.command.map(part => "'" + StringUtils.shellSingleQuoteEscape(part) + "'").join(" ")
+        Quickshell.execDetached([launcher, "--cwd", entry.workingDirectory, "--", "bash", "-c",
+            `${Config.options.apps.terminal} -e ${args}`])
+    }
+
+    function actionResults(text) {
+        const term = text.toLowerCase()
+        return allActions.filter(action =>
+            action.action.toLowerCase().startsWith(term)
+            || term.startsWith(action.action.toLowerCase() + " ")
+        ).map(action => {
+            const args = text.slice(action.action.length).trim()
+            return createResult("action", {
+                name: Config.options.search.prefix.action + action.action + (args ? " " + args : ""),
+                verb: Translation.tr("Run"),
+                type: Translation.tr("Action"),
+                iconName: "settings_suggest",
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: () => action.execute(args)
+            })
+        })
+    }
+
+    function shellResult(text) {
+        const command = text.replace(/^file:\/\//, "")
+        return createResult("shell", {
+            name: command,
             verb: Translation.tr("Run"),
             type: Translation.tr("Command"),
             fontType: LauncherSearchResult.FontType.Monospace,
-            iconName: 'terminal',
+            iconName: "terminal",
             iconType: LauncherSearchResult.IconType.Material,
             execute: () => {
-                let cleanedCommand = root.query.replace("file://", "");
-                cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
-                if (cleanedCommand.startsWith(Config.options.search.prefix.shellCommand)) {
-                    cleanedCommand = cleanedCommand.slice(Config.options.search.prefix.shellCommand.length);
-                }
-                Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--", ...["bash", "-c", root.query.startsWith('sudo') ? `${Config.options.apps.terminal} fish -C '${cleanedCommand}'` : cleanedCommand]]);
+                const launcher = Quickshell.shellPath("scripts/system/nyvorel-app-launch")
+                if (/^sudo\s/.test(command))
+                    Quickshell.execDetached([launcher, "--", "bash", "-c",
+                        `${Config.options.apps.terminal} -e bash -lc '${StringUtils.shellSingleQuoteEscape(command)}'`])
+                else
+                    Quickshell.execDetached([launcher, "--", "bash", "-c", command])
             }
-        });
-        const webSearchResultObject = resultComp.createObject(null, {
-            name: root.queryText,
-            verb: Translation.tr("Search"),
-            type: Translation.tr("Web search"),
-            iconName: 'travel_explore',
+        })
+    }
+
+    function webResult(text) {
+        const exclusions = Config.options.search.excludedSites.map(site => " -site:" + site).join("")
+        const directUrl = /^(https?:\/\/[^\s]+)$/i.test(text)
+        const url = directUrl ? text : Config.options.search.engineBaseUrl + encodeURIComponent(text + exclusions)
+        return createResult("web", {
+            name: text,
+            verb: directUrl ? Translation.tr("Open") : Translation.tr("Search"),
+            type: directUrl ? Translation.tr("Web address") : Translation.tr("Web search"),
+            iconName: "travel_explore",
             iconType: LauncherSearchResult.IconType.Material,
-            execute: () => {
-                let query = root.queryText;
-                let url = Config.options.search.engineBaseUrl + query;
-                for (let site of Config.options.search.excludedSites) {
-                    url += ` -site:${site}`;
-                }
-                Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", url]);
-            }
-        });
-        const launcherActionObjects = root.allActions.map(action => {
-            const actionString = `${Config.options.search.prefix.action}${action.action}`;
-            if (actionString.startsWith(root.query) || root.query.startsWith(actionString)) {
-                return resultComp.createObject(null, {
-                    name: root.query.startsWith(actionString) ? root.query : actionString,
-                    verb: Translation.tr("Run"),
-                    type: Translation.tr("Action"),
-                    iconName: 'settings_suggest',
-                    iconType: LauncherSearchResult.IconType.Material,
-                    execute: () => {
-                        action.execute(root.query.split(" ").slice(1).join(" "));
-                    }
-                });
-            }
-            return null;
-        }).filter(Boolean);
+            execute: () => Quickshell.execDetached([Quickshell.shellPath("scripts/system/nyvorel-app-launch"), "--open", url])
+        })
+    }
 
-        //////// Prioritized by prefix /////////
-        let result = [];
-        const startsWithNumber = /^\d/.test(root.query);
-        const startsWithMathPrefix = root.query.startsWith(Config.options.search.prefix.math);
-        const startsWithShellCommandPrefix = root.query.startsWith(Config.options.search.prefix.shellCommand);
-        const startsWithWebSearchPrefix = root.query.startsWith(Config.options.search.prefix.webSearch);
-        if (startsWithNumber || startsWithMathPrefix) {
-            result.push(mathResultObject);
-        } else if (startsWithShellCommandPrefix) {
-            result.push(commandResultObject);
-        } else if (startsWithWebSearchPrefix) {
-            result.push(webSearchResultObject);
+    function calculationResults() {
+        const answer = mathResult
+        return answer ? [createResult("math", {
+            name: answer,
+            verb: Translation.tr("Copy"),
+            type: Translation.tr("Math result"),
+            fontType: LauncherSearchResult.FontType.Monospace,
+            iconName: "calculate",
+            iconType: LauncherSearchResult.IconType.Material,
+            execute: () => { Quickshell.clipboardText = answer }
+        })] : []
+    }
+
+    readonly property var results: {
+        const parsed = parsedQuery
+        const text = parsed.text.trim()
+        switch (parsed.mode) {
+        case "clipboard": return clipboardResults(text)
+        case "emoji": return emojiResults(text)
+        case "math": return calculationResults()
+        case "app": return appResults(text)
+        case "action": return actionResults(text)
+        case "shell": return text ? [shellResult(text)] : []
+        case "web": return text ? [webResult(text)] : []
+        default:
+            if (!text)
+                return []
+            const answers = calculationResults()
+            const apps = appResults(text)
+            const web = Config.options.search.prefix.showDefaultActionsWithoutPrefix
+                && (!mathRequest || !answers.length && !mathTimer.running && !mathProc.running) ? [webResult(text)] : []
+            return [...answers, ...apps, ...web]
         }
-
-        //////////////// Apps //////////////////
-        result = result.concat(appResultObjects);
-
-        ////////// Launcher actions ////////////
-        result = result.concat(launcherActionObjects);
-
-        /// Math result, command, web search ///
-        if (Config.options.search.prefix.showDefaultActionsWithoutPrefix) {
-            if (!startsWithShellCommandPrefix)
-                result.push(commandResultObject);
-            if (!startsWithNumber && !startsWithMathPrefix)
-                result.push(mathResultObject);
-            if (!startsWithWebSearchPrefix)
-                result.push(webSearchResultObject);
-        }
-
-        return result;
     }
 
     Component {

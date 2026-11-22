@@ -4,6 +4,33 @@ All notable Nyvorel changes intended for public releases are recorded here.
 
 ## [Unreleased]
 
+### Desktop workflows
+
+- Reworked Operations as a three-pane workbench with Overview, Runtime, Jobs,
+  Diagnostics, and an inspector for the selected item.
+- Refined navbar panel corners and status grouping in horizontal and vertical
+  layouts. Improved optional bar utilities, weather, keyboard layouts, and
+  monochrome app and tray icons. Simplified the battery panel to one gauge.
+- Consolidated appearance controls into Settings and added a floating
+  wallpaper picker with live palette preview, comparison by
+  holding Space, and cached carousel thumbnails.
+- Reduced idle shell work and improved Settings startup. Refined the Settings
+  tabs and first-run language and keyboard controls.
+
+### Sign-in, shortcuts, and capture
+
+- Added graphical SDDM sign-in to fresh installations. The session lock uses
+  Quickshell, and locking on shell startup is opt-in.
+- Made Arch Remote and Backup & Recovery opt-in. Their shortcuts are available
+  for custom bindings while the corresponding tools are disabled.
+- Added an editable Hyprland shortcut guide with conflict checks and a reset
+  to defaults. Moved the wallpaper picker to Super+R.
+- Reworked the navbar search, including image clipboard history, searchable
+  emoji, Google Lens, and on-demand music recognition.
+- Unified screenshots and recording under Super+Shift+S. Photo and Video
+  support delayed and precision capture. Recording has separate system audio
+  and microphone controls and a floating pause, resume, and stop panel.
+
 ## [0.1.6] - 2026-11-09
 
 ### Shell controls and display placement

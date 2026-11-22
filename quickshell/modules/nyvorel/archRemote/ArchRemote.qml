@@ -66,11 +66,21 @@ Scope {
     }
 
     function openCenter() {
+        if (!OptionalServices.archRemote.enabled)
+            return
         root.placementPending = true
         placementFallbackTimer.restart()
         if (!cursorPositionProc.running) {
             cursorPositionProc.command = ["hyprctl", "-j", "cursorpos"]
             cursorPositionProc.running = true
+        }
+    }
+
+    Connections {
+        target: OptionalServices.archRemote
+        function onEnabledChanged() {
+            if (!OptionalServices.archRemote.enabled && (GlobalStates.archRemoteOpen || root.placementPending))
+                root.closeCenter()
         }
     }
 

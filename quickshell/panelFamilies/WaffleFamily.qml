@@ -19,7 +19,6 @@ import qs.modules.waffle.taskView
 // Fallbacks
 import qs.modules.nyvorel.cheatsheet
 import qs.modules.nyvorel.onScreenKeyboard
-import qs.modules.nyvorel.overlay
 
 Scope {
     PanelLoader { component: WaffleActionCenter {} }
@@ -29,7 +28,6 @@ Scope {
     PanelLoader { component: WaffleNotificationCenter {} }
     PanelLoader { component: WaffleNotificationPopup {} }
     PanelLoader { component: WaffleOSD {} }
-    // PanelLoader { component: WaffleOverlay {} }
     PanelLoader { component: WafflePolkit {} }
     PanelLoader { component: WScreenSnip {} }
     PanelLoader { component: WaffleStartMenu {} }
@@ -38,5 +36,4 @@ Scope {
 
     PanelLoader { component: Cheatsheet {} }
     PanelLoader { component: OnScreenKeyboard {} }
-    PanelLoader { component: Overlay {} }
 }

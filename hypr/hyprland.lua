@@ -15,6 +15,13 @@ local function load_optional(path, editable_bindings)
   local chunk = loadfile(path, "t", environment)
   if chunk then chunk() end
 end
+local function optional_service_enabled(name)
+  local preference = io.open(config_home .. "/nyvorel/" .. name .. ".enabled", "r")
+  if not preference then return false end
+  local value = preference:read("*a")
+  preference:close()
+  return value:match("^%s*enabled%s*$") ~= nil
+end
 -- hyprland.conf:4
 -- hyprland.conf:5
 -- hyprland.conf:6
@@ -484,7 +491,7 @@ hl.layer_rule({["no_anim"] = true, ["match"] = {["namespace"] = "quickshell:over
 -- hyprland/rules.conf:150
 hl.layer_rule({["ignore_alpha"] = 1, ["match"] = {["namespace"] = "quickshell:overlay"}, ["name"] = "nyvorel-51"})
 -- hyprland/rules.conf:151
-hl.layer_rule({["no_anim"] = true, ["match"] = {["namespace"] = "quickshell:overview"}, ["name"] = "nyvorel-52"})
+hl.layer_rule({["no_anim"] = true, ["match"] = {["namespace"] = "^quickshell:(overview|searchPanel)$"}, ["name"] = "nyvorel-52"})
 -- hyprland/rules.conf:152
 hl.layer_rule({["animation"] = "slide bottom", ["match"] = {["namespace"] = "quickshell:osk"}, ["name"] = "nyvorel-53"})
 -- hyprland/rules.conf:153
@@ -557,7 +564,6 @@ hl.bind("SUPER + K", hl.dsp.global("quickshell:oskToggle"), {["description"] = "
 -- hyprland/keybinds.conf:20
 hl.bind("SUPER + M", hl.dsp.global("quickshell:mediaControlsToggle"), {["description"] = "Toggle media controls"})
 -- hyprland/keybinds.conf:21
-hl.bind("SUPER + G", hl.dsp.global("quickshell:overlayToggle"), {["description"] = "Toggle desktop overlay"})
 -- hyprland/keybinds.conf:22
 hl.bind("CTRL+ALT + Delete", hl.dsp.global("quickshell:sessionToggle"), {["description"] = "Toggle session menu"})
 -- hyprland/keybinds.conf:23
@@ -585,7 +591,7 @@ hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ tog
 -- hyprland/keybinds.conf:36
 hl.bind("SUPER+ALT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SOURCE@ toggle"), {["locked"] = true, ["description"] = "Toggle microphone mute"})
 -- hyprland/keybinds.conf:37
-hl.bind("CTRL+SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"), {["description"] = "Change wallpaper"})
+hl.bind("SUPER + R", hl.dsp.global("quickshell:wallpaperSelectorToggle"), {["description"] = "Change wallpaper"})
 -- hyprland/keybinds.conf:40
 hl.bind("CTRL+SUPER + R", hl.dsp.exec_cmd("sh -lc 'systemctl --user import-environment DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE >/dev/null 2>&1 || true; hyprctl reload; systemctl --user restart nyvorel-quickshell.service'"), {["description"] = "Reload Hyprland and restart Nyvorel"})
 -- hyprland/keybinds.conf:41
@@ -595,7 +601,7 @@ hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pkill
 -- hyprland/keybinds.conf:46
 hl.bind("SUPER + Period", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pkill fuzzel || ~/.config/hypr/hyprland/scripts/fuzzel-emoji.sh copy"), {["description"] = "Copy an emoji"})
 -- hyprland/keybinds.conf:47
-hl.bind("SUPER+SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {["description"] = "Capture a region"})
+hl.bind("SUPER+SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {["description"] = "Open screenshot and video controls"})
 -- hyprland/keybinds.conf:48
 hl.bind("SUPER+SHIFT + S", hl.dsp.exec_cmd("qs -c nyvorel ipc call TEST_ALIVE || pidof slurp || hyprshot --freeze --mode region --silent --output-folder ~/Pictures/Screenshots"), {})
 -- hyprland/keybinds.conf:49
@@ -905,8 +911,12 @@ dofile(nyvorel_config_root .. "/custom/appearance-runtime.lua")
 hl.bind("SUPER + P", hl.dsp.window.pin(), {["description"] = "Pin window to all workspaces"})
 hl.bind("SUPER+SHIFT+ALT + Left", hl.dsp.window.move({monitor = "l", follow = true}), { ["description"] = "Move window to left display" })
 hl.bind("SUPER+SHIFT+ALT + Right", hl.dsp.window.move({monitor = "r", follow = true}), { ["description"] = "Move window to right display" })
-hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Open Arch Remote" })
-hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Open Backup & Recovery" })
+if optional_service_enabled("arch-remote") then
+  hl.bind("SUPER + Y", hl.dsp.global("quickshell:archRemoteToggle"), { ["description"] = "Open Arch Remote" })
+end
+if optional_service_enabled("backup-recovery") then
+  hl.bind("SUPER + U", hl.dsp.global("quickshell:backupRecoveryToggle"), { ["description"] = "Open Backup & Recovery" })
+end
 -- custom/nyvorel-super-scroll.conf:15
 -- custom/nyvorel-super-scroll.conf:18
 hl.bind("SUPER + Super_L", hl.dsp.exec_cmd(super_scroll .. " press left"), {["ignore_mods"] = true, ["description"] = "Toggle search on tap"})
