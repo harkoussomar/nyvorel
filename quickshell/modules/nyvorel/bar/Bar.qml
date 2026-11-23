@@ -2,9 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import qs
 import qs.services
 import qs.modules.common
@@ -52,7 +50,9 @@ Scope {
                 }
                 property bool superShow: false
                 property bool mustShow: hoverRegion.containsMouse || superShow
-                    || (!!screen && GlobalStates.searchAttachedScreen === screen.name)
+                    || barContent.workspacePreviewOpen
+                    || (!!screen && (GlobalStates.searchAttachedScreen === screen.name
+                        || (GlobalStates.activeBarPopup !== "" && GlobalStates.activeBarPopupScreenName === screen.name)))
                 exclusionMode: ExclusionMode.Ignore
                 exclusiveZone: (Config?.options.bar.autoHide.enable && (!mustShow || !Config?.options.bar.autoHide.pushWindows)) ? 0 :
                     Appearance.sizes.baseBarHeight + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
@@ -308,49 +308,6 @@ Scope {
                     }
                 }
             }
-        }
-    }
-
-    IpcHandler {
-        target: "bar"
-
-        function toggle(): void {
-            GlobalStates.barOpen = !GlobalStates.barOpen
-        }
-
-        function close(): void {
-            GlobalStates.barOpen = false
-        }
-
-        function open(): void {
-            GlobalStates.barOpen = true
-        }
-    }
-
-    GlobalShortcut {
-        name: "barToggle"
-        description: "Toggles bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = !GlobalStates.barOpen;
-        }
-    }
-
-    GlobalShortcut {
-        name: "barOpen"
-        description: "Opens bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = true;
-        }
-    }
-
-    GlobalShortcut {
-        name: "barClose"
-        description: "Closes bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = false;
         }
     }
 }

@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import "../common/functions/WorkspaceNumbers.js" as WorkspaceNumbers
 
 SettingsTabbedPage {
     id: root
@@ -22,34 +23,7 @@ SettingsTabbedPage {
     readonly property int controlHeight: 42
     readonly property int compactControlHeight: 38
 
-    readonly property var hanNumberMap: [
-        "一", "二", "三", "四", "五",
-        "六", "七", "八", "九", "十",
-        "十一", "十二", "十三", "十四", "十五",
-        "十六", "十七", "十八", "十九", "二十"
-    ]
-
-    readonly property var romanNumberMap: [
-        "I", "II", "III", "IV", "V",
-        "VI", "VII", "VIII", "IX", "X",
-        "XI", "XII", "XIII", "XIV", "XV",
-        "XVI", "XVII", "XVIII", "XIX", "XX"
-    ]
-
-    readonly property string workspaceNumberStyle: {
-        const value = JSON.stringify(Config.options.bar.workspaces.numberMap)
-
-        if (value === JSON.stringify([]))
-            return "normal"
-
-        if (value === JSON.stringify(root.hanNumberMap))
-            return "han"
-
-        if (value === JSON.stringify(root.romanNumberMap))
-            return "roman"
-
-        return "custom"
-    }
+    readonly property string workspaceNumberStyle: WorkspaceNumbers.style(Config.options.bar.workspaces.numberMap)
 
     function currentBarPosition(): int {
         return (root.appearanceEditor?.draftBarBottom ? 1 : 0)
@@ -61,13 +35,8 @@ SettingsTabbedPage {
     }
 
     function setWorkspaceNumberStyle(style: string): void {
-        if (style === "normal") {
-            Config.options.bar.workspaces.numberMap = []
-        } else if (style === "han") {
-            Config.options.bar.workspaces.numberMap = root.hanNumberMap.slice()
-        } else if (style === "roman") {
-            Config.options.bar.workspaces.numberMap = root.romanNumberMap.slice()
-        }
+        if (style !== root.workspaceNumberStyle)
+            Config.options.bar.workspaces.numberMap = WorkspaceNumbers.preset(style)
     }
 
     // -------------------------------------------------------------------------
@@ -392,7 +361,7 @@ SettingsTabbedPage {
             spacing: 10
 
             FieldLabel {
-                title: Translation.tr("Position")
+                title: Translation.tr("Screen edge")
                 subtitle: Translation.tr("Choose which screen edge holds the bar.")
             }
 
@@ -427,7 +396,7 @@ SettingsTabbedPage {
             FieldLabel {
                 Layout.topMargin: 2
                 title: Translation.tr("Bar style")
-                subtitle: Translation.tr("Change the bar's outer geometry without changing its contents.")
+                subtitle: Translation.tr("Choose how the bar meets the screen edge.")
             }
 
             Flow {
@@ -436,9 +405,9 @@ SettingsTabbedPage {
 
                 ChoiceChip {
                     enabled: root.appearanceEditor?.initialized ?? false
-                    label: Translation.tr("Compact")
+                    label: Translation.tr("Rounded edge")
                     iconName: "line_curve"
-                    description: Translation.tr("Keep the bar attached to the screen edge with the existing compact treatment.")
+                    description: Translation.tr("Join the bar to the screen edge with rounded transitions.")
                     selected: root.appearanceEditor?.draftBarCornerStyle === 0
 
                     onClicked: root.appearanceEditor.draftBarCornerStyle = 0
@@ -456,9 +425,9 @@ SettingsTabbedPage {
 
                 ChoiceChip {
                     enabled: root.appearanceEditor?.initialized ?? false
-                    label: Translation.tr("Full width")
+                    label: Translation.tr("Straight edge")
                     iconName: "toolbar"
-                    description: Translation.tr("Use the plain rectangular bar style.")
+                    description: Translation.tr("Use a rectangular bar flush with the screen edge.")
                     selected: root.appearanceEditor?.draftBarCornerStyle === 2
 
                     onClicked: root.appearanceEditor.draftBarCornerStyle = 2
@@ -467,8 +436,8 @@ SettingsTabbedPage {
 
             FieldLabel {
                 Layout.topMargin: 2
-                title: Translation.tr("Group style")
-                subtitle: Translation.tr("Show widgets in pills or as separated controls.")
+                title: Translation.tr("Widget groups")
+                subtitle: Translation.tr("Add a background behind each group of widgets.")
             }
 
             Flow {
@@ -486,7 +455,7 @@ SettingsTabbedPage {
 
                 ChoiceChip {
                     enabled: root.appearanceEditor?.initialized ?? false
-                    label: Translation.tr("Separated")
+                    label: Translation.tr("Ungrouped")
                     iconName: "split_scene"
                     selected: root.appearanceEditor?.draftBarBorderless ?? false
 
@@ -494,11 +463,13 @@ SettingsTabbedPage {
                 }
             }
             PreferenceSwitchRow {
-                enabled: root.appearanceEditor?.draftBarCornerStyle === 1
-                title: Translation.tr("Floating shadow")
+                enabled: root.appearanceEditor?.initialized
+                    && root.appearanceEditor.draftBarCornerStyle === 1
+                    && root.appearanceEditor.draftBarShowBackground
+                title: Translation.tr("Floating bar shadow")
                 subtitle: enabled
-                    ? Translation.tr("Add a shadow below the floating bar.")
-                    : Translation.tr("Available with the Floating bar style.")
+                    ? Translation.tr("Add a shadow around the floating bar.")
+                    : Translation.tr("Requires a floating bar with its background enabled.")
                 iconName: "shadow"
                 switchChecked: root.appearanceEditor?.draftBarFloatStyleShadow ?? false
                 onUserToggled: checked => root.appearanceEditor.draftBarFloatStyleShadow = checked
@@ -525,7 +496,7 @@ SettingsTabbedPage {
             }
 
             PreferenceSwitchRow {
-                title: Translation.tr("Automatically hide bar")
+                title: Translation.tr("Auto-hide bar")
                 subtitle: Translation.tr("Reveal the bar by moving the pointer to its screen edge.")
                 iconName: "shelf_auto_hide"
                 switchChecked: Config.options.bar.autoHide.enable
@@ -536,8 +507,8 @@ SettingsTabbedPage {
             }
 
             PreferenceSwitchRow {
-                title: Translation.tr("Require click for supported popups")
-                subtitle: Translation.tr("Open weather details and workspace previews on click instead of hover.")
+                title: Translation.tr("Open previews on click")
+                subtitle: Translation.tr("Use a click to open weather details and workspace previews.")
                 iconName: "ads_click"
                 switchChecked: Config.options.bar.tooltips.clickToShow
 
@@ -579,8 +550,8 @@ SettingsTabbedPage {
                     }
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Show weather in bar")
-                        subtitle: Translation.tr("Display the current weather icon and temperature when the active bar layout supports it.")
+                        title: Translation.tr("Weather")
+                        subtitle: Translation.tr("Show the current weather and temperature when the bar has room.")
                         iconName: "cloud"
                         switchChecked: Config.options.bar.weather.enable
 
@@ -600,8 +571,8 @@ SettingsTabbedPage {
                         }
                     }
                     PreferenceSwitchRow {
-                        title: Translation.tr("Resource usage")
-                        subtitle: Translation.tr("Show RAM / CPU usage directly in the bar.")
+                        title: Translation.tr("CPU and memory")
+                        subtitle: Translation.tr("Show CPU and RAM usage when the bar has room.")
                         iconName: "monitoring"
                         switchChecked: Config.options.bar.visibility.resources
 
@@ -632,8 +603,8 @@ SettingsTabbedPage {
                     rowSpacing: 8
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Screen snip")
-                        subtitle: Translation.tr("Show the screenshot selection action.")
+                        title: Translation.tr("Screenshot")
+                        subtitle: Translation.tr("Open the capture controls in Photo mode.")
                         iconName: "content_cut"
                         switchChecked: Config.options.bar.utilButtons.showScreenSnip
 
@@ -667,7 +638,7 @@ SettingsTabbedPage {
                     }
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Microphone")
+                        title: Translation.tr("Microphone mute")
                         subtitle: Translation.tr("Show the microphone mute toggle.")
                         iconName: "mic"
                         switchChecked: Config.options.bar.utilButtons.showMicToggle
@@ -678,7 +649,7 @@ SettingsTabbedPage {
                     }
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Light / dark")
+                        title: Translation.tr("Light and dark mode")
                         subtitle: Translation.tr("Show the light/dark appearance toggle.")
                         iconName: "dark_mode"
                         switchChecked: Config.options.bar.utilButtons.showDarkModeToggle
@@ -712,7 +683,7 @@ SettingsTabbedPage {
 
                     PreferenceSwitchRow {
                         title: Translation.tr("Screen recording")
-                        subtitle: Translation.tr("Show the screen-recording action.")
+                        subtitle: Translation.tr("Open the capture controls in Video mode.")
                         iconName: "videocam"
                         switchChecked: Config.options.bar.utilButtons.showScreenRecord
 
@@ -734,8 +705,8 @@ SettingsTabbedPage {
             iconName: "shelf_auto_hide"
 
             PreferenceSwitchRow {
-                title: Translation.tr("Invert tray pinning")
-                subtitle: Translation.tr("Treat apps outside the pinned list as pinned, and listed apps as unpinned.")
+                title: Translation.tr("Show unlisted apps in the bar")
+                subtitle: Translation.tr("Move apps on the pinned list to overflow and show the other apps directly.")
                     + "  " + Translation.tr("%1 in bar · %2 in overflow")
                         .arg(TrayService.pinnedItems.length)
                         .arg(TrayService.unpinnedItems.length)
@@ -766,13 +737,13 @@ SettingsTabbedPage {
 
         SettingGroup {
             title: Translation.tr("Workspace appearance")
-            subtitle: Translation.tr("Control what each workspace button shows and how many workspaces are represented.")
+            subtitle: Translation.tr("The bar shows the group containing your active workspace. Smaller bars may show fewer workspaces per group.")
             iconName: "workspaces"
 
             ConfigSpinBox {
                 Layout.fillWidth: true
                 icon: "view_column"
-                text: Translation.tr("Visible workspaces")
+                text: Translation.tr("Workspaces per group")
                 value: Config.options.bar.workspaces.shown
                 from: 1
                 to: 30
@@ -792,8 +763,10 @@ SettingsTabbedPage {
                 rowSpacing: 8
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Always show workspace numbers")
-                    subtitle: Translation.tr("Keep workspace numbers visible instead of falling back to dots or app-only presentation.")
+                    title: Translation.tr("Show workspace numbers")
+                    subtitle: root.workspaceNumberStyle === "decimal"
+                        ? Translation.tr("Show a number on workspaces without an app icon.")
+                        : Translation.tr("Keep numbers visible even when a workspace has an app icon.")
                     iconName: "counter_1"
                     switchChecked: Config.options.bar.workspaces.alwaysShowNumbers
 
@@ -803,7 +776,7 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Show app icons")
+                    title: Translation.tr("Show workspace app icons")
                     subtitle: Translation.tr("Show the main application icon for occupied workspaces.")
                     iconName: "award_star"
                     switchChecked: Config.options.bar.workspaces.showAppIcons
@@ -819,8 +792,8 @@ SettingsTabbedPage {
                 spacing: 8
 
                 FieldLabel {
-                    title: Translation.tr("Number style")
-                    subtitle: Translation.tr("Choose the preset used to label workspace numbers.")
+                    title: Translation.tr("Workspace number style")
+                    subtitle: Translation.tr("Format workspace numbers in the bar.")
                 }
 
                 Flow {
@@ -828,24 +801,27 @@ SettingsTabbedPage {
                     spacing: 8
 
                     ChoiceChip {
-                        label: Translation.tr("Normal")
+                        label: Translation.tr("Decimal")
                         iconName: "timer_10"
-                        selected: root.workspaceNumberStyle === "normal"
+                        description: "1, 2, 3"
+                        selected: root.workspaceNumberStyle === "decimal"
 
-                        onClicked: root.setWorkspaceNumberStyle("normal")
+                        onClicked: root.setWorkspaceNumberStyle("decimal")
                     }
 
                     ChoiceChip {
-                        label: Translation.tr("Han")
+                        label: Translation.tr("Chinese numerals")
                         iconName: "square_dot"
+                        description: "一, 二, 三"
                         selected: root.workspaceNumberStyle === "han"
 
                         onClicked: root.setWorkspaceNumberStyle("han")
                     }
 
                     ChoiceChip {
-                        label: Translation.tr("Roman")
+                        label: Translation.tr("Roman numerals")
                         iconName: "account_balance"
+                        description: "I, II, III"
                         selected: root.workspaceNumberStyle === "roman"
 
                         onClicked: root.setWorkspaceNumberStyle("roman")

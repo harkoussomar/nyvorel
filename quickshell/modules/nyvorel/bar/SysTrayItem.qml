@@ -78,21 +78,12 @@ MouseArea {
 
     IconImage {
         id: trayIcon
-        visible: !Config.monochromeAppIcons
         source: root.item.icon
         anchors.centerIn: parent
         width: root.axiomMode ? Appearance.barVisual.axiomTrayIconSize : parent.width
         height: root.axiomMode ? Appearance.barVisual.axiomTrayIconSize : parent.height
-    }
-
-    Loader {
-        active: Config.monochromeAppIcons
-        anchors.fill: trayIcon
-        sourceComponent: Desaturate {
-            anchors.fill: parent
-            source: trayIcon
-            desaturation: 1.0
-        }
+        layer.enabled: Config.monochromeAppIcons
+        layer.effect: Desaturate { desaturation: 1 }
     }
 
     PopupToolTip {

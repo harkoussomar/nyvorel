@@ -21,7 +21,7 @@ colorstrings=''
 colorlist=()
 colorvalues=()
 
-PALETTE_FILE="$STATE_DIR/user/generated/material_colors.scss"
+PALETTE_FILE="${NYVOREL_TERMINAL_PALETTE_FILE:-$STATE_DIR/user/generated/material_colors.scss}"
 if [[ ! -s "$PALETTE_FILE" ]]; then
   echo "Missing generated terminal palette: $PALETTE_FILE" >&2
   exit 1
@@ -35,23 +35,37 @@ colorvalues=($colorstrings) # Array of color values
 apply_term() {
   # Check if terminal escape sequence template exists
   if [ ! -f "$SCRIPT_DIR/terminal/sequences.txt" ]; then
-    echo "Template file not found for Terminal. Skipping that."
-    return
+    echo "Terminal color sequence template is missing." >&2
+    return 1
   fi
   # Copy template
   mkdir -p "$STATE_DIR"/user/generated/terminal
-  cp "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR"/user/generated/terminal/sequences.txt
+  local sequences="$STATE_DIR/user/generated/terminal/sequences.txt"
+  local pending
+  pending=$(mktemp "${sequences}.XXXXXX") || return 1
+  if ! cp "$SCRIPT_DIR/terminal/sequences.txt" "$pending"; then
+    rm -f -- "$pending"
+    return 1
+  fi
   # Apply colors
   for i in "${!colorlist[@]}"; do
-    sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/sequences.txt
+    if ! sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$pending"; then
+      rm -f -- "$pending"
+      return 1
+    fi
   done
 
-  sed -i "s/\$alpha/$term_alpha/g" "$STATE_DIR/user/generated/terminal/sequences.txt"
+  if ! sed -i "s/\$alpha/$term_alpha/g" "$pending" || ! mv -f -- "$pending" "$sequences"; then
+    rm -f -- "$pending"
+    return 1
+  fi
+
+  [[ "${NYVOREL_TERMINAL_NO_BROADCAST:-0}" == 1 ]] && return 0
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
       {
-      cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
+      cat "$sequences" >"$file"
       } & disown || true
     fi
   done

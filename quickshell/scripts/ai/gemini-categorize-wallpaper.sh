@@ -1,65 +1,65 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-if [[ -z "$1" ]]; then
-    echo "Usage: $0 <image_path> [model] [prompt]"
-    echo "Tip: set GEMINI_WALLPAPER_MODEL and/or GEMINI_WALLPAPER_PROMPT to provide defaults."
-    exit 1
+wallpaper=""
+if [[ "${1:-}" == "--save-cookie-style" ]]; then
+    wallpaper="${2:?Wallpaper path is required}"
+    shift 2
 fi
 
-# Variables
-SOURCE_IMG_PATH="$1"
-MODEL="${2:-${GEMINI_WALLPAPER_MODEL:-gemini-2.5-flash}}" # We use the flash variant so it's fast
-WALLPAPER_NAME="$(basename "$SOURCE_IMG_PATH")"
-PROMPT="${3:-${GEMINI_WALLPAPER_PROMPT:-Categorize the wallpaper. Its file name is $WALLPAPER_NAME}}"
-RESIZED_IMG_PATH="/tmp/quickshell/ai/wallpaper.jpg"
+source_image="${1:?Wallpaper image is required}"
+model="${2:-${GEMINI_WALLPAPER_MODEL:-gemini-2.5-flash}}"
+prompt="${3:-${GEMINI_WALLPAPER_PROMPT:-Categorize the wallpaper. Its file name is $(basename -- "$source_image")}}"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/nyvorel/config.json"
+still_enabled() {
+    jq -e --arg wallpaper "$wallpaper" '
+        .background.wallpaperPath == $wallpaper and .background.widgets.clock.cookie.aiStyling == true
+    ' "$config" >/dev/null
+}
 
-# Resize image for speed
-mkdir -p "$(dirname "$RESIZED_IMG_PATH")"
-magick "$SOURCE_IMG_PATH" -resize 200x -quality 50 "$RESIZED_IMG_PATH"
-
-# Get API key
-API_KEY=$(secret-tool lookup 'application' 'nyvorel' | jq -r '.apiKeys.gemini')
-
-# Encode image to base64
-if [[ "$(base64 --version 2>&1)" = *"FreeBSD"* ]]; then
-    B64FLAGS="--input"
-else
-    B64FLAGS="-w0"
+if [[ -n "$wallpaper" ]]; then
+    still_enabled || exit 0
 fi
-B64DATA="$(base64 $B64FLAGS $RESIZED_IMG_PATH)"
-# echo $B64DATA
+[[ -f "$source_image" && "$model" =~ ^[A-Za-z0-9_.-]+$ ]]
+key="$(timeout 8 secret-tool lookup application nyvorel | jq -er '.apiKeys.gemini // empty')"
+[[ "$key" =~ ^[A-Za-z0-9_-]+$ ]]
 
-# Prepare request data
-payload='{
-    "contents": [{
-        "parts":[
-            {
-                "inline_data": {
-                "mime_type":"image/jpeg",
-                "data": "'"$B64DATA"'"
-                }
-            },
-            {"text": "'"$PROMPT"'"}
-        ]
-    }],
-    "generationConfig": {
-        "responseMimeType": "text/x.enum",
-        "responseSchema": {
-            "type": "string",
-            "enum": [ "abstract", "anime", "city", "minimalist", "landscape", "plants", "person", "space" ]
+scratch="$(mktemp -d)"
+trap 'rm -rf -- "$scratch"' EXIT
+magick "${source_image}[0]" -thumbnail '200x200>' -quality 55 "$scratch/wallpaper.jpg"
+base64 -w0 "$scratch/wallpaper.jpg" > "$scratch/image.base64"
+jq -n --rawfile image "$scratch/image.base64" --arg prompt "$prompt" '{
+    contents: [{parts: [
+        {inline_data: {mime_type: "image/jpeg", data: $image}},
+        {text: $prompt}
+    ]}],
+    generationConfig: {
+        responseMimeType: "text/x.enum",
+        responseSchema: {
+            type: "string",
+            enum: ["abstract", "anime", "city", "minimalist", "landscape", "plants", "person", "space"]
         },
-        "temperature": 0
+        temperature: 0
     }
-}'
-# echo "$payload" | jq
+}' > "$scratch/request.json"
 
-# Make the request
-response=$(curl "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent" \
--H "x-goog-api-key: $API_KEY" \
--H 'Content-Type: application/json' \
--X POST \
--d "$payload" 2> /dev/null)
-# echo "$response" | jq
+category="$(
+    printf 'header = "x-goog-api-key: %s"\n' "$key" |
+        curl --config - --fail --silent --show-error --max-time 20 \
+        -H 'Content-Type: application/json' -X POST --data-binary "@$scratch/request.json" \
+        "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" |
+        jq -er '.candidates[0].content.parts[0].text'
+)"
+[[ "$category" =~ ^(abstract|anime|city|minimalist|landscape|plants|person|space)$ ]]
 
-# Write the result
-echo "$response" | jq -r '.candidates[0].content.parts[0].text'
+if [[ -z "$wallpaper" ]]; then
+    printf '%s\n' "$category"
+elif still_enabled; then
+    directory="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated/wallpaper"
+    mkdir -p -- "$directory"
+    pending="$(mktemp "$directory/.category.XXXXXX")"
+    trap 'rm -rf -- "$scratch"; rm -f -- "$pending"' EXIT
+    jq -n --arg wallpaper "$wallpaper" --arg category "$category" \
+        '{wallpaper: $wallpaper, category: $category}' > "$pending"
+    mv -fT -- "$pending" "$directory/category.txt"
+fi

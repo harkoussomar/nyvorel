@@ -3,9 +3,9 @@
 
 use crate::{
     atomic_json_write, colors_path, config_path, detect_profile, ensure_radius, epoch_seconds,
-    get_nested, is_truthy, load_state, local_path, preview_allowed_paths, preview_path, radius,
-    read_json, request, restore_preview_runtime, set_nested, sha256_hex, snapshot,
-    source_image_for_wallpaper, state_path, string_at, sync_runtime_best_effort,
+    get_nested, is_truthy, load_state, local_path, lock_path, preview_allowed_paths, preview_path,
+    radius, read_json, request, restore_preview_runtime, runtime_modes, set_nested, sha256_hex,
+    snapshot, source_image_for_wallpaper, state_path, string_at, sync_runtime_best_effort,
     transaction::Snapshot, xdg_path, CATALOG,
 };
 use serde_json::{json, Value};
@@ -373,13 +373,6 @@ fn sync_radius(cfg: &Value, catalog: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn runtime_mode(cfg: &Value, catalog: &Value) -> (bool, bool) {
-    (
-        get_nested(cfg, "appearance.transparency.enable").is_some_and(is_truthy),
-        detect_profile(cfg, catalog) == "fluid",
-    )
-}
-
 pub(crate) fn runtime_helper(name: &str) -> Result<PathBuf, String> {
     let user_path = home()?.join(".local/bin").join(name);
     if user_path.is_file() {
@@ -400,7 +393,7 @@ pub(crate) fn runtime_helper(name: &str) -> Result<PathBuf, String> {
 }
 
 fn sync_runtime(cfg: &Value, catalog: &Value) -> Result<(), String> {
-    let (glass, fluid) = runtime_mode(cfg, catalog);
+    let (glass, fluid) = runtime_modes(cfg, catalog);
     for (helper, mode) in [
         (
             "nyvorel-glass-runtime",
@@ -515,15 +508,20 @@ fn post_integrations(targets: &Value, scheme: &str) -> Vec<String> {
         }
     }
     if targets["qt"].as_bool().unwrap_or(true) {
-        if let Ok(root) = xconfig() {
-            if let Err(error) = run_optional(
+        let result = if let Ok(helper) = runtime_helper("nyvorel-kde-app-style-sync") {
+            run_optional(helper, &[], Duration::from_secs(30), &[])
+        } else if let Ok(root) = xconfig() {
+            run_optional(
                 root.join("matugen/templates/kde/kde-material-you-colors-wrapper.sh"),
                 &["--scheme-variant", scheme],
                 Duration::from_secs(30),
                 &[],
-            ) {
-                warnings.push(format!("Qt/KDE theme: {error}"));
-            }
+            )
+        } else {
+            Ok(())
+        };
+        if let Err(error) = result {
+            warnings.push(format!("Qt/KDE theme: {error}"));
         }
     }
     warnings
@@ -843,6 +841,20 @@ fn apply_core(request_draft: &Value, record_history: bool) -> Result<Value, Stri
         state["history"] = Value::Array(history);
     }
     atomic_json_write(&state_path()?, &state)?;
+    if !source_image.is_empty()
+        && wallpaper != previous_wallpaper
+        && get_nested(&cfg_after, "background.widgets.clock.cookie.aiStyling")
+            .is_some_and(is_truthy)
+    {
+        if let Ok(root) = nyvorel_dir() {
+            let _ = Command::new(root.join("scripts/ai/gemini-categorize-wallpaper.sh"))
+                .args(["--save-cookie-style", wallpaper, &source_image])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+        }
+    }
     let warnings = post_integrations(&targets, selected_scheme);
     let mut notes = Vec::new();
     if resolved["source"] == "hybrid" {
@@ -935,7 +947,7 @@ pub fn wallpaper_preview(path: &str) -> Result<Value, String> {
 
 fn render_preview(draft: &Value, state: &Value, catalog: &Value) -> Result<Value, String> {
     let mut cfg = read_json(&config_path()?);
-    let runtime_before = runtime_mode(&cfg, catalog);
+    let runtime_before = runtime_modes(&cfg, catalog);
     let resolved = request::resolve(draft, &cfg, catalog)?;
     let targets = &state["targets"];
     apply_ui(&mut cfg, &resolved["ui"], catalog);
@@ -962,7 +974,7 @@ fn render_preview(draft: &Value, state: &Value, catalog: &Value) -> Result<Value
     }
     ensure_radius(&mut cfg, catalog);
     atomic_json_write(&config_path()?, &cfg)?;
-    if runtime_before != runtime_mode(&cfg, catalog) {
+    if runtime_before != runtime_modes(&cfg, catalog) {
         sync_runtime(&cfg, catalog)?;
     }
     Ok(json!({"active": active(&resolved, &cfg, catalog), "resolved": resolved}))
@@ -1283,6 +1295,87 @@ fn target_enable(name: &str) -> Result<Value, String> {
     result
 }
 
+fn terminal_colors(input: &str) -> Result<Value, String> {
+    let preferences: Value = serde_json::from_str(input).map_err(|error| error.to_string())?;
+    let force_dark = preferences["forceDarkMode"]
+        .as_bool()
+        .ok_or("Invalid terminal mode")?;
+    let number = |key: &str, max: f64| {
+        preferences[key]
+            .as_f64()
+            .filter(|value| (0.0..=max).contains(value))
+            .map(|value| value.to_string())
+            .ok_or_else(|| format!("Invalid terminal color setting: {key}"))
+    };
+    let harmony = number("harmony", 1.0)?;
+    let threshold = number("harmonizeThreshold", 180.0)?;
+    let foreground = number("termFgBoost", 1.0)?;
+    let cfg_path = config_path()?;
+    let mut cfg = read_json(&cfg_path);
+    let current = crate::status()?;
+    if is_truthy(&current["preview"]) {
+        return Err("Keep or revert the preview before changing terminal colors".into());
+    }
+    if current["targets"]["terminal"] == false {
+        return Err("Enable terminal theming first".into());
+    }
+    let resolved = request::resolve(&current["active"], &cfg, &catalog()?)?;
+    let root = nyvorel_dir()?.join("scripts/colors");
+    let mode = if force_dark {
+        "dark"
+    } else {
+        string_at(&resolved, "baseMode")
+    };
+    let args = [
+        "--color",
+        string_at(&resolved, "seed"),
+        "--mode",
+        mode,
+        "--scheme",
+        string_at(&resolved, "resolvedScheme"),
+        "--blend_bg_fg",
+        "--termscheme",
+        root.join("terminal/scheme-base.json")
+            .to_str()
+            .ok_or("Invalid terminal scheme path")?,
+        "--harmony",
+        &harmony,
+        "--harmonize_threshold",
+        &threshold,
+        "--term_fg_boost",
+        &foreground,
+    ]
+    .map(str::to_owned);
+    let palette = crate::material_scss::render(&args)?;
+    let cache = lock_path()?
+        .parent()
+        .ok_or("Invalid appearance cache path")?
+        .join(format!("terminal-{}.scss", crate::random_id()?));
+    let sequences = xstate()?.join("quickshell/user/generated/terminal/sequences.txt");
+    let snapshot = Snapshot::capture(&[&cfg_path, &sequences])?;
+    fs::write(&cache, palette).map_err(|error| error.to_string())?;
+    let result = (|| {
+        set_nested(
+            &mut cfg,
+            "appearance.wallpaperTheming.terminalGenerationProps",
+            preferences,
+        );
+        atomic_json_write(&cfg_path, &cfg)?;
+        let mut command = Command::new(root.join("applycolor.sh"));
+        command
+            .env("NYVOREL_TERMINAL_PALETTE_FILE", &cache)
+            .env("NYVOREL_APPEARANCE_STUDIO_MANAGED", "1")
+            .env("NYVOREL_APPEARANCE_STUDIO_SKIP_TERMINAL", "0");
+        run_command(command, Duration::from_secs(20))?;
+        Ok(json!({"ok": true}))
+    })();
+    let _ = fs::remove_file(cache);
+    if result.is_err() {
+        snapshot.restore()?;
+    }
+    result
+}
+
 fn variants(args: &[String]) -> Result<Value, String> {
     let mut wallpaper = "";
     let mut mode = "dark";
@@ -1329,6 +1422,7 @@ pub fn execute(args: &[String]) -> Result<Value, String> {
             }
         }
         "keep-preview" if args.len() == 1 => keep_preview(),
+        "terminal-colors" if args.len() == 2 => terminal_colors(&args[1]),
         "ui-profile" if args.len() == 2 => ui_profile(&args[1]),
         "favorite-apply" | "history-apply" if args.len() == 2 => apply_saved(command, &args[1]),
         _ => Err(format!("Invalid {command} command")),

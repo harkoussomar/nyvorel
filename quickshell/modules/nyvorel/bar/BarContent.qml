@@ -17,6 +17,8 @@ import qs.modules.nyvorel.sidebarLeft
 
 Item {
     id: root
+    readonly property bool workspacePreviewOpen: workspacesWidget.previewWorkspaceId > 0
+    readonly property string barScreenName: root.screen?.name ?? ""
 
     // ============================================================
     // Root state
@@ -132,9 +134,7 @@ Item {
     readonly property bool wantsRightTray:
         root.useShortenedForm === 0
 
-    readonly property bool wantsRightWeather:
-        root.useShortenedForm === 0
-        && Config.options.bar.weather.enable
+    readonly property bool wantsRightWeather: Config.options.bar.weather.enable
 
     // Default and Fluid share Axiom structure; only their material differs.
     // Retain the established property name for pre-existing bindings.
@@ -228,8 +228,6 @@ Item {
             Config.options.bar.showBackground
             && Config.options.bar.cornerStyle === 1
             && Config.options.bar.floatStyleShadow
-            && !false
-            && !false
 
         anchors.fill:
             barBackground
@@ -237,6 +235,7 @@ Item {
         sourceComponent:
             StyledRectangularShadow {
                 anchors.fill: undefined
+                visible: true
                 target: barBackground
             }
     }
@@ -376,7 +375,7 @@ Item {
 
         onPressed: event => {
             if (event.button === Qt.LeftButton) {
-                GlobalStates.toggleBarPopup("operations", root.screen?.name);
+                GlobalStates.toggleBarPopup("operations", root.barScreenName);
             }
         }
 
@@ -436,7 +435,6 @@ Item {
             verticalCenter: parent.verticalCenter
         }
         sourceComponent: BarGroup {
-            quiet: Appearance.barLayout.axiomComponents
             padding: Appearance.fluidMode ? 0 : 3
             UtilButtons {}
         }
@@ -456,6 +454,7 @@ Item {
 
     RippleButton {
         id: compactUtilityButton
+        Accessible.name: Translation.tr("Quick actions")
         z: 4
         visible: root.showCompactUtilities
         implicitWidth: 30
@@ -464,12 +463,12 @@ Item {
         anchors.leftMargin: visible ? root.zoneGap : 0
         anchors.verticalCenter: parent.verticalCenter
         buttonRadius: Appearance.radius.control
-        toggled: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+        toggled: GlobalStates.isBarPopupOpen("utilities", root.barScreenName)
         colBackground: "transparent"
         colBackgroundToggled: "transparent"
         colBackgroundHover: Appearance.colors.colLayer1Hover
         colBackgroundToggledHover: Appearance.colors.colLayer1Hover
-        onClicked: GlobalStates.toggleBarPopup("utilities", root.screen?.name)
+        onClicked: GlobalStates.toggleBarPopup("utilities", root.barScreenName)
         MaterialSymbol {
             anchors.centerIn: parent
             text: "tune"
@@ -482,12 +481,12 @@ Item {
         hoverTarget: compactUtilityButton
         showOnHover: false
         forceActive: root.showCompactUtilities
-            && GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+            && GlobalStates.isBarPopupOpen("utilities", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
         popupRadius: Appearance.radius.bar
         contentMargin: 10
-        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.barScreenName)
         UtilButtons {}
     }
 
@@ -512,12 +511,12 @@ Item {
         id: operationsPopup
         hoverTarget: leftSidebarButton
         showOnHover: false
-        forceActive: GlobalStates.isBarPopupOpen("operations", root.screen?.name)
+        forceActive: GlobalStates.isBarPopupOpen("operations", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
         popupRadius: Appearance.radius.bar
         contentMargin: 0
-        onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("operations", root.barScreenName)
         contentComponent: SidebarLeftContent {}
     }
 
@@ -531,10 +530,6 @@ Item {
     BarGroup {
         id: middleSection
         z: 4
-
-        // Axiom / Fluid-native: workspace chrome is owned by the existing bar.
-        // The active workspace remains visible, centered and interactive.
-        quiet: Appearance.barLayout.axiomComponents
 
         anchors {
             horizontalCenter:
@@ -556,7 +551,11 @@ Item {
 
         Workspaces {
             id: workspacesWidget
-
+            availableLength: root.width - 2 * (
+                Math.max(leftSidebarButton.implicitWidth
+                    + (root.hasUtilityActions ? 30 + root.zoneGap : 0),
+                    root.rightStatusWidth + root.axiomSideInset * 2)
+                + root.safetyGap + Appearance.barLayout.edgeInset + middleSection.padding)
             Layout.fillHeight:
                 true
 
@@ -586,15 +585,15 @@ Item {
         contentMargin: 0
         hoverTarget: rightSidebarButton
         showOnHover: false
-        forceActive: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+        forceActive: GlobalStates.isBarPopupOpen("controls", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
-        onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("controls", root.barScreenName)
         contentComponent: SidebarRightContent {}
     }
 
     NetworkOperationsPopup {
-        barScreenName: root.screen?.name
+        barScreenName: root.barScreenName
         hoverTarget: networkButton
     }
 
@@ -733,7 +732,7 @@ Item {
 
         onPressed: event => {
             if (event.button === Qt.LeftButton) {
-                GlobalStates.toggleBarPopup("controls", root.screen?.name);
+                GlobalStates.toggleBarPopup("controls", root.barScreenName);
             }
         }
 
@@ -820,7 +819,7 @@ Item {
                     Appearance.colors.colSecondaryContainerActive
 
                 toggled:
-                    GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+                    GlobalStates.isBarPopupOpen("controls", root.barScreenName)
 
 
                 property color colText:
@@ -836,7 +835,7 @@ Item {
 
                 // nyvorel-phase1b-ripple-click-contract
                 onClicked: {
-                    GlobalStates.toggleBarPopup("controls", root.screen?.name);
+                    GlobalStates.toggleBarPopup("controls", root.barScreenName);
                 }
 
 
@@ -973,6 +972,7 @@ Item {
 
                         NotificationUnreadCount {
                             id: notificationUnreadCount
+                            color: rightSidebarButton.colText
                         }
                     }
 
@@ -1013,13 +1013,13 @@ Item {
                 implicitWidth: 28
                 implicitHeight: 28
                 buttonRadius: Appearance.rounding.small
-                toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
+                toggled: GlobalStates.isBarPopupOpen("network", root.barScreenName)
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
                 colBackgroundToggled: "transparent"
                 colBackgroundToggledHover: "transparent"
                 colRipple: Appearance.colors.colLayer1Active
-                onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
+                onClicked: GlobalStates.toggleBarPopup("network", root.barScreenName)
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: Network.barSymbol
@@ -1043,7 +1043,7 @@ Item {
 
             BatteryIndicator {
 
-                barScreenName: root.screen?.name
+                barScreenName: root.barScreenName
                 id: batteryIndicator
                 axiomMode: root.sharedNavbarContent
 
@@ -1070,7 +1070,7 @@ Item {
 
             SysTray {
 
-                barScreenName: root.screen?.name
+                barScreenName: root.barScreenName
                 id: sysTray
                 axiomMode: root.sharedNavbarContent
 
@@ -1105,7 +1105,6 @@ Item {
 
             BarGroup {
                 id: clockRightGroup
-                quiet: root.axiomFluidRight
                 padding:
                     root.axiomFluidRight ? 0 : 5
 
@@ -1119,7 +1118,7 @@ Item {
 
                 ClockWidget {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     axiomMode: root.sharedNavbarContent
                     showDate:
                         false
@@ -1148,7 +1147,6 @@ Item {
 
             BarGroup {
                 id: resourcesRightGroup
-                quiet: root.axiomFluidRight
 
                 visible:
                     root.showRightResources
@@ -1164,7 +1162,7 @@ Item {
 
                 Resources {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     axiomMode: root.sharedNavbarContent
                     alwaysShowAllResources:
                         false
@@ -1197,7 +1195,6 @@ Item {
 
                 sourceComponent:
                     BarGroup {
-                        quiet: Appearance.barLayout.axiomComponents
                         padding: Appearance.barLayout.axiomComponents ? 0 : 5
                         WeatherBar {}
                     }

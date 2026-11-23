@@ -7,6 +7,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
+import Quickshell
 import Quickshell.Io
 
 import qs.modules.nyvorel.background.widgets.clock.dateIndicator
@@ -15,7 +16,12 @@ import qs.modules.nyvorel.background.widgets.clock.minuteMarks
 Item {
     id: root
 
-    readonly property string clockStyle: Config.options.background.widgets.clock.style
+    property bool preview: false
+    readonly property var cookie: Config.options.background.widgets.clock.cookie
+    readonly property bool showHourMarks: cookie.hourMarks
+        && ["dots", "full"].includes(cookie.dialNumberStyle)
+    readonly property bool showTimeIndicators: cookie.timeIndicators && cookie.dialNumberStyle !== "numbers"
+    readonly property bool showSecondHand: cookie.secondHandStyle !== "hide"
 
     property real implicitSize: 230
 
@@ -27,10 +33,14 @@ Item {
     property color colMinuteHand: Appearance.colors.colTertiary
     property color colSecondHand: Appearance.colors.colPrimary
 
-    readonly property list<string> clockNumbers: DateTime.time.split(/[: ]/)
-    readonly property int clockHour: parseInt(clockNumbers[0]) % 12
+    readonly property int clockHour: DateTime.clock.date.getHours() % 12
     readonly property int clockMinute: DateTime.clock.minutes
-    readonly property int clockSecond: DateTime.clock.seconds
+    readonly property int clockSecond: secondClock.item?.seconds ?? 0
+    Loader {
+        id: secondClock
+        active: root.showSecondHand && root.visible
+        sourceComponent: SystemClock { precision: SystemClock.Seconds }
+    }
 
     implicitWidth: implicitSize
     implicitHeight: implicitSize
@@ -68,11 +78,16 @@ Item {
 
     FileView {
         id: categoryFileView
-        path: Config.ready ? Directories.generatedWallpaperCategoryPath : ""
+        path: Config.ready && !root.preview && root.cookie.aiStyling
+            ? Directories.generatedWallpaperCategoryPath : ""
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
-            root.setClockPreset(categoryFileView.text().trim())
+            try {
+                const result = JSON.parse(categoryFileView.text())
+                if (result.wallpaper === Config.options.background.wallpaperPath)
+                    root.setClockPreset(result.category)
+            } catch (_) {}
         }
     }
 
@@ -81,7 +96,7 @@ Item {
         target: root.useSineCookie ? sineCookieLoader : roundedPolygonCookieLoader
 
         RotationAnimation on rotation {
-            running: Config.options.background.widgets.clock.cookie.constantlyRotate
+            running: root.cookie.constantlyRotate && root.visible && !Appearance.reducedMotion
             duration: 30000
             easing.type: Easing.Linear
             loops: Animation.Infinite
@@ -122,7 +137,7 @@ Item {
     FadeLoader {
         id: hourMarksLoader
         anchors.centerIn: parent
-        shown: Config.options.background.widgets.clock.cookie.hourMarks
+        shown: root.showHourMarks
         sourceComponent: HourMarks {
             implicitSize: 135 * (1.75 - 0.75 * hourMarksLoader.opacity)
             color: root.colOnBackground
@@ -134,7 +149,7 @@ Item {
     FadeLoader {
         id: timeColumnLoader
         anchors.centerIn: parent
-        shown: Config.options.background.widgets.clock.cookie.timeIndicators
+        shown: root.showTimeIndicators
         scale: 1.4 - 0.4 * timeColumnLoader.shown
         Behavior on scale {
             animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
@@ -175,7 +190,7 @@ Item {
     FadeLoader {
         id: secondHandLoader
         z: (Config.options.background.widgets.clock.cookie.secondHandStyle === "line") ? 2 : 3
-        shown: Config.options.time.secondPrecision && Config.options.background.widgets.clock.cookie.secondHandStyle !== "hide"
+        shown: root.showSecondHand
         anchors.fill: parent
         sourceComponent: SecondHand {
             id: secondHand

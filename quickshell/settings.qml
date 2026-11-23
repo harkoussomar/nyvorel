@@ -92,7 +92,7 @@ ApplicationWindow {
             description: Translation.tr("Wallpaper motion, clock and weather"),
             group: Translation.tr("Make it yours"),
             icon: "wallpaper",
-            sections: [Translation.tr("Background motion"), Translation.tr("Desktop clock"), Translation.tr("Desktop weather")],
+            sections: [Translation.tr("Wallpaper motion"), Translation.tr("Desktop clock"), Translation.tr("Desktop weather")],
             component: "modules/settings/BackgroundConfig.qml"
         },
         {

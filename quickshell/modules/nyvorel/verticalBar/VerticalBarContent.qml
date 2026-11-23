@@ -15,13 +15,16 @@ import qs.modules.nyvorel.sidebarRight
 
 Item { // Bar content region
     id: root
+    readonly property bool workspacePreviewOpen: workspacesWidget.previewWorkspaceId > 0
+    readonly property string barScreenName: root.screen?.name ?? ""
 
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
     // Match the horizontal bar's information order from top to bottom.
     readonly property bool axiomOrientation: Appearance.barLayout.axiomComponents
-    readonly property bool showResources: Config.options.bar.visibility.resources && root.height >= 900
+    readonly property bool showResources: Config.options.bar.visibility.resources && root.height >= 650
     readonly property bool showClock: Config.options.bar.visibility.clock
+    readonly property bool showWeather: Config.options.bar.weather.enable
     readonly property bool showTray: root.height >= 700
         && ((TrayService.pinnedItems?.length ?? 0) > 0
             || (TrayService.unpinnedItems?.length ?? 0) > 0)
@@ -45,9 +48,11 @@ Item { // Bar content region
     // Background shadow
     Loader {
         active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1
+            && Config.options.bar.floatStyleShadow
         anchors.fill: barBackground
         sourceComponent: StyledRectangularShadow {
             anchors.fill: undefined // The loader's anchors act on this, and this should not have any anchor
+            visible: true
             target: barBackground
         }
     }
@@ -122,17 +127,18 @@ Item { // Bar content region
 
             RippleButton {
                 id: utilityLauncher
+                Accessible.name: Translation.tr("Quick actions")
                 visible: root.hasOtherUtilityActions
                 Layout.alignment: Qt.AlignHCenter
                 implicitWidth: 30
                 implicitHeight: 30
                 buttonRadius: Appearance.radius.control
-                toggled: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+                toggled: GlobalStates.isBarPopupOpen("utilities", root.barScreenName)
                 colBackground: "transparent"
                 colBackgroundToggled: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
                 colBackgroundToggledHover: Appearance.colors.colLayer1Hover
-                onClicked: GlobalStates.toggleBarPopup("utilities", root.screen?.name)
+                onClicked: GlobalStates.toggleBarPopup("utilities", root.barScreenName)
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: "tune"
@@ -162,24 +168,24 @@ Item { // Bar content region
     Bar.StyledPopup {
         hoverTarget: leftSidebarButton
         showOnHover: false
-        forceActive: GlobalStates.isBarPopupOpen("operations", root.screen?.name)
+        forceActive: GlobalStates.isBarPopupOpen("operations", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
         popupRadius: Appearance.radius.bar
         contentMargin: 0
-        onDismissRequested: GlobalStates.closeBarPopup("operations", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("operations", root.barScreenName)
         contentComponent: SidebarLeftContent {}
     }
 
     Bar.StyledPopup {
         hoverTarget: utilityLauncher
         showOnHover: false
-        forceActive: GlobalStates.isBarPopupOpen("utilities", root.screen?.name)
+        forceActive: GlobalStates.isBarPopupOpen("utilities", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
         popupRadius: Appearance.radius.bar
         contentMargin: 10
-        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("utilities", root.barScreenName)
         Bar.UtilButtons { showKeyboardLayoutAction: false }
     }
 
@@ -191,12 +197,13 @@ Item { // Bar content region
         Bar.BarGroup {
             id: middleCenterGroup
             vertical: true
-            quiet: root.axiomOrientation
             padding: root.axiomOrientation ? 3 : 6
 
             Bar.Workspaces {
                 id: workspacesWidget
                 vertical: true
+                availableLength: root.height - 2 * (Math.max(topSectionColumnLayout.implicitHeight,
+                    bottomSectionColumnLayout.implicitHeight) + middleCenterGroup.padding + 4)
                 MouseArea {
                     // Right-click to toggle overview
                     anchors.fill: parent
@@ -215,17 +222,17 @@ Item { // Bar content region
     Bar.StyledPopup {
         hoverTarget: rightSidebarButton
         showOnHover: false
-        forceActive: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+        forceActive: GlobalStates.isBarPopupOpen("controls", root.barScreenName)
         irisAnimation: true
         dismissOnOutsideClick: true
         popupRadius: Appearance.radius.bar
         contentMargin: 0
-        onDismissRequested: GlobalStates.closeBarPopup("controls", root.screen?.name)
+        onDismissRequested: GlobalStates.closeBarPopup("controls", root.barScreenName)
         contentComponent: SidebarRightContent {}
     }
 
     Bar.NetworkOperationsPopup {
-        barScreenName: root.screen?.name
+        barScreenName: root.barScreenName
         hoverTarget: networkButton
     }
 
@@ -258,14 +265,24 @@ Item { // Bar content region
             Bar.BarGroup {
                 vertical: true
                 Layout.alignment: Qt.AlignHCenter
-                quiet: root.axiomOrientation
                 padding: root.axiomOrientation ? 3 : 8
                 verticalRowSpacing: root.axiomOrientation ? 4 : 8
-                visible: root.showResources || root.showClock || root.showTray || Battery.available
+                visible: root.showWeather || root.showResources || root.showClock || root.showTray || Battery.available
+
+                Loader {
+                    active: root.showWeather
+                    visible: active
+                    Layout.alignment: Qt.AlignHCenter
+                    sourceComponent: BarWeather.WeatherBar { vertical: true }
+                }
+
+                HorizontalBarSeparator {
+                    visible: root.axiomOrientation && root.showWeather && root.showResources
+                }
 
                 Resources {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     visible: root.showResources
                     Layout.fillWidth: true
                 }
@@ -276,7 +293,7 @@ Item { // Bar content region
 
                 VerticalClockWidget {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     visible: root.showClock
                     Layout.fillWidth: true
                 }
@@ -292,7 +309,7 @@ Item { // Bar content region
 
                 Bar.SysTray {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     vertical: true
                     axiomMode: root.axiomOrientation
                     showSeparator: !root.axiomOrientation
@@ -307,7 +324,7 @@ Item { // Bar content region
 
                 BatteryIndicator {
 
-                    barScreenName: root.screen?.name
+                    barScreenName: root.barScreenName
                     visible: Battery.available
                     Layout.fillWidth: true
                 }
@@ -323,25 +340,19 @@ Item { // Bar content region
                 implicitWidth: 30
                 implicitHeight: 30
                 buttonRadius: Appearance.rounding.small
-                toggled: GlobalStates.isBarPopupOpen("network", root.screen?.name)
+                toggled: GlobalStates.isBarPopupOpen("network", root.barScreenName)
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
                 colBackgroundToggled: "transparent"
                 colBackgroundToggledHover: "transparent"
                 colRipple: Appearance.colors.colLayer1Active
-                onClicked: GlobalStates.toggleBarPopup("network", root.screen?.name)
+                onClicked: GlobalStates.toggleBarPopup("network", root.barScreenName)
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: Network.barSymbol
                     iconSize: root.axiomOrientation ? Appearance.barVisual.axiomIconSize : Appearance.font.pixelSize.larger
                     color: Appearance.colors.colOnLayer0
                 }
-            }
-
-            BarWeather.WeatherBar {
-                vertical: true
-                visible: Config.options.bar.weather.enable
-                Layout.alignment: Qt.AlignHCenter
             }
 
             RippleButton { // Right sidebar button
@@ -361,7 +372,7 @@ Item { // Bar content region
                 colBackgroundToggled: "transparent"
                 colBackgroundToggledHover: "transparent"
                 colRippleToggled: Appearance.colors.colSecondaryContainerActive
-                toggled: GlobalStates.isBarPopupOpen("controls", root.screen?.name)
+                toggled: GlobalStates.isBarPopupOpen("controls", root.barScreenName)
                 property color colText: Appearance.colors.colOnLayer0
 
                 Behavior on colText {
@@ -370,7 +381,7 @@ Item { // Bar content region
 
                 // nyvorel-phase1b-ripple-click-contract
                 onClicked: {
-                    GlobalStates.toggleBarPopup("controls", root.screen?.name);
+                    GlobalStates.toggleBarPopup("controls", root.barScreenName);
                 }
 
                 ColumnLayout {
@@ -424,6 +435,8 @@ Item { // Bar content region
                         implicitWidth: reveal ? notificationUnreadCount.implicitWidth : 0
                         Bar.NotificationUnreadCount {
                             id: notificationUnreadCount
+                            color: rightSidebarButton.colText
+                            Layout.alignment: Qt.AlignHCenter
                         }
                     }
                     MaterialSymbol {

@@ -11,21 +11,25 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
 import Qt5Compat.GraphicalEffects
+import "../../common/functions/WorkspaceNumbers.js" as WorkspaceNumbers
 
 Item {
     id: root
     property bool vertical: false
     property bool borderless: Config.options.bar.borderless
+    property real availableLength: Infinity
     property int previewWorkspaceId: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.QsWindow.window?.screen)
-    readonly property int effectiveActiveWorkspaceId: monitor?.activeWorkspace?.id ?? 1
+    readonly property int effectiveActiveWorkspaceId: Math.max(1, monitor?.activeWorkspace?.id ?? 1)
     readonly property var clients: HyprlandData.windowList
     readonly property var focusedToplevel: ToplevelManager.activeToplevel
     readonly property string focusedAddress: focusedToplevel?.HyprlandToplevel?.address
         ? `0x${focusedToplevel.HyprlandToplevel.address}` : ""
     readonly property var monitorData: HyprlandData.monitors.find(m => m.name === monitor?.name) ?? null
     
-    readonly property int workspacesShown: Config.options.bar.workspaces.shown
+    readonly property int workspacesShown: Math.max(1, Math.min(30,
+        Config.options.bar.workspaces.shown, Math.floor(availableLength / workspaceButtonWidth)))
+    readonly property string numberStyle: WorkspaceNumbers.style(Config.options.bar.workspaces.numberMap)
     readonly property int workspaceGroup: Math.floor((effectiveActiveWorkspaceId - 1) / root.workspacesShown)
     property list<bool> workspaceOccupied: []
     property int widgetPadding: 3
@@ -36,9 +40,7 @@ Item {
     property real activeWorkspaceMargin: 1
     // Give detailed app marks enough pixels to remain legible in a 24px cell.
     property real workspaceIconSize: workspaceButtonWidth * 0.78
-    property real workspaceIconSizeShrinked: workspaceButtonWidth * 0.55
-    property real workspaceIconOpacityShrinked: 0.75
-    property real workspaceIconMarginShrinked: -3
+    property real workspaceIconSizeShrinked: workspaceButtonWidth * 0.46
     property int workspaceIndexInGroup: (effectiveActiveWorkspaceId - 1) % root.workspacesShown
 
     function clientsForWorkspace(workspaceId) {
@@ -69,7 +71,7 @@ Item {
     property bool showNumbers: false
     Timer {
         id: showNumbersTimer
-        interval: (Config?.options.bar.autoHide.showWhenPressingSuper.delay ?? 100)
+        interval: Math.max(0, Config.options.bar.workspaces.showNumberDelay)
         repeat: false
         onTriggered: {
             root.showNumbers = true
@@ -78,7 +80,6 @@ Item {
     Connections {
         target: GlobalStates
         function onSuperDownChanged() {
-            if (!Config?.options.bar.autoHide.showWhenPressingSuper.enable) return;
             if (GlobalStates.superDown) showNumbersTimer.restart();
             else {
                 showNumbersTimer.stop();
@@ -88,6 +89,10 @@ Item {
         function onSuperReleaseMightTriggerChanged() { 
             showNumbersTimer.stop()
         }
+    }
+    Connections {
+        target: Config.options.bar.tooltips
+        function onClickToShowChanged() { root.previewWorkspaceId = 0 }
     }
 
     // Workspace IDs are global, while each bar represents one monitor.
@@ -107,9 +112,15 @@ Item {
         function onWorkspacesChanged() { root.updateWorkspaceOccupied() }
         function onWindowListChanged() { root.updateWorkspaceOccupied() }
     }
-    onWorkspaceGroupChanged: updateWorkspaceOccupied()
+    onWorkspaceGroupChanged: {
+        root.previewWorkspaceId = 0
+        updateWorkspaceOccupied()
+    }
     onMonitorChanged: updateWorkspaceOccupied()
-    onWorkspacesShownChanged: updateWorkspaceOccupied()
+    onWorkspacesShownChanged: {
+        root.previewWorkspaceId = 0
+        updateWorkspaceOccupied()
+    }
 
     implicitWidth:
         root.vertical
@@ -280,16 +291,22 @@ Item {
             Button {
                 id: button
                 property int workspaceValue: workspaceGroup * root.workspacesShown + index + 1
-                implicitHeight: vertical ? Appearance.sizes.verticalBarWidth : Appearance.barLayout.persistentHeight
-                implicitWidth: vertical ? Appearance.sizes.verticalBarWidth : Appearance.sizes.verticalBarWidth
-                onPressed: {
+                readonly property bool hasAppIcon: Config.options.bar.workspaces.showAppIcons
+                    && !!workspaceButtonBackground.foregroundWindow
+                readonly property bool showNumber: (!hasAppIcon || root.numberStyle !== "decimal")
+                    && (root.showNumbers || Config.options.bar.workspaces.alwaysShowNumbers)
+                readonly property bool showNumberAndIcon: showNumber && hasAppIcon
+                readonly property string workspaceLabel: WorkspaceNumbers.label(workspaceValue,
+                    Config.options.bar.workspaces.numberMap, root.numberStyle)
+                implicitHeight: root.vertical ? root.workspaceButtonWidth : Appearance.barLayout.persistentHeight
+                implicitWidth: root.vertical ? Appearance.sizes.verticalBarWidth : root.workspaceButtonWidth
+                Accessible.name: Translation.tr("Workspace %1").arg(workspaceLabel)
+                onClicked: {
                     HyprNative.workspace(workspaceValue)
                     if (Config.options.bar.tooltips.clickToShow)
                         root.previewWorkspaceId = root.previewWorkspaceId === workspaceValue
                             ? 0 : workspaceValue
                 }
-                width: vertical ? undefined : workspaceButtonWidth
-                height: vertical ? workspaceButtonWidth : undefined
 
                 background: Item {
                     id: workspaceButtonBackground
@@ -302,27 +319,28 @@ Item {
                     // indicator made the workspace island feel visually stacked.
 
                     StyledText { // Workspace number text
-                        opacity: root.showNumbers
-                            || ((Config.options?.bar.workspaces.alwaysShowNumbers && (!Config.options?.bar.workspaces.showAppIcons || !workspaceButtonBackground.foregroundWindow || root.showNumbers))
-                            || (root.showNumbers && !Config.options?.bar.workspaces.showAppIcons)
-                            )  ? 1 : 0
+                        opacity: button.showNumber ? 1 : 0
                         z: 3
 
                         anchors.centerIn: parent
+                        anchors.horizontalCenterOffset: button.showNumberAndIcon ? -3 : 0
+                        anchors.verticalCenterOffset: button.showNumberAndIcon ? -4 : 0
+                        width: root.workspaceButtonWidth - (button.showNumberAndIcon ? 9 : 3)
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         font {
-                            pixelSize: (Appearance.barLayout.axiomComponents
+                            pixelSize: Math.max(9, (Appearance.barLayout.axiomComponents
                                 ? Appearance.barVisual.axiomTextSize
                                 : Appearance.font.pixelSize.small)
-                                - ((text.length - 1) * (text !== "10") * 2)
+                                - (button.showNumberAndIcon ? 2 : 0)
+                                - Math.max(0, text.length - 2))
                             family: Config.options?.bar.workspaces.useNerdFont
                                 ? Appearance.font.family.iconNerd
                                 : Appearance.barLayout.axiomComponents
                                     ? Appearance.font.family.monospace : defaultFont
 
                         }
-                        text: Config.options?.bar.workspaces.numberMap[button.workspaceValue - 1] || button.workspaceValue
+                        text: button.workspaceLabel
                         elide: Text.ElideRight
                         color: (root.effectiveActiveWorkspaceId == button.workspaceValue)
                             ? (Appearance.barLayout.axiomComponents
@@ -342,10 +360,7 @@ Item {
                     }
                     Rectangle { // Dot instead of ws number
                         id: wsDot
-                        opacity: (Config.options?.bar.workspaces.alwaysShowNumbers
-                            || root.showNumbers
-                            || (Config.options?.bar.workspaces.showAppIcons && workspaceButtonBackground.foregroundWindow)
-                            ) ? 0 : 1
+                        opacity: button.showNumber || button.hasAppIcon ? 0 : 1
                         visible: opacity > 0
                         anchors.centerIn: parent
                         width: workspaceButtonWidth * 0.13
@@ -371,34 +386,23 @@ Item {
                         anchors.centerIn: parent
                         width: workspaceButtonWidth
                         height: workspaceButtonWidth
-                        opacity: !Config.options?.bar.workspaces.showAppIcons ? 0 :
-                            (workspaceButtonBackground.foregroundWindow && !root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ?
-                            1 : workspaceButtonBackground.foregroundWindow ? workspaceIconOpacityShrinked : 0
-                            visible: opacity > 0
+                        visible: button.hasAppIcon
                         Image {
-                            id: mainAppIcon
-                            visible: !Config.monochromeAppIcons
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
-                            anchors.bottomMargin: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? 
-                                (workspaceButtonWidth - workspaceIconSize) / 2 : workspaceIconMarginShrinked
-                            anchors.rightMargin: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? 
-                                (workspaceButtonWidth - workspaceIconSize) / 2 : workspaceIconMarginShrinked
+                            anchors.bottomMargin: button.showNumberAndIcon ? 1 : (workspaceButtonWidth - workspaceIconSize) / 2
+                            anchors.rightMargin: anchors.bottomMargin
 
                             source: workspaceButtonBackground.mainAppIconSource
-                            width: (!root.showNumbers && Config.options?.bar.workspaces.showAppIcons) ? workspaceIconSize : workspaceIconSizeShrinked
+                            width: button.showNumberAndIcon ? workspaceIconSizeShrinked : workspaceIconSize
                             height: width
                             sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             asynchronous: true
                             mipmap: false
-
-                            Behavior on opacity {
-                                MotionAnim {
-                                    type: MotionAnim.FastEffects
-                                }
-                            }
+                            layer.enabled: Config.monochromeAppIcons
+                            layer.effect: Desaturate { desaturation: 1 }
 
                             Behavior on anchors.bottomMargin {
                                 MotionAnim {
@@ -422,15 +426,6 @@ Item {
                             }
                         }
 
-                        Loader {
-                            active: Config.monochromeAppIcons
-                            anchors.fill: mainAppIcon
-                            sourceComponent: Desaturate {
-                                anchors.fill: parent
-                                source: mainAppIcon
-                                desaturation: 1.0
-                            }
-                        }
                     }
                 }
 

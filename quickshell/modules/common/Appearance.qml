@@ -106,11 +106,14 @@ Singleton {
         depth: 0 // 2^0 = 1 color
         rescaleSize: 10
     }
-    property real wallpaperVibrancy: (wallColorQuant.colors[0]?.hslSaturation + wallColorQuant.colors[0]?.hslLightness) / 2
+    property real wallpaperVibrancy: {
+        const color = wallColorQuant.colors[0]
+        return color ? (color.hslSaturation + color.hslLightness) / 2 : 0.5
+    }
     property real autoBackgroundTransparency: { // y = 0.5768x^2 - 0.759x + 0.2896
         let x = wallpaperVibrancy
         let y = 0.5768 * (x * x) - 0.759 * (x) + 0.2896
-        return Math.max(0, Math.min(0.22, y)) - 0.12 * (m3colors.darkmode ? 0 : 1)
+        return Math.max(0, Math.min(0.22, y) - (m3colors.darkmode ? 0 : 0.12))
     }
     property real autoContentTransparency: 0.9
     property real backgroundTransparency: Config?.options.appearance.transparency.enable ? Config?.options.appearance.transparency.automatic ? autoBackgroundTransparency : Config?.options.appearance.transparency.backgroundTransparency : 0
@@ -224,17 +227,18 @@ Singleton {
         property color fluidNeutral3: m3colors.darkmode ? "#1d2428" : "#e1e6e6"
         property color fluidNeutral4: m3colors.darkmode ? "#252d31" : "#d8dede"
 
-        property color fluidLayer0Tone: ColorUtils.mix(fluidNeutral0, m3colors.m3background, 0.92)
+        property color fluidLayer0Tone: ColorUtils.mix(fluidNeutral0,
+            Config.options.appearance.extraBackgroundTint ? m3colors.m3primary : m3colors.m3background, 0.92)
         property color fluidLayer1Tone: ColorUtils.mix(fluidNeutral1, m3colors.m3surfaceContainerLow, 0.90)
         property color fluidLayer2Tone: ColorUtils.mix(fluidNeutral2, m3colors.m3surfaceContainer, 0.88)
         property color fluidLayer3Tone: ColorUtils.mix(fluidNeutral3, m3colors.m3surfaceContainerHigh, 0.86)
         property color fluidLayer4Tone: ColorUtils.mix(fluidNeutral4, m3colors.m3surfaceContainerHighest, 0.84)
 
-        property color fluidLayer0Base: ColorUtils.transparentize(fluidLayer0Tone, 0.40)
-        property color fluidLayer1Base: ColorUtils.transparentize(fluidLayer1Tone, 0.80)
-        property color fluidLayer2Base: ColorUtils.transparentize(fluidLayer2Tone, 0.84)
-        property color fluidLayer3Base: ColorUtils.transparentize(fluidLayer3Tone, 0.88)
-        property color fluidLayer4Base: ColorUtils.transparentize(fluidLayer4Tone, 0.90)
+        property color fluidLayer0Base: ColorUtils.transparentize(fluidLayer0Tone, root.backgroundTransparency)
+        property color fluidLayer1Base: ColorUtils.transparentize(fluidLayer1Tone, root.contentTransparency)
+        property color fluidLayer2Base: ColorUtils.transparentize(fluidLayer2Tone, Math.min(0.98, 1.05 * root.contentTransparency))
+        property color fluidLayer3Base: ColorUtils.transparentize(fluidLayer3Tone, Math.min(0.98, 1.1 * root.contentTransparency))
+        property color fluidLayer4Base: ColorUtils.transparentize(fluidLayer4Tone, Math.min(0.98, 1.125 * root.contentTransparency))
 
         // Three edge strengths: outer frame > primary group > nested/inactive.
         property color fluidBorderStrong: ColorUtils.transparentize(
@@ -300,17 +304,12 @@ Singleton {
         // Base roles are used directly by several legacy II surfaces. Keep
         // their alpha aligned with the active profile, not just derived roles.
         // realistic-glass-v3: adaptive smoked-glass tint
-        property color colLayer0BaseDefault:
-            Config.options.appearance.transparency.enable
-                ? ColorUtils.transparentize(
-                    ColorUtils.mix(
-                        m3colors.m3background,
-                        m3colors.m3onBackground,
-                        0.88
-                    ),
-                    root.backgroundTransparency
-                  )
-                : ColorUtils.transparentize(ColorUtils.mix(m3colors.m3background, m3colors.m3primary, Config.options.appearance.extraBackgroundTint ? 0.99 : 1), root.backgroundTransparency)
+        property color layer0ToneDefault: Config.options.appearance.transparency.enable
+            ? ColorUtils.mix(m3colors.m3background, m3colors.m3onBackground, 0.88)
+            : m3colors.m3background
+        property color colLayer0BaseDefault: ColorUtils.transparentize(
+            Config.options.appearance.extraBackgroundTint ? ColorUtils.mix(layer0ToneDefault, m3colors.m3primary, 0.94) : layer0ToneDefault,
+            root.backgroundTransparency)
         property color colLayer0Base: root.fluidMode ? fluidLayer0Base : colLayer0BaseDefault
         property color colLayer0: colLayer0Base
         property color colOnLayer0: m3colors.m3onBackground

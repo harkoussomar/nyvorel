@@ -3,6 +3,7 @@ Description=Watch Nyvorel colors and interface style for terminal theme changes
 
 [Path]
 PathChanged=@HOME@/.local/state/quickshell/user/generated/colors.json
+PathChanged=%h/.local/state/quickshell/user/generated/terminal/sequences.txt
 PathChanged=@HOME@/.config/nyvorel/config.json
 Unit=nyvorel-terminal-theme-sync.service
 

@@ -1049,10 +1049,14 @@ fn restore_gsettings(preview: &Path) {
 }
 
 fn runtime_modes(cfg: &Value, catalog: &Value) -> (bool, bool) {
-    (
-        get_nested(cfg, "appearance.transparency.enable").is_some_and(is_truthy),
-        detect_profile(cfg, catalog) == "fluid",
-    )
+    let glass = get_nested(cfg, "appearance.transparency.enable").is_some_and(is_truthy);
+    let style = string_at(cfg, "appearance.interfaceStyle");
+    let fluid = match style {
+        "" => detect_profile(cfg, catalog) == "fluid",
+        "fluid" | "glass" | "mica" | "prism" | "inlay" => true,
+        _ => false,
+    };
+    (glass, glass && fluid)
 }
 
 fn sync_runtime_best_effort(cfg: &Value, catalog: &Value) {
@@ -1342,7 +1346,7 @@ fn main() {
         }
         Some(
             "variants" | "apply" | "keep-preview" | "favorite-apply" | "history-apply"
-            | "ui-profile",
+            | "ui-profile" | "terminal-colors",
         ) => print_result(engine::execute(&args)),
         Some("revert-preview") if args.len() == 1 => print_result(revert_preview()),
         Some("preview-watchdog")

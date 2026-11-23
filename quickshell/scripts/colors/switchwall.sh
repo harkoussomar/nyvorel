@@ -169,24 +169,12 @@ set_thumbnail_path() {
     fi
 }
 
-categorize_wallpaper() {
-    img_cat=$("$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$1")
-    # notify-send "Wallpaper category" "$img_cat"
-    echo "$img_cat" > "$STATE_DIR/user/generated/wallpaper/category.txt"
-}
-
 switch() {
     imgpath="$1"
     mode_flag="$2"
     type_flag="$3"
     color_flag="$4"
     color="$5"
-
-    # Start Gemini auto-categorization if enabled
-    aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
-    if [[ "$aiStylingEnabled" == "true" ]]; then
-        categorize_wallpaper "$imgpath" &
-    fi
 
     read scale screenx screeny screensizey < <(hyprctl monitors -j | jq '.[] | select(.focused) | .scale, .x, .y, .height' | xargs)
     cursorposx=$(hyprctl cursorpos -j | jq '.x' 2>/dev/null) || cursorposx=960
@@ -268,6 +256,15 @@ switch() {
             # Update wallpaper path in config
             set_wallpaper_path "$imgpath"
             remove_restore
+        fi
+
+        if [[ $(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE") == "true" ]]; then
+            local categorization_source="$imgpath"
+            if is_video "$imgpath"; then
+                categorization_source="$thumbnail"
+            fi
+            "$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" \
+                --save-cookie-style "$imgpath" "$categorization_source" </dev/null >/dev/null 2>&1 &
         fi
     fi
 

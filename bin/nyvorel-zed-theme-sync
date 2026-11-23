@@ -667,6 +667,12 @@ def atomic_write(path: Path, text: str):
         f.flush()
 
 def main():
+    try:
+        state = json.loads((HOME / ".config/nyvorel/appearance-studio.json").read_text())
+        if state.get("preview") or (state.get("targets") or {}).get("editors") is False:
+            return
+    except (OSError, ValueError, AttributeError):
+        pass
     STATE.mkdir(parents=True, exist_ok=True)
     c = load_colors()
     app = load_appearance()

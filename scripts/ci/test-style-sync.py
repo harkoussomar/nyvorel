@@ -112,3 +112,27 @@ with tempfile.TemporaryDirectory(prefix="nyvorel-style-sync-") as raw:
     assert not (home / ".config/Code/User/settings.json").exists()
     assert not (home / ".zen/profiles.ini").exists()
     print("PASS fresh-home style sync: btop/Zed initialized; absent Zen/Code skipped")
+
+    settings = home / ".config/nyvorel/appearance-studio.json"
+    launcher = home / ".config/fuzzel/nyvorel-style.ini"
+    editor = home / ".config/zed/settings.json"
+    protected = (launcher, editor, kdeglobals)
+    before = [path.read_bytes() for path in protected]
+    targets = {"fuzzel": False, "editors": False, "qt": False}
+    write(settings, json.dumps({"targets": targets}))
+    write(home / ".config/nyvorel/config.json", json.dumps({"appearance": {"interfaceStyle": "fluid"}}))
+    helpers = ("nyvorel-fuzzel-style-sync", "nyvorel-zed-theme-sync", "nyvorel-kde-app-style-sync")
+    for service in helpers:
+        subprocess.run([str(ROOT / "bin" / service)], env=env, check=True, timeout=20)
+    assert [path.read_bytes() for path in protected] == before
+
+    targets = dict.fromkeys(targets, True)
+    write(settings, json.dumps({"targets": targets, "preview": {"token": "test"}}))
+    for service in helpers:
+        subprocess.run([str(ROOT / "bin" / service)], env=env, check=True, timeout=20)
+    assert [path.read_bytes() for path in protected] == before
+
+    write(settings, json.dumps({"targets": targets}))
+    subprocess.run([str(ROOT / "bin" / helpers[-1])], env=env, check=True, timeout=20)
+    assert "ColorScheme=IllogicalImpulseDefault\n" in kdeglobals.read_text()
+    print("PASS disabled targets and previews preserve app themes, with KDE opt-in in Fluid")

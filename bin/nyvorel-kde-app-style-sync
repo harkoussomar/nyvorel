@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 
 HOME = Path.home()
@@ -365,12 +366,28 @@ def atomic_write(path: Path, text: str):
                 return
         except Exception:
             pass
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        if path.is_file():
+            tmp.chmod(path.stat().st_mode & 0o777)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def main():
+    palette_sync_enabled = False
+    try:
+        state = json.loads((HOME / ".config/nyvorel/appearance-studio.json").read_text())
+        target = (state.get("targets") or {}).get("qt")
+        if state.get("preview") or target is False:
+            return
+        palette_sync_enabled = target is True
+    except (OSError, ValueError, AttributeError):
+        pass
     current = style()
     c = load_colors()
     SCHEME_DIR.mkdir(parents=True, exist_ok=True)
@@ -387,11 +404,10 @@ def main():
         hashes[name] = hashlib.sha1(body.encode()).hexdigest()
         schemes[name] = body
 
-    if current == "fluid":
+    if current == "fluid" and not palette_sync_enabled:
         patch_kdeglobals("fluid", None)
     else:
-        target = f"IllogicalImpulse{current.title()}"
-        patch_kdeglobals(target, hashes[current], schemes[current])
+        patch_kdeglobals("IllogicalImpulseDefault", hashes["default"], schemes["default"])
 
 
 if __name__ == "__main__":

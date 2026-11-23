@@ -15,6 +15,8 @@ Singleton {
     readonly property string city: Config.options.bar.weather.city.trim()
     readonly property bool useUSCS: Config.options.bar.weather.useUSCS
     readonly property bool gpsActive: Config.options.bar.weather.enableGPS
+    readonly property bool weatherInUse: Config.options.bar.weather.enable
+        || Config.options.background.widgets.weather.enable
 
     property var location: ({ valid: false, lat: 0, lon: 0 })
     property bool ready: false
@@ -34,11 +36,8 @@ Singleton {
 
     onCityChanged: root.getData()
     onUseUSCSChanged: root.getData()
-    onGpsActiveChanged: {
-        if (gpsActive) positionSource.start()
-        else positionSource.stop()
-        root.getData()
-    }
+    onGpsActiveChanged: root.getData()
+    onWeatherInUseChanged: root.getData()
 
     function fail(message) {
         root.error = message
@@ -130,6 +129,8 @@ Singleton {
     }
 
     function fetchForecast(lat, lon, name, source) {
+        if (!root.weatherInUse)
+            return
         if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
             root.fail("Weather location is unavailable")
             return
@@ -149,6 +150,8 @@ Singleton {
     }
 
     function getData() {
+        if (!root.weatherInUse)
+            return
         if (forecastProc.running || geocodeProc.running || locateProc.running) {
             root.refreshQueued = true
             return
@@ -170,10 +173,7 @@ Singleton {
         }
     }
 
-    Component.onCompleted: {
-        if (gpsActive) positionSource.start()
-        root.getData()
-    }
+    Component.onCompleted: root.getData()
 
     Process {
         id: geocodeProc
@@ -244,6 +244,7 @@ Singleton {
 
     PositionSource {
         id: positionSource
+        active: root.weatherInUse && root.gpsActive
         updateInterval: root.fetchInterval
         onPositionChanged: {
             if (!position.latitudeValid || !position.longitudeValid) return
@@ -257,7 +258,7 @@ Singleton {
     Timer {
         interval: root.fetchInterval
         repeat: true
-        running: true
+        running: root.weatherInUse
         onTriggered: root.getData()
     }
 }

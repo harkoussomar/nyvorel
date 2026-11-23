@@ -6,7 +6,6 @@ import Quickshell.Hyprland
 
 import qs.modules.common
 import qs.modules.nyvorel.background
-import qs.modules.nyvorel.bar
 import qs.modules.nyvorel.dock
 import qs.modules.nyvorel.lock
 import qs.modules.nyvorel.mediaControls
@@ -22,11 +21,10 @@ import qs.modules.nyvorel.screenCorners
 import qs.modules.nyvorel.sessionScreen
 import qs.modules.nyvorel.sidebarLeft
 import qs.modules.nyvorel.sidebarRight
-import qs.modules.nyvorel.verticalBar
 
 Scope {
     id: root
-    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
+    BarHost {}
     PanelLoader { component: Background {} }
 PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
     PanelLoader { component: Lock {} }
@@ -43,7 +41,6 @@ PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
     PanelLoader { component: SessionScreen {} }
     PanelLoader { component: SidebarLeft {} }
     PanelLoader { component: SidebarRight {} }
-    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
 
 
     // CHEATSHEET-DYNAMIC-V3

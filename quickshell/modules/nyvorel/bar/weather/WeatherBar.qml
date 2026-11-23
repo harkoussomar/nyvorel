@@ -13,19 +13,24 @@ MouseArea {
     property bool vertical: false
     readonly property string barScreenName: root.QsWindow?.window?.screen?.name ?? ""
     readonly property bool popupPinned: GlobalStates.isBarPopupOpen("weather", root.barScreenName)
-    implicitWidth: root.vertical ? 30 : rowLayout.implicitWidth + 10 * 2
-    implicitHeight: root.vertical ? 30 : Appearance.sizes.barHeight
+    implicitWidth: root.vertical ? Math.max(30, weatherLayout.implicitWidth) : weatherLayout.implicitWidth + 10 * 2
+    implicitHeight: root.vertical ? Math.max(30, weatherLayout.implicitHeight + 4)
+        : Appearance.barLayout.persistentHeight
 
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
+    Component.onDestruction: {
+        if (root.popupPinned)
+            GlobalStates.closeBarPopup("weather", root.barScreenName)
+    }
 
     onClicked: mouse => {
         if (mouse.button === Qt.LeftButton)
             GlobalStates.toggleBarPopup("weather", root.barScreenName)
     }
 
-    onPressed: {
+    onPressed: mouse => {
         if (mouse.button === Qt.RightButton) {
             Weather.getData();
             Quickshell.execDetached(["notify-send", 
@@ -37,9 +42,11 @@ MouseArea {
         }
     }
 
-    RowLayout {
-        id: rowLayout
+    GridLayout {
+        id: weatherLayout
         anchors.centerIn: parent
+        columns: root.vertical ? 1 : 2
+        rowSpacing: 1
 
         MaterialSymbol {
             fill: 0
@@ -47,15 +54,14 @@ MouseArea {
                 ? (Icons.getWeatherIcon(Weather.data.wCode) ?? "cloud") : "cloud"
             iconSize: Appearance.font.pixelSize.large
             color: Appearance.colors.colOnLayer1
-            Layout.alignment: Qt.AlignVCenter
+            Layout.alignment: Qt.AlignCenter
         }
 
         StyledText {
-            visible: !root.vertical
-            font.pixelSize: Appearance.font.pixelSize.small
+            font.pixelSize: root.vertical ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.small
             color: Appearance.colors.colOnLayer1
             text: Weather.ready ? Weather.data.temp : "--°"
-            Layout.alignment: Qt.AlignVCenter
+            Layout.alignment: Qt.AlignCenter
         }
     }
 

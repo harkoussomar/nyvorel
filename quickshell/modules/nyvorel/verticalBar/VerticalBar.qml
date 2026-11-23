@@ -1,9 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import Quickshell.Services.UPower
 import qs
 import qs.services
@@ -55,7 +53,9 @@ Scope {
                 }
                 property bool superShow: false
                 property bool mustShow: hoverRegion.containsMouse || superShow
-                    || (!!screen && GlobalStates.searchAttachedScreen === screen.name)
+                    || barContent.workspacePreviewOpen
+                    || (!!screen && (GlobalStates.searchAttachedScreen === screen.name
+                        || (GlobalStates.activeBarPopup !== "" && GlobalStates.activeBarPopupScreenName === screen.name)))
                 exclusionMode: ExclusionMode.Ignore
                 exclusiveZone: (Config?.options.bar.autoHide.enable && (!mustShow || !Config?.options.bar.autoHide.pushWindows)) ? 0 :
                     Appearance.sizes.baseVerticalBarWidth + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
@@ -130,8 +130,7 @@ Scope {
                             }
                             PropertyChanges {
                                 target: barContent
-                                anchors.topMargin: 0
-                                anchors.rightMargin: (Config?.options.bar.autoHide.enable && !mustShow) ? -Appearance.sizes.barHeight : 0
+                                anchors.rightMargin: (Config?.options.bar.autoHide.enable && !mustShow) ? -Appearance.sizes.verticalBarWidth : 0
                             }
                         }
                     }
@@ -211,49 +210,6 @@ Scope {
                     }
                 }
             }
-        }
-    }
-
-    IpcHandler {
-        target: "bar"
-
-        function toggle(): void {
-            GlobalStates.barOpen = !GlobalStates.barOpen
-        }
-
-        function close(): void {
-            GlobalStates.barOpen = false
-        }
-
-        function open(): void {
-            GlobalStates.barOpen = true
-        }
-    }
-
-    GlobalShortcut {
-        name: "barToggle"
-        description: "Toggles bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = !GlobalStates.barOpen;
-        }
-    }
-
-    GlobalShortcut {
-        name: "barOpen"
-        description: "Opens bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = true;
-        }
-    }
-
-    GlobalShortcut {
-        name: "barClose"
-        description: "Closes bar on press"
-
-        onPressed: {
-            GlobalStates.barOpen = false;
         }
     }
 }

@@ -3,12 +3,13 @@ import QtQuick.Layouts
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.nyvorel.background.widgets.clock as DesktopClock
 
 SettingsTabbedPage {
     id: root
     property var appearanceEditor: null
     sections: [
-        { id: "motion", label: Translation.tr("Background motion"), icon: "sync_alt" },
+        { id: "motion", label: Translation.tr("Wallpaper motion"), icon: "sync_alt" },
         { id: "clock", label: Translation.tr("Desktop clock"), icon: "schedule" },
         { id: "weather", label: Translation.tr("Desktop weather"), icon: "weather_mix" }
     ]
@@ -43,14 +44,6 @@ SettingsTabbedPage {
             return
 
         Config.options.background.widgets.clock.cookie.dialNumberStyle = value
-
-        // Preserve the original page semantics: these dependent options are
-        // forcibly disabled when the selected dial cannot support them.
-        if (value !== "dots" && value !== "full")
-            Config.options.background.widgets.clock.cookie.hourMarks = false
-
-        if (value === "numbers")
-            Config.options.background.widgets.clock.cookie.timeIndicators = false
     }
 
     // -------------------------------------------------------------------------
@@ -320,8 +313,8 @@ SettingsTabbedPage {
         spacing: 7
 
         FieldLabel {
-            title: Translation.tr("Placement")
-            subtitle: Translation.tr("Choose whether the widget is positioned manually or placed using wallpaper-region analysis.")
+            title: Translation.tr("Widget placement")
+            subtitle: Translation.tr("Drag the widget yourself or place it using the wallpaper.")
         }
 
         Flow {
@@ -345,7 +338,7 @@ SettingsTabbedPage {
             }
 
             ChoiceChip {
-                label: Translation.tr("Detailed area")
+                label: Translation.tr("Busy area")
                 iconName: "shapes"
                 description: Translation.tr("Automatically place the widget in the busiest wallpaper region.")
                 selected: placement.currentValue === "mostBusy"
@@ -415,285 +408,47 @@ SettingsTabbedPage {
         }
     }
 
-    // Lightweight, non-runtime preview. It mirrors the important digital
-    // typography/layout options without instantiating the desktop widget.
-    component DigitalClockPreview: Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 150
-
-        radius: Appearance.radius.card
-        color: Appearance.colors.colLayer1
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            spacing: Config.options.background.widgets.clock.digital.vertical ? -4 : 3
-
-            StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                text: Config.options.background.widgets.clock.digital.vertical
-                    ? DateTime.time.split(":")[0].padStart(2, "0")
-                    : DateTime.time
-                color: Appearance.colors.colOnLayer1
-                font.family: Config.options.background.widgets.clock.digital.font.family
-                font.weight: Config.options.background.widgets.clock.digital.font.weight
-                font.pixelSize: Math.max(
-                    22,
-                    Math.min(
-                        46,
-                        Config.options.background.widgets.clock.digital.font.size * 0.45
-                    )
-                )
-                font.styleName: ""
-                font.variableAxes: ({
-                    "wdth": Config.options.background.widgets.clock.digital.font.width,
-                    "ROND": Config.options.background.widgets.clock.digital.font.roundness
-                })
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.digital.vertical
-                Layout.alignment: Qt.AlignHCenter
-                text: DateTime.time.split(":")[1].split(" ")[0].padStart(2, "0")
-                color: Appearance.colors.colOnLayer1
-                font.family: Config.options.background.widgets.clock.digital.font.family
-                font.weight: Config.options.background.widgets.clock.digital.font.weight
-                font.pixelSize: Math.max(
-                    22,
-                    Math.min(
-                        46,
-                        Config.options.background.widgets.clock.digital.font.size * 0.45
-                    )
-                )
-                font.styleName: ""
-                font.variableAxes: ({
-                    "wdth": Config.options.background.widgets.clock.digital.font.width,
-                    "ROND": Config.options.background.widgets.clock.digital.font.roundness
-                })
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.digital.showDate
-                Layout.alignment: Qt.AlignHCenter
-                text: DateTime.longDate
-                color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                visible:
-                    Config.options.background.widgets.clock.quote.enable
-                    && Config.options.background.widgets.clock.quote.text.length > 0
-                Layout.alignment: Qt.AlignHCenter
-                Layout.maximumWidth: 380
-                text: Config.options.background.widgets.clock.quote.text
-                color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-            }
-        }
-    }
-
-    // A deliberately lightweight Cookie preview. It shows dial/hands/date
-    // choices without loading the production CookieClock or its GPU effects.
-    component CookieClockPreview: Rectangle {
+    component ClockPreview: Rectangle {
         id: preview
-
+        required property string clockStyle
         Layout.fillWidth: true
         implicitHeight: 190
-
+        clip: true
         radius: Appearance.radius.card
         color: Appearance.colors.colLayer1
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
 
-        Item {
-            id: dial
-
+        Loader {
+            id: sample
             anchors.centerIn: parent
-            width: 136
-            height: 136
-
-            Rectangle {
-                anchors.fill: parent
-                radius: Appearance.radius.full
-                color: Appearance.colors.colPrimaryContainer
-                border.width: Config.options.background.widgets.clock.cookie.dialNumberStyle === "full" ? 2 : 0
-                border.color: Appearance.colors.colPrimary
-            }
-
-            Repeater {
-                model:
-                    Config.options.background.widgets.clock.cookie.dialNumberStyle === "dots"
-                    || Config.options.background.widgets.clock.cookie.dialNumberStyle === "full"
-                        ? 12
-                        : 0
-
-                delegate: Rectangle {
-                    required property int index
-
-                    width: 5
-                    height: 5
-                    radius: Appearance.radius.full
-                    color: Appearance.colors.colOnPrimaryContainer
-
-                    x: dial.width / 2
-                        + Math.cos((index / 12) * Math.PI * 2 - Math.PI / 2) * 52
-                        - width / 2
-
-                    y: dial.height / 2
-                        + Math.sin((index / 12) * Math.PI * 2 - Math.PI / 2) * 52
-                        - height / 2
-                }
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.cookie.dialNumberStyle === "numbers"
-                anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.topMargin: 8
-                text: "12"
-                color: Appearance.colors.colOnPrimaryContainer
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.cookie.dialNumberStyle === "numbers"
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.rightMargin: 9
-                text: "3"
-                color: Appearance.colors.colOnPrimaryContainer
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.cookie.dialNumberStyle === "numbers"
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottomMargin: 7
-                text: "6"
-                color: Appearance.colors.colOnPrimaryContainer
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.cookie.dialNumberStyle === "numbers"
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 9
-                text: "9"
-                color: Appearance.colors.colOnPrimaryContainer
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                visible: Config.options.background.widgets.clock.cookie.timeIndicators
-                anchors.centerIn: parent
-                text: DateTime.time
-                color: Appearance.colors.colOnPrimaryContainer
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.Bold
-            }
-
-            Rectangle {
-                visible: Config.options.background.widgets.clock.cookie.hourHandStyle !== "hide"
-                width: 5
-                height: 34
-                radius: Appearance.radius.full
-                color: Appearance.colors.colPrimary
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.verticalCenter
-                transformOrigin: Item.Bottom
-                rotation: 35
-            }
-
-            Rectangle {
-                visible: Config.options.background.widgets.clock.cookie.minuteHandStyle !== "hide"
-                width:
-                    Config.options.background.widgets.clock.cookie.minuteHandStyle === "bold"
-                        ? 6
-                        : Config.options.background.widgets.clock.cookie.minuteHandStyle === "thin"
-                            ? 2
-                            : 4
-                height: 48
-                radius: Appearance.radius.full
-                color: Appearance.colors.colTertiary
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.verticalCenter
-                transformOrigin: Item.Bottom
-                rotation: 120
-            }
-
-            Rectangle {
-                visible: Config.options.background.widgets.clock.cookie.secondHandStyle !== "hide"
-                width: 2
-                height: 54
-                radius: Appearance.radius.full
-                color: Appearance.colors.colPrimary
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.verticalCenter
-                transformOrigin: Item.Bottom
-                rotation: 210
-            }
-
-            Rectangle {
-                visible: Config.options.background.widgets.clock.cookie.dateStyle !== "hide"
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 14
-
-                implicitWidth: dateLabel.implicitWidth + 12
-                implicitHeight: 24
-
-                radius: Config.options.background.widgets.clock.cookie.dateStyle === "rect"
-                    ? Appearance.radius.control
-                    : Appearance.radius.full
-
-                color: Config.options.background.widgets.clock.cookie.dateStyle === "bubble"
-                    ? Appearance.colors.colSecondaryContainer
-                    : "transparent"
-
-                border.width: Config.options.background.widgets.clock.cookie.dateStyle === "border" ? 1 : 0
-                border.color: Appearance.colors.colOnPrimaryContainer
-
-                StyledText {
-                    id: dateLabel
-                    anchors.centerIn: parent
-                    text: Qt.locale().toString(DateTime.clock.date, "ddd dd")
-                    color: Config.options.background.widgets.clock.cookie.dateStyle === "bubble"
-                        ? Appearance.colors.colOnSecondaryContainer
-                        : Appearance.colors.colOnPrimaryContainer
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                }
-            }
+            active: preview.visible && root.currentSection === "clock"
+            sourceComponent: preview.clockStyle === "digital" ? digital : cookie
+            scale: item ? Math.min(0.7,
+                (preview.width - 20) / Math.max(1, item.implicitWidth),
+                (preview.height - 20) / Math.max(1, item.implicitHeight)) : 1
         }
 
-        Rectangle {
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: 10
+        Component {
+            id: digital
+            DesktopClock.DigitalClock { colText: Appearance.colors.colOnLayer1 }
+        }
 
-            implicitWidth: sidesLabel.implicitWidth + 16
-            implicitHeight: 26
+        Component {
+            id: cookie
+            Column {
+                spacing: 8
 
-            radius: Appearance.radius.control
-            color: Appearance.colors.colLayer2
+                DesktopClock.CookieClock {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    preview: true
+                }
 
-            StyledText {
-                id: sidesLabel
-                anchors.centerIn: parent
-                text: Translation.tr("%1 sides").arg(
-                    Config.options.background.widgets.clock.cookie.sides
-                )
-                color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                DesktopClock.CookieQuote {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: Config.options.background.widgets.clock.quote.enable
+                        && Config.options.background.widgets.clock.quote.text.length > 0
+                }
             }
         }
     }
@@ -720,9 +475,10 @@ SettingsTabbedPage {
                 rowSpacing: 8
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Force vertical direction")
-                    subtitle: Translation.tr("Use vertical workspace parallax rather than the normal horizontal direction.")
+                    title: Translation.tr("Vertical workspace motion")
+                    subtitle: Translation.tr("Move the wallpaper up and down when changing workspaces.")
                     iconName: "swap_vert"
+                    enabled: root.appearanceEditor?.draftParallaxWorkspace ?? false
                     switchChecked: Config.options.background.parallax.vertical
 
                     onUserToggled: checked => {
@@ -731,7 +487,7 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("React to workspace changes")
+                    title: Translation.tr("Move with workspaces")
                     subtitle: Translation.tr("Move the wallpaper as the active workspace changes.")
                     iconName: "workspaces"
                     enabled: root.appearanceEditor?.initialized ?? false
@@ -743,7 +499,7 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("React to sidebars")
+                    title: Translation.tr("Move with sidebars")
                     subtitle: Translation.tr("Offset the wallpaper when shell sidebars are shown.")
                     iconName: "side_navigation"
                     enabled: root.appearanceEditor?.initialized ?? false
@@ -757,7 +513,9 @@ SettingsTabbedPage {
                 ConfigSpinBox {
                     Layout.fillWidth: true
                     icon: "loupe"
-                    text: Translation.tr("Parallax zoom (%)")
+                    enabled: (root.appearanceEditor?.draftParallaxWorkspace ?? false)
+                        || (root.appearanceEditor?.draftParallaxSidebar ?? false)
+                    text: Translation.tr("Wallpaper zoom (%)")
                     value: Config.options.background.parallax.workspaceZoom * 100
                     from: 100
                     to: 150
@@ -784,12 +542,12 @@ SettingsTabbedPage {
         SettingsCard {
             title: Translation.tr("Clock widget")
             subtitle: Translation.tr("Choose when the desktop clock appears, where it is placed, and which style is used.")
-            iconName: "clock_loader_40"
+            iconName: "schedule"
 
             PreferenceSwitchRow {
-                title: Translation.tr("Show desktop clock")
+                title: Translation.tr("Show clock widget")
                 subtitle: Config.options.background.widgets.clock.enable
-                    ? Translation.tr("The background clock widget is enabled.")
+                    ? Translation.tr("Show the clock on the desktop or lock screen according to the visibility setting below.")
                     : Translation.tr("Clock settings remain configurable while the widget is hidden.")
                 iconName: "schedule"
                 switchChecked: Config.options.background.widgets.clock.enable
@@ -834,7 +592,7 @@ SettingsTabbedPage {
                     spacing: 6
 
                     FieldLabel {
-                        title: Translation.tr("Desktop style")
+                        title: Translation.tr("Desktop clock style")
                         subtitle: Translation.tr("Style used while the session is unlocked.")
                     }
 
@@ -873,7 +631,7 @@ SettingsTabbedPage {
                     spacing: 6
 
                     FieldLabel {
-                        title: Translation.tr("Lock-screen style")
+                        title: Translation.tr("Lock screen clock style")
                         subtitle: Translation.tr("Style used when the screen is locked.")
                     }
 
@@ -942,7 +700,7 @@ SettingsTabbedPage {
                 Layout.fillWidth: true
                 spacing: 10
 
-                DigitalClockPreview {}
+                ClockPreview { clockStyle: "digital" }
 
                 GridLayout {
                     Layout.fillWidth: true
@@ -991,7 +749,7 @@ SettingsTabbedPage {
                         title: Translation.tr("Adaptive alignment")
                         subtitle: Config.options.background.widgets.clock.digital.vertical
                             ? Translation.tr("Vertical clocks are always centered.")
-                            : Translation.tr("Align date and quote left, center, or right based on the widget position.")
+                            : Translation.tr("Align the clock text to its position on the screen.")
                         iconName: "format_align_center"
                         switchChecked:
                             Config.options.background.widgets.clock.digital.adaptiveAlignment
@@ -1037,6 +795,8 @@ SettingsTabbedPage {
                     ConfigSlider {
                         Layout.fillWidth: true
                         text: Translation.tr("Font weight")
+                        animateValue: false
+                        stepSize: 1
                         buttonIcon: "format_bold"
                         value: Config.options.background.widgets.clock.digital.font.weight
                         usePercentTooltip: false
@@ -1052,6 +812,8 @@ SettingsTabbedPage {
                     ConfigSlider {
                         Layout.fillWidth: true
                         text: Translation.tr("Font size")
+                        animateValue: false
+                        stepSize: 1
                         buttonIcon: "format_size"
                         value: Config.options.background.widgets.clock.digital.font.size
                         usePercentTooltip: false
@@ -1067,6 +829,8 @@ SettingsTabbedPage {
                     ConfigSlider {
                         Layout.fillWidth: true
                         text: Translation.tr("Font width")
+                        animateValue: false
+                        stepSize: 1
                         buttonIcon: "fit_width"
                         value: Config.options.background.widgets.clock.digital.font.width
                         usePercentTooltip: false
@@ -1082,6 +846,8 @@ SettingsTabbedPage {
                     ConfigSlider {
                         Layout.fillWidth: true
                         text: Translation.tr("Font roundness")
+                        animateValue: false
+                        stepSize: 1
                         buttonIcon: "line_curve"
                         value: Config.options.background.widgets.clock.digital.font.roundness
                         usePercentTooltip: false
@@ -1104,7 +870,7 @@ SettingsTabbedPage {
                 Layout.fillWidth: true
                 spacing: 10
 
-                CookieClockPreview {}
+                ClockPreview { clockStyle: "cookie" }
 
                 FieldLabel {
                     title: Translation.tr("Shape")
@@ -1114,7 +880,7 @@ SettingsTabbedPage {
                 ConfigSpinBox {
                     Layout.fillWidth: true
                     icon: "add_triangle"
-                    text: Translation.tr("Sides")
+                    text: Translation.tr("Scallops")
                     value: Config.options.background.widgets.clock.cookie.sides
                     from: 0
                     to: 40
@@ -1154,7 +920,7 @@ SettingsTabbedPage {
                     }
 
                     ChoiceChip {
-                        label: Translation.tr("Full")
+                        label: Translation.tr("Tick marks")
                         iconName: "history_toggle_off"
                         selected:
                             Config.options.background.widgets.clock.cookie.dialNumberStyle === "full"
@@ -1182,8 +948,8 @@ SettingsTabbedPage {
                         enabled: root.hourMarksAvailable
                         title: Translation.tr("Hour marks")
                         subtitle: root.hourMarksAvailable
-                            ? Translation.tr("Show hour marks around Dots or Full dials.")
-                            : Translation.tr("Available only with Dots or Full dial styles.")
+                            ? Translation.tr("Show an inner ring of hour marks.")
+                            : Translation.tr("Available with the Dots and Tick marks dials.")
                         iconName: "brightness_7"
                         switchChecked:
                             Config.options.background.widgets.clock.cookie.hourMarks
@@ -1195,7 +961,7 @@ SettingsTabbedPage {
 
                     PreferenceSwitchRow {
                         enabled: root.middleDigitsAvailable
-                        title: Translation.tr("Digits in the middle")
+                        title: Translation.tr("Time in the center")
                         subtitle: root.middleDigitsAvailable
                             ? Translation.tr("Show the current time inside the Cookie clock.")
                             : Translation.tr("Unavailable with the Numbers dial style.")
@@ -1238,7 +1004,7 @@ SettingsTabbedPage {
                     }
 
                     ChoiceChip {
-                        label: Translation.tr("Border")
+                        label: Translation.tr("Around dial")
                         iconName: "rotate_right"
                         selected:
                             Config.options.background.widgets.clock.cookie.dateStyle === "border"
@@ -1433,8 +1199,8 @@ SettingsTabbedPage {
 
                     PreferenceSwitchRow {
                         title: Translation.tr("Automatic styling with Gemini")
-                        subtitle: Translation.tr("Uses a downscaled wallpaper image with Gemini to categorize the wallpaper and apply a Cookie preset. Requires your Gemini API key; avoid wallpapers containing sensitive information.")
-                        iconName: "wand_stars"
+                        subtitle: Translation.tr("Send a small copy of the next wallpaper you apply to Gemini and select a Cookie preset from its category. Requires your Gemini API key.")
+                        iconName: "auto_awesome"
                         switchChecked:
                             Config.options.background.widgets.clock.cookie.aiStyling
 
@@ -1444,8 +1210,8 @@ SettingsTabbedPage {
                     }
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Smoother legacy shape")
-                        subtitle: Translation.tr("Use the older sine-wave Cookie shape. It is softer and more consistent across side counts, but morphs less dramatically.")
+                        title: Translation.tr("Sine-wave shape")
+                        subtitle: Translation.tr("Use a soft, wavy outline for the Cookie clock.")
                         iconName: "airwave"
                         switchChecked:
                             Config.options.background.widgets.clock.cookie.useSineCookie
@@ -1527,7 +1293,7 @@ SettingsTabbedPage {
 
             PreferenceSwitchRow {
                 title: Translation.tr("Show desktop weather")
-                subtitle: Translation.tr("Display the existing desktop weather widget on the wallpaper canvas.")
+                subtitle: Translation.tr("Show the conditions and temperature for the location configured in Services.")
                 iconName: "cloud"
                 switchChecked: Config.options.background.widgets.weather.enable
 

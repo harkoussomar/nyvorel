@@ -27,6 +27,7 @@ Item {
             visible: Config.options.bar.utilButtons.showScreenSnip
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Translation.tr("Screenshot")
                 onClicked: Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
@@ -43,7 +44,8 @@ Item {
             visible: Config.options.bar.utilButtons.showScreenRecord
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
-                onClicked: Quickshell.execDetached([Directories.recordScriptPath])
+                Accessible.name: Translation.tr("Screen recording")
+                onClicked: Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "recordWithSound"])
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
                     fill: 1
@@ -59,6 +61,7 @@ Item {
             visible: Config.options.bar.utilButtons.showColorPicker
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Translation.tr("Color picker")
                 onClicked: Quickshell.execDetached(["hyprpicker", "-a"])
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
@@ -85,6 +88,7 @@ Item {
             visible: Config.options.bar.utilButtons.showMicToggle
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Translation.tr("Microphone mute")
                 onClicked: Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_SOURCE@", "toggle"])
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
@@ -101,6 +105,8 @@ Item {
             visible: Config.options.bar.utilButtons.showDarkModeToggle
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Appearance.m3colors.darkmode
+                    ? Translation.tr("Switch to light mode") : Translation.tr("Switch to dark mode")
                 onClicked: event => {
                     if (Appearance.m3colors.darkmode) {
                         HyprNative.execCommand(`${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`);
@@ -124,6 +130,7 @@ Item {
             sourceComponent: CircleUtilButton {
                 id: keepAwakeButton
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Translation.tr("Keep awake")
                 toggled: Idle.inhibit
 
                 onClicked: Idle.toggleInhibit()
@@ -147,6 +154,7 @@ Item {
             sourceComponent: CircleUtilButton {
                 id: nightLightButton
                 Layout.alignment: Qt.AlignVCenter
+                Accessible.name: Translation.tr("Night light")
                 toggled: Hyprsunset.active
 
                 onClicked: Hyprsunset.toggle()

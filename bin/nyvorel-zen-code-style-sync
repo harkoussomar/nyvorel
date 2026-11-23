@@ -388,6 +388,14 @@ def atomic_write(path: Path, text: str):
 
 
 def main():
+    try:
+        state = json.loads((HOME / ".config/nyvorel/appearance-studio.json").read_text())
+    except (OSError, ValueError):
+        state = {}
+    if not isinstance(state, dict):
+        state = {}
+    if state.get("preview"):
+        return
     current = interface_style()
     c = load_colors()
 
@@ -399,8 +407,9 @@ def main():
         atomic_write(chrome / "nyvorel-interface-style.css", render_zen_css(current, c))
 
     # VS Code
-    write_vscode_extension(c)
-    patch_vscode_theme(current)
+    if (state.get("targets") or {}).get("editors") is not False:
+        write_vscode_extension(c)
+        patch_vscode_theme(current)
 
 
 if __name__ == "__main__":

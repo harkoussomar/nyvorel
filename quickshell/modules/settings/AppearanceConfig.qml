@@ -42,7 +42,8 @@ Item {
     readonly property bool canClose: !root.pending && root.previewToken.length === 0
     readonly property string feedback: root.toastText.length ? root.toastText
         : !root.initialized ? "Loading appearance…" : ""
-    readonly property bool pending: actionProc.running || targetProc.running || root.autoApplyPending
+    readonly property bool terminalPending: appThemingTab.item?.terminalPending ?? false
+    readonly property bool pending: actionProc.running || targetProc.running || root.autoApplyPending || root.terminalPending
 
     function prepareToClose(): void {
         if (root.previewToken.length > 0 && !actionProc.running)
@@ -54,7 +55,7 @@ Item {
                 root.autoApplyPending = false
         }
     }
-    readonly property bool editing: actionProc.running || root.autoApplyPending || root.previewToken.length > 0
+    readonly property bool editing: actionProc.running || root.autoApplyPending || root.terminalPending || root.previewToken.length > 0
     readonly property var pageModel: [
         { id: "theme", label: "Theme", icon: "palette" },
         { id: "surfaces-motion", label: "Surfaces & motion", icon: "tune" },
@@ -715,7 +716,7 @@ Item {
     }
 
     function setTarget(name, enabled) {
-        if (targetProc.running)
+        if (root.editing || targetProc.running)
             return
 
         root.actionFailed = false
@@ -942,7 +943,11 @@ Item {
         return profiles.length > 0 ? profiles[0] : null
     }
 
-    onSelectedSourceChanged: root.markDraftChanged(false)
+    onSelectedSourceChanged: {
+        if (root.initialized && !root.suppressDraftSignals && root.selectedSource === "preset")
+            root.selectedScheme = root.presetFor(root.selectedPreset)?.scheme ?? "auto"
+        root.markDraftChanged(false)
+    }
 
     onWallpaperVariantsVisibleChanged: {
         if (root.wallpaperVariantsVisible)
@@ -1055,8 +1060,8 @@ Timer {
         onTriggered: {
             const now = Date.now() / 1000
             root.previewSeconds = Math.max(0, Math.ceil(root.previewExpiresAt - now))
-            if (root.previewSeconds <= 0)
-                previewExpiryRefreshTimer.restart()
+            if (root.previewSeconds <= 0 && !previewExpiryRefreshTimer.running)
+                previewExpiryRefreshTimer.start()
         }
     }
 
@@ -1121,7 +1126,8 @@ Timer {
                         else
                             root.syncDraftFromStatus(data)
                         root.initialized = true
-                    } else if (!data.preview && (root.syncDraftOnNextStatus || hadPreview)) {
+                    } else if (!data.preview && (root.syncDraftOnNextStatus || hadPreview)
+                            && !root.autoApplyPending && !actionProc.running) {
                         root.syncDraftFromStatus(data)
                         root.syncDraftOnNextStatus = false
                         root.loadVariants()
@@ -1226,6 +1232,7 @@ Timer {
             }
 
             root.actionFailed = false
+            Config.reload()
 
             const warnings = result.warnings ?? []
             if (warnings.length > 0) {
@@ -2454,7 +2461,7 @@ component SectionTitle: ColumnLayout {
 
             StyledSwitch {
                 checked: root.targetEnabled(targetRow.targetData.id)
-                enabled: !actionProc.running && !targetProc.running
+                enabled: !root.editing && !targetProc.running
                 activeFocusOnTab: true
                 Accessible.name: `${targetRow.targetData.name} target`
                 Accessible.description: targetRow.targetData.desc
@@ -2625,7 +2632,7 @@ component SectionTitle: ColumnLayout {
                     activeFocusOnTab: true
                     Accessible.name: favoriteCard.current
                         ? "Current favorite"
-                        : `Use ${root.entryTitle(favoriteCard.entry, true)}`
+                        : `Preview ${root.entryTitle(favoriteCard.entry, true)}`
                     onClicked: root.previewSaved(favoriteCard.entry)
 
                     contentItem: RowLayout {
@@ -2643,7 +2650,7 @@ component SectionTitle: ColumnLayout {
 
                         StyledText {
                             id: favoriteUseText
-                            text: favoriteCard.current ? "Current" : "Use"
+                            text: favoriteCard.current ? "Current" : "Preview"
                             color: favoriteCard.current
                                 ? Appearance.colors.colSubtext
                                 : Appearance.colors.colOnPrimaryContainer
@@ -2665,6 +2672,7 @@ component SectionTitle: ColumnLayout {
                         : "transparent"
                     colBackgroundHover: Appearance.colors.colErrorContainerHover
                     colRipple: Appearance.colors.colErrorContainerActive
+                    enabled: !root.editing
                     activeFocusOnTab: true
                     Accessible.name: favoriteCard.removeArmed
                         ? "Confirm remove favorite"
@@ -2803,13 +2811,11 @@ component SectionTitle: ColumnLayout {
                 colBackground: Appearance.colors.colLayer2Base
                 colBackgroundHover: Appearance.colors.colLayer2Hover
                 colRipple: Appearance.colors.colLayer2Active
-                enabled: !historyRow.current
-                    && root.previewToken.length === 0
-                    && !actionProc.running
+                enabled: !historyRow.current && !root.editing
                 activeFocusOnTab: true
                 Accessible.name: historyRow.current
                     ? "Current appearance"
-                    : `Restore ${root.entryTitle(historyRow.entry, false)}`
+                    : `Preview ${root.entryTitle(historyRow.entry, false)}`
                 onClicked: root.previewSaved(historyRow.entry)
 
                 contentItem: RowLayout {
@@ -2818,7 +2824,7 @@ component SectionTitle: ColumnLayout {
 
                     StyledText {
                         id: historyRestoreText
-                        text: historyRow.current ? "Current" : "Restore"
+                        text: historyRow.current ? "Current" : "Preview"
                         color: historyRow.current
                             ? Appearance.colors.colSubtext
                             : Appearance.colors.colOnLayer2
@@ -3246,14 +3252,14 @@ component SectionTitle: ColumnLayout {
                                     spacing: 2
 
                                     StyledText {
-                                        text: "Appearance"
+                                        text: "Color mode"
                                         color: Appearance.colors.colOnLayer1
                                         font.weight: Font.DemiBold
                                     }
 
                                     StyledText {
                                         Layout.fillWidth: true
-                                        text: "Choose one surface style for the desktop."
+                                        text: "Choose how the desktop renders light, dark and high-contrast colors."
                                         color: Appearance.colors.colSubtext
                                         font.pixelSize: Appearance.font.pixelSize.smallest
                                         wrapMode: Text.Wrap
@@ -4216,7 +4222,7 @@ component SectionTitle: ColumnLayout {
                             InterfaceSwitchRow {
                                 Layout.fillWidth: true
                                 title: "Automatic transparency"
-                                subtitle: "Adapts transparency to your wallpaper. Turn this off to set your own values."
+                                subtitle: "Adapts the shell background to your wallpaper and uses a preset for content surfaces."
                                 switchEnabled: root.draftTransparencyEnable
                                 checked: root.draftTransparencyAutomatic
                                 onUserToggled: checked => root.draftTransparencyAutomatic = checked
@@ -4450,7 +4456,7 @@ component SectionTitle: ColumnLayout {
                     RadiusSettingRow {
                         Layout.fillWidth: true
                         role: "modal"
-                        title: "Modals"
+                        title: "Dialogs"
                         subtitle: "Settings, selectors and large dialogs"
                         followGlobal: root.draftRadiusModalFollowGlobal
                         radiusValue: root.draftRadiusModalValue
@@ -4507,7 +4513,7 @@ component SectionTitle: ColumnLayout {
                     RadiusSettingRow {
                         Layout.fillWidth: true
                         role: "screen"
-                        title: "Screen"
+                        title: "Display corners"
                         subtitle: "Simulated display corners"
                         followGlobal: root.radiusFollowGlobal(role)
                         radiusValue: root.radiusValue(role)
@@ -4520,6 +4526,7 @@ component SectionTitle: ColumnLayout {
             id: appThemingPage
 
             ScrollView {
+                readonly property bool terminalPending: terminalEditor.pending
                 function expandTerminalTuning(): void {
                     terminalEditor.terminalTuningExpanded = true
                 }
@@ -4563,7 +4570,7 @@ component SectionTitle: ColumnLayout {
                         title: "Compatibility"
                         subtitle: "Optional bridges that may depend on your desktop session."
                         targetItems: [
-                            { "id": "qt", "name": "Qt / KDE bridge", "icon": "desktop_windows", "desc": "Optional KDE color bridge; kept opt-in on Hyprland", "compatibility": true }
+                            { "id": "qt", "name": "Qt and KDE colors", "icon": "desktop_windows", "desc": "Apply the current palette to apps that use the KDE color scheme.", "compatibility": true }
                         ]
                     }
 
@@ -4571,6 +4578,8 @@ component SectionTitle: ColumnLayout {
                         id: terminalEditor
                         Layout.fillWidth: true
                         targetEnabled: root.targetEnabled("terminal")
+                        editingAllowed: root.previewToken.length === 0 && !actionProc.running
+                            && !root.autoApplyPending && !targetProc.running
                     }
 
                     Item {
@@ -4677,7 +4686,7 @@ component SectionTitle: ColumnLayout {
                                     colBackground: Appearance.colors.colPrimary
                                     colBackgroundHover: Appearance.colors.colPrimaryHover
                                     colRipple: Appearance.colors.colPrimaryActive
-                                    enabled: root.previewToken.length === 0 && !actionProc.running
+                                    enabled: !root.editing
                                     activeFocusOnTab: true
                                     Accessible.name: "Save current appearance to favorites"
                                     onClicked: root.saveCurrentFavorite()
@@ -4802,6 +4811,7 @@ component SectionTitle: ColumnLayout {
 
                         RippleButton {
                             visible: (root.statusData.history ?? []).length > 0
+                            enabled: !root.editing
                             implicitHeight: 34
                             implicitWidth: clearHistoryText.implicitWidth + 34
                             buttonRadius: Appearance.radius.control

@@ -3,39 +3,45 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-MaterialSymbol {
+Item {
     id: root
+    property alias color: bell.color
     readonly property bool showUnreadCount: Config.options.bar.indicators.notifications.showUnreadCount
-    text: Notifications.silent ? "notifications_paused" : "notifications"
-    iconSize: Appearance.barVisual.axiomIconSize
-    color: rightSidebarButton.colText
+    implicitWidth: bell.implicitWidth + (badge.visible && showUnreadCount
+        ? badge.implicitWidth - 4 : 0)
+    implicitHeight: Math.max(bell.implicitHeight, badge.visible ? badge.implicitHeight : 0)
+    Accessible.name: Notifications.unread > 0
+        ? Translation.tr("Unread notifications: %1").arg(Notifications.unread)
+        : Translation.tr("Notifications")
+
+    MaterialSymbol {
+        id: bell
+        anchors.verticalCenter: parent.verticalCenter
+        text: Notifications.silent ? "notifications_paused" : "notifications"
+        iconSize: Appearance.barVisual.axiomIconSize
+        color: Appearance.colors.colOnLayer0
+    }
 
     Rectangle {
-        id: notifPing
+        id: badge
         visible: !Notifications.silent && Notifications.unread > 0
-        anchors {
-            right: parent.right
-            top: parent.top
-            rightMargin: root.showUnreadCount ? 0 : 1
-            topMargin: root.showUnreadCount ? 0 : 3
-        }
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: root.showUnreadCount ? 0 : 1
+        anchors.topMargin: root.showUnreadCount ? 0 : 3
         radius: Appearance.rounding.full
-        color: Appearance.barLayout.axiomComponents
-            ? Appearance.barVisual.axiomBatteryAccent
-            : Appearance.colors.colOnLayer0
-        z: 1
-
-        implicitHeight: root.showUnreadCount ? Math.max(notificationCounterText.implicitWidth, notificationCounterText.implicitHeight) : 8
-        implicitWidth: implicitHeight
+        color: root.showUnreadCount ? Appearance.colors.colPrimaryContainer : Appearance.barVisual.axiomBatteryAccent
+        implicitHeight: root.showUnreadCount ? Math.max(12, count.implicitHeight + 2) : 8
+        implicitWidth: root.showUnreadCount ? Math.max(implicitHeight, count.implicitWidth + 6) : 8
+        width: implicitWidth
+        height: implicitHeight
 
         StyledText {
-            id: notificationCounterText
+            id: count
             visible: root.showUnreadCount
             anchors.centerIn: parent
             font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colLayer0
-            // nyvorel-phase3b-unread-badge: bound badge width on large queues.
-            // The actual unread count remains available in Notifications.unread.
+            color: Appearance.colors.colOnPrimaryContainer
             text: Notifications.unread > 99 ? "99+" : String(Notifications.unread)
         }
     }

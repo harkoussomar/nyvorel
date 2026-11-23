@@ -183,6 +183,12 @@ def atomic_write(path: Path, text: str):
 
 
 def main():
+    try:
+        state = json.loads(NYVOREL_CONFIG.with_name("appearance-studio.json").read_text())
+        if state.get("preview") or (state.get("targets") or {}).get("fuzzel") is False:
+            return
+    except (OSError, ValueError, AttributeError):
+        pass
     style = interface_style()
     colors = load_colors()
     atomic_write(OUTPUT, render(style, colors))

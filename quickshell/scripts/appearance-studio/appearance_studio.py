@@ -1370,7 +1370,9 @@ def _glass_runtime_mode_for_cfg(cfg: dict[str, Any] | None = None) -> str:
 
 def _fluid_runtime_mode_for_cfg(cfg: dict[str, Any] | None = None) -> str:
     cfg = cfg if cfg is not None else _read_json(NYVOREL_CONFIG, {})
-    return "fluid" if _detect_ui_profile(cfg) == "fluid" else "default"
+    style = _get_nested(cfg, "appearance.interfaceStyle", "")
+    fluid = style in {"fluid", "glass", "mica", "prism", "inlay"} if style else _detect_ui_profile(cfg) == "fluid"
+    return "fluid" if fluid and _glass_runtime_mode_for_cfg(cfg) == "glass" else "default"
 
 
 def _sync_fluid_runtime_for_cfg(

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -9,10 +10,61 @@ import qs.modules.common.functions
 ColumnLayout {
     id: root
     required property bool targetEnabled
+    required property bool editingAllowed
     readonly property int controlHeight: 44
     readonly property int compactControlHeight: 38
     property bool terminalTuningExpanded: false
+    property var draft: null
+    property bool queued: false
+    property string errorText: ""
+    readonly property bool pending: queued || applyTerminal.running
+    readonly property var values: draft ?? Config.options.appearance.wallpaperTheming.terminalGenerationProps
     spacing: 8
+
+    function change(changes): void {
+        root.draft = Object.assign({
+            forceDarkMode: root.values.forceDarkMode,
+            harmony: root.values.harmony,
+            harmonizeThreshold: root.values.harmonizeThreshold,
+            termFgBoost: root.values.termFgBoost
+        }, changes)
+        root.queued = true
+        root.errorText = ""
+        applyDelay.restart()
+    }
+
+    onEditingAllowedChanged: {
+        if (editingAllowed && queued)
+            applyDelay.restart()
+    }
+
+    Timer {
+        id: applyDelay
+        interval: 240
+        onTriggered: {
+            if (!root.queued || !root.editingAllowed || applyTerminal.running)
+                return
+            root.queued = false
+            applyTerminal.exec([FileUtils.trimFileProtocol(Quickshell.shellPath("scripts/system/nyvorel-appearance-studio")),
+                "terminal-colors", JSON.stringify(root.draft)])
+        }
+    }
+
+    Process {
+        id: applyTerminal
+        stdout: StdioCollector { id: reply }
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                try { root.errorText = JSON.parse(reply.text).error }
+                catch (e) { root.errorText = Translation.tr("Could not apply terminal colors.") }
+            }
+            Config.reload()
+            if (root.queued)
+                applyDelay.restart()
+            else
+                root.draft = null
+        }
+    }
 
     component FieldLabel: ColumnLayout {
         required property string title
@@ -121,43 +173,6 @@ ColumnLayout {
                 enabled: row.enabled
 
                 onToggled: row.userToggled(checked)
-            }
-        }
-    }
-
-    component InfoBox: Rectangle {
-        id: box
-
-        property string text: ""
-        property string iconName: "info"
-
-        Layout.fillWidth: true
-        implicitHeight: infoRow.implicitHeight + 18
-
-        radius: Appearance.radius.control
-        color: Appearance.colors.colLayer1
-        clip: true
-
-        RowLayout {
-            id: infoRow
-
-            anchors.fill: parent
-            anchors.margins: 9
-            spacing: 8
-
-            MaterialSymbol {
-                text: box.iconName
-                iconSize: 18
-                color: Appearance.colors.colPrimary
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: box.text
-                color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                wrapMode: Text.Wrap
             }
         }
     }
@@ -276,26 +291,30 @@ ColumnLayout {
     FieldLabel {
         Layout.topMargin: 2
         title: Translation.tr("Terminal appearance")
-        subtitle: Translation.tr("These controls affect terminal palette generation only.")
+        subtitle: Translation.tr("Adjust the generated terminal colors independently of the desktop palette.")
+    }
+
+    StyledText {
+        Layout.fillWidth: true
+        visible: root.errorText.length > 0
+        text: root.errorText
+        color: Appearance.m3colors.m3error
+        wrapMode: Text.Wrap
     }
 
     PreferenceSwitchRow {
         enabled:
-            root.targetEnabled
+            root.targetEnabled && root.editingAllowed
 
-        title: Translation.tr("Force dark terminal palette")
+        title: Translation.tr("Always use dark terminal colors")
         subtitle:
             root.targetEnabled
                 ? Translation.tr("Prefer a dark generated terminal palette regardless of the current light/dark appearance.")
                 : Translation.tr("Enable Terminal theming first.")
         iconName: "dark_mode"
-        switchChecked:
-            Config.options.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode
+        switchChecked: root.values.forceDarkMode
 
-        onUserToggled: checked => {
-            Config.options.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode =
-                checked
-        }
+        onUserToggled: checked => root.change({forceDarkMode: checked})
     }
 
     ExpandButton {
@@ -316,83 +335,63 @@ ColumnLayout {
         visible:
             root.terminalTuningExpanded
             && root.targetEnabled
+        enabled: root.editingAllowed
 
         Layout.fillWidth: true
         spacing: 8
 
-        InfoBox {
-            iconName: "tune"
-            text: Translation.tr("These options are used by the standalone terminal color generator.")
-        }
-
         SliderSetting {
-            title: Translation.tr("Harmony")
-            subtitle: Translation.tr("Terminal color-generation tuning value.")
+            title: Translation.tr("Accent influence")
+            subtitle: Translation.tr("Shift ANSI colors toward the current theme accent.")
             iconName: "invert_colors"
             valueLabel:
                 Math.round(
-                    Config.options.appearance.wallpaperTheming
-                        .terminalGenerationProps.harmony * 100
+                    root.values.harmony * 100
                 ) + "%"
             sliderValue:
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmony * 100
+                root.values.harmony * 100
             from: 0
             to: 100
             stepSize: 10
             stopIndicatorValues: [0, 20, 40, 60, 80, 100]
 
-            onMoved: value => {
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmony = value / 100
-            }
+            onMoved: value => root.change({harmony: value / 100})
         }
 
         SliderSetting {
-            title: Translation.tr("Harmonize threshold")
-            subtitle: Translation.tr("Threshold used by terminal color generation.")
+            title: Translation.tr("Hue shift limit")
+            subtitle: Translation.tr("Limit how far each ANSI color can shift toward the accent.")
             iconName: "gradient"
             valueLabel:
                 Math.round(
-                    Config.options.appearance.wallpaperTheming
-                        .terminalGenerationProps.harmonizeThreshold
-                ).toString()
-            sliderValue:
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmonizeThreshold
+                    root.values.harmonizeThreshold
+                ) + "°"
+            sliderValue: root.values.harmonizeThreshold
+            enabled: root.values.harmony > 0
             from: 0
-            to: 100
+            to: 180
             stepSize: 10
-            stopIndicatorValues: [0, 20, 40, 60, 80, 100]
+            stopIndicatorValues: [0, 30, 60, 90, 120, 150, 180]
 
-            onMoved: value => {
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmonizeThreshold =
-                        Math.round(value)
-            }
+            onMoved: value => root.change({harmonizeThreshold: Math.round(value)})
         }
 
         SliderSetting {
-            title: Translation.tr("Foreground boost")
-            subtitle: Translation.tr("Terminal foreground-generation tuning value.")
+            title: Translation.tr("Text contrast boost")
+            subtitle: Translation.tr("Increase the difference between terminal text and its background.")
             iconName: "format_color_text"
             valueLabel:
                 Math.round(
-                    Config.options.appearance.wallpaperTheming
-                        .terminalGenerationProps.termFgBoost * 100
+                    root.values.termFgBoost * 100
                 ) + "%"
             sliderValue:
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.termFgBoost * 100
+                root.values.termFgBoost * 100
             from: 0
             to: 100
             stepSize: 5
             stopIndicatorValues: [0, 25, 50, 75, 100]
 
-            onMoved: value => {
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.termFgBoost = value / 100
-            }
+            onMoved: value => root.change({termFgBoost: value / 100})
         }
 
         RippleButtonWithIcon {
@@ -407,14 +406,7 @@ ColumnLayout {
             colBackgroundHover: Appearance.colors.colLayer1Hover
             colRipple: Appearance.colors.colLayer1Active
 
-            onClicked: {
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmony = 0.6
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.harmonizeThreshold = 100
-                Config.options.appearance.wallpaperTheming
-                    .terminalGenerationProps.termFgBoost = 0.35
-            }
+            onClicked: root.change({harmony: 0.6, harmonizeThreshold: 100, termFgBoost: 0.35})
         }
     }
 }

@@ -21,16 +21,18 @@ AbstractBackgroundWidget {
     readonly property bool shouldShow: (!Config.options.background.widgets.clock.showOnlyWhenLocked || GlobalStates.screenLocked)
     property bool wallpaperSafetyTriggered: false
     needsColText: clockStyle === "digital"
-    x: forceCenter ? ((root.screenWidth - root.width) / 2) : targetX
-    y: forceCenter ? ((root.screenHeight - root.height) / 2) : targetY
+    displayX: forceCenter ? Math.max(0, (root.screenWidth - root.width) / 2) : targetX
+    displayY: forceCenter ? Math.max(0, (root.screenHeight - root.height) / 2) : targetY
+    visible: shouldShow && opacity > 0
     visibleWhenLocked: true
 
     property var textHorizontalAlignment: {
         if (!Config.options.background.widgets.clock.digital.adaptiveAlignment || root.forceCenter || Config.options.background.widgets.clock.digital.vertical) 
             return Text.AlignHCenter;
-        if (root.x < root.scaledScreenWidth / 3)
+        const center = root.x + root.width / 2 + root.viewportOffsetX
+        if (center < root.screenWidth / 3)
             return Text.AlignLeft;
-        if (root.x > root.scaledScreenWidth * 2 / 3)
+        if (center > root.screenWidth * 2 / 3)
             return Text.AlignRight;
         return Text.AlignHCenter;
     }

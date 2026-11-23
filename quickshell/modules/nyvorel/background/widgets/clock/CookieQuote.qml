@@ -46,12 +46,19 @@ Item {
             StyledText {
                 id: quoteStyledText
                 horizontalAlignment: Text.AlignLeft
-                text: Config.options.background.widgets.clock.quote.text
+                text: root.quoteText
+                width: Math.min(360, Math.ceil(metrics.advanceWidth))
+                wrapMode: Text.Wrap
                 color: Appearance.colors.colOnSecondaryContainer
                 font {
                     family: Appearance.font.family.reading
                     pixelSize: Appearance.font.pixelSize.large
                     weight: Font.Normal
+                }
+                TextMetrics {
+                    id: metrics
+                    font: quoteStyledText.font
+                    text: root.quoteText
                 }
             }
         }

@@ -75,7 +75,9 @@ if [[ -f "$config_file" ]]; then
   glass_mode=default
   fluid_mode=default
   [[ "$(jq -r '.appearance.transparency.enable // false' "$config_file")" == true ]] && glass_mode=glass
-  [[ "$(jq -r '.appearance.interfaceStyle // ""' "$config_file")" == fluid ]] && fluid_mode=fluid
+  if [[ "$glass_mode" == glass && "$(jq -r '.appearance.interfaceStyle // ""' "$config_file")" == fluid ]]; then
+    fluid_mode=fluid
+  fi
   "$helper_dir/nyvorel-glass-runtime" "$glass_mode" >/dev/null
   "$helper_dir/nyvorel-fluid-runtime" "$fluid_mode" >/dev/null
 fi
