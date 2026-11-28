@@ -15,7 +15,7 @@ while getopts 'i:t:s:' option; do
     esac
 done
 
-[[ "$interval" =~ ^[1-9][0-9]?$ && "$duration" =~ ^[1-9][0-9]?$ ]] || exit 3
+[[ "$interval" =~ ^[1-9][0-9]?$ && "$duration" =~ ^([1-9][0-9]?|100)$ ]] || exit 3
 for dependency in pactl parec ffmpeg songrec jq timeout; do
     command -v "$dependency" >/dev/null 2>&1 || exit 3
 done

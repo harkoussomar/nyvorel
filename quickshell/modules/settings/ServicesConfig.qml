@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.services
 import qs.modules.common
 import qs.modules.common.utils as Utils
+import qs.modules.common.functions as CF
 import qs.modules.common.widgets
 
 SettingsTabbedPage {
@@ -10,7 +11,7 @@ SettingsTabbedPage {
     sections: [
         { id: "recognition", label: Translation.tr("AI & recognition"), icon: "neurology" },
         { id: "search-web", label: Translation.tr("Search & web"), icon: "search" },
-        { id: "weather-network", label: Translation.tr("Weather & network"), icon: "weather_mix" },
+        { id: "weather-network", label: Translation.tr("Weather"), icon: "weather_mix" },
         { id: "storage-performance", label: Translation.tr("Storage & performance"), icon: "folder_managed" },
         { id: "optional-tools", label: Translation.tr("Optional tools"), icon: "extension" }
     ]
@@ -24,12 +25,42 @@ SettingsTabbedPage {
     readonly property int compactControlHeight: 38
 
     property bool aiPromptExpanded: false
+    property string aiPromptDraft: ""
     property bool recognitionAdvancedExpanded: false
     property bool searchPrefixesExpanded: false
     property bool webSearchExpanded: false
     property bool weatherAdvancedExpanded: false
-    property bool networkingAdvancedExpanded: false
     property bool performanceAdvancedExpanded: false
+
+    function revealSetting(group: string): void {
+        switch (group) {
+        case "aiPrompt":
+            if (!root.aiPromptExpanded) {
+                root.aiPromptDraft = Config.options.ai.systemPrompt
+                root.aiPromptExpanded = true
+            }
+            break
+        case "recognitionTiming": root.recognitionAdvancedExpanded = true; break
+        case "searchPrefixes": root.searchPrefixesExpanded = true; break
+        case "webSearch": root.webSearchExpanded = true; break
+        case "weatherTiming": root.weatherAdvancedExpanded = true; break
+        case "performanceTiming": root.performanceAdvancedExpanded = true; break
+        }
+    }
+
+    function prefixError(key: string, value: string): string {
+        if (!value.length || /\s/.test(value))
+            return Translation.tr("Enter a prefix without spaces.")
+        const keys = ["action", "app", "clipboard", "emojis", "math", "shellCommand", "webSearch"]
+        if (keys.some(other => other !== key && Config.options.search.prefix[other] === value))
+            return Translation.tr("This prefix is already used. Choose a different one.")
+        return ""
+    }
+
+    function expandHomePath(value: string): string {
+        const home = CF.FileUtils.trimFileProtocol(Directories.home)
+        return value === "~" ? home : value.startsWith("~/") ? home + value.slice(1) : value
+    }
 
     function secondsText(milliseconds: real): string {
         const seconds = milliseconds / 1000
@@ -363,77 +394,72 @@ SettingsTabbedPage {
         }
     }
 
-    component PrefixEditor: Rectangle {
-        id: editor
-
+    component SettingTextField: ColumnLayout {
+        id: field
         required property string title
-        required property string iconName
         required property string currentValue
-
+        property string placeholder: ""
+        property string error: ""
+        property var normalize: value => value.trim()
+        property var validate: value => ""
         signal edited(string value)
 
         Layout.fillWidth: true
-        implicitHeight: editorColumn.implicitHeight + 18
+        Layout.minimumWidth: 0
+        spacing: 4
 
-        radius: Appearance.radius.control
-        color: Appearance.colors.colLayer1
-        clip: true
-
-        ColumnLayout {
-            id: editorColumn
-
-            anchors {
-                fill: parent
-                margins: 9
-            }
-
-            spacing: 5
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 7
-
-                MaterialSymbol {
-                    text: editor.iconName
-                    iconSize: 16
-                    color: Appearance.colors.colPrimary
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    text: editor.title
-                    color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Medium
-                    wrapMode: Text.Wrap
+        MaterialTextField {
+            id: input
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Accessible.name: field.title
+            Accessible.description: field.error
+            placeholderText: field.placeholder
+            text: field.currentValue
+            onTextEdited: field.error = ""
+            onEditingFinished: {
+                if (text === field.currentValue)
+                    return
+                const value = field.normalize(text)
+                field.error = field.validate(value)
+                if (!field.error.length) {
+                    if (value !== field.currentValue)
+                        field.edited(value)
+                    text = Qt.binding(() => field.currentValue)
                 }
             }
-
-            MaterialTextArea {
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("Prefix")
-                text: editor.currentValue
-                wrapMode: TextEdit.NoWrap
-
-                onTextChanged: {
-                    if (text !== editor.currentValue)
-                        editor.edited(text)
+            Keys.onEscapePressed: event => {
+                if (text === field.currentValue && !field.error.length) {
+                    event.accepted = false
+                    return
                 }
+                field.error = ""
+                text = Qt.binding(() => field.currentValue)
+                event.accepted = true
             }
+        }
+
+        StyledText {
+            visible: field.error.length > 0
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            text: field.error
+            wrapMode: Text.Wrap
+            color: Appearance.m3colors.m3error
+            font.pixelSize: Appearance.font.pixelSize.smaller
         }
     }
 
     component PathField: ColumnLayout {
         id: pathField
-
         required property string title
         required property string iconName
         required property string currentValue
-
         property string subtitle: ""
         property string placeholder: ""
-
+        property bool directory: false
+        property var fieldValidator: value => directory && value && !value.startsWith("/")
+            ? Translation.tr("Enter an absolute folder path or start it with ~/.") : ""
         signal edited(string value)
 
         Layout.fillWidth: true
@@ -456,17 +482,23 @@ SettingsTabbedPage {
             }
         }
 
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: pathField.placeholder
-            text: pathField.currentValue
-            wrapMode: TextEdit.NoWrap
-
-            onTextChanged: {
-                if (text !== pathField.currentValue)
-                    pathField.edited(text)
-            }
+        SettingTextField {
+            title: pathField.title
+            placeholder: pathField.placeholder
+            currentValue: pathField.currentValue
+            normalize: value => pathField.directory ? root.expandHomePath(value.trim()) : value.trim()
+            validate: pathField.fieldValidator
+            onEdited: value => pathField.edited(value)
         }
+    }
+
+    component PrefixEditor: PathField {
+        id: prefixField
+        required property string prefixKey
+        placeholder: Translation.tr("Prefix")
+        // Prefixes use the same field as other single-line settings but need
+        // their own validation against the launcher's modes.
+        fieldValidator: value => root.prefixError(prefixKey, value)
     }
 
     component SliderSetting: Rectangle {
@@ -652,8 +684,12 @@ SettingsTabbedPage {
                             colBackgroundHover: Appearance.colors.colLayer2Hover
                             colRipple: Appearance.colors.colLayer2Active
 
+                            enabled: !root.aiPromptExpanded || root.aiPromptDraft === Config.options.ai.systemPrompt
                             onClicked: {
-                                root.aiPromptExpanded = !root.aiPromptExpanded
+                                if (!root.aiPromptExpanded)
+                                    root.revealSetting("aiPrompt")
+                                else if (root.aiPromptDraft === Config.options.ai.systemPrompt)
+                                    root.aiPromptExpanded = false
                             }
                         }
                     }
@@ -672,17 +708,27 @@ SettingsTabbedPage {
                     MaterialTextArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 280
+                        Accessible.name: Translation.tr("System prompt editor")
                         placeholderText: Translation.tr("System prompt")
-                        text: Config.options.ai.systemPrompt
+                        text: root.aiPromptDraft
                         wrapMode: TextEdit.Wrap
+                        onTextChanged: root.aiPromptDraft = text
+                    }
 
-                        onTextChanged: {
-                            if (text === Config.options.ai.systemPrompt)
-                                return
+                    RowLayout {
+                        Layout.alignment: Qt.AlignRight
+                        visible: root.aiPromptDraft !== Config.options.ai.systemPrompt
 
-                            Qt.callLater(() => {
-                                Config.options.ai.systemPrompt = text
-                            })
+                        RippleButtonWithIcon {
+                            materialIcon: "undo"
+                            mainText: Translation.tr("Discard changes")
+                            onClicked: root.aiPromptDraft = Config.options.ai.systemPrompt
+                        }
+
+                        RippleButtonWithIcon {
+                            materialIcon: "check"
+                            mainText: Translation.tr("Save prompt")
+                            onClicked: Config.options.ai.systemPrompt = root.aiPromptDraft
                         }
                     }
                 }
@@ -698,7 +744,7 @@ SettingsTabbedPage {
 
                 InfoBox {
                     iconName: "graphic_eq"
-                    text: Translation.tr("Recognition runs only when requested. It launches the existing SongRec script and reports an error if the songrec dependency is unavailable.")
+                    text: Translation.tr("SongRec listens only when you request recognition and sends an audio sample to Shazam.")
                 }
 
                 Rectangle {
@@ -812,7 +858,7 @@ SettingsTabbedPage {
 
             PreferenceSwitchRow {
                 title: Translation.tr("Typo-tolerant matching")
-                subtitle: Translation.tr("Use Levenshtein-distance scoring. It can help with heavily mistyped queries, but acronyms and exact app names may rank less predictably.")
+                subtitle: Translation.tr("Match misspelled app names and clipboard text more broadly.")
                 iconName: "spellcheck"
                 switchChecked: Config.options.search.sloppy
 
@@ -822,8 +868,8 @@ SettingsTabbedPage {
             }
 
             ExpandButton {
-                collapsedText: Translation.tr("Search shortcuts")
-                expandedText: Translation.tr("Hide search shortcuts")
+                collapsedText: Translation.tr("Search prefixes")
+                expandedText: Translation.tr("Hide search prefixes")
                 expanded: root.searchPrefixesExpanded
 
                 onClicked: {
@@ -842,6 +888,7 @@ SettingsTabbedPage {
                 PrefixEditor {
                     title: Translation.tr("Actions")
                     iconName: "bolt"
+                    prefixKey: "action"
                     currentValue: Config.options.search.prefix.action
 
                     onEdited: value => {
@@ -850,8 +897,17 @@ SettingsTabbedPage {
                 }
 
                 PrefixEditor {
+                    title: Translation.tr("Apps")
+                    iconName: "apps"
+                    prefixKey: "app"
+                    currentValue: Config.options.search.prefix.app
+                    onEdited: value => Config.options.search.prefix.app = value
+                }
+
+                PrefixEditor {
                     title: Translation.tr("Clipboard")
                     iconName: "content_paste"
+                    prefixKey: "clipboard"
                     currentValue: Config.options.search.prefix.clipboard
 
                     onEdited: value => {
@@ -862,6 +918,7 @@ SettingsTabbedPage {
                 PrefixEditor {
                     title: Translation.tr("Emoji")
                     iconName: "emoji_emotions"
+                    prefixKey: "emojis"
                     currentValue: Config.options.search.prefix.emojis
 
                     onEdited: value => {
@@ -872,6 +929,7 @@ SettingsTabbedPage {
                 PrefixEditor {
                     title: Translation.tr("Math")
                     iconName: "calculate"
+                    prefixKey: "math"
                     currentValue: Config.options.search.prefix.math
 
                     onEdited: value => {
@@ -882,6 +940,7 @@ SettingsTabbedPage {
                 PrefixEditor {
                     title: Translation.tr("Shell command")
                     iconName: "terminal"
+                    prefixKey: "shellCommand"
                     currentValue: Config.options.search.prefix.shellCommand
 
                     onEdited: value => {
@@ -892,6 +951,7 @@ SettingsTabbedPage {
                 PrefixEditor {
                     title: Translation.tr("Web search")
                     iconName: "language"
+                    prefixKey: "webSearch"
                     currentValue: Config.options.search.prefix.webSearch
 
                     onEdited: value => {
@@ -917,19 +977,16 @@ SettingsTabbedPage {
 
                 FieldLabel {
                     title: Translation.tr("Web search base URL")
-                    subtitle: Translation.tr("The launcher appends the query to this URL. Sidebar AI search and translator search actions use the same setting.")
+                    subtitle: Translation.tr("Include the query parameter, for example https://www.google.com/search?q=. The launcher adds your search after it.")
                 }
 
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("https://www.google.com/search?q=")
-                    text: Config.options.search.engineBaseUrl
-                    wrapMode: TextEdit.NoWrap
-
-                    onTextChanged: {
-                        if (text !== Config.options.search.engineBaseUrl)
-                            Config.options.search.engineBaseUrl = text
-                    }
+                SettingTextField {
+                    title: Translation.tr("Web search base URL")
+                    placeholder: "https://www.google.com/search?q="
+                    currentValue: Config.options.search.engineBaseUrl
+                    validate: value => /^https?:\/\/[^/\s?#]+[^\s#]*[?&][^?&=\s]+=$/i.test(value)
+                        ? "" : Translation.tr("Use an HTTP or HTTPS URL ending with a query parameter such as ?q=.")
+                    onEdited: value => Config.options.search.engineBaseUrl = value
                 }
             }
         }
@@ -958,7 +1015,7 @@ SettingsTabbedPage {
 
                 InfoBox {
                     iconName: "cloud"
-                    text: Translation.tr("Weather data is fetched from wttr.in. GPS mode uses your coordinates when available; otherwise the configured city is used.")
+                    text: Translation.tr("Open-Meteo provides the forecast. If there is no GPS fix and the city is blank, wttr.in estimates the location from your IP address.")
                 }
 
                 PreferenceSwitchRow {
@@ -1001,13 +1058,11 @@ SettingsTabbedPage {
                 }
 
                 PathField {
-                    title: Config.options.bar.weather.enableGPS
-                        ? Translation.tr("Fallback city")
-                        : Translation.tr("City")
+                    title: Translation.tr("Weather city")
                     iconName: "location_city"
                     subtitle: Config.options.bar.weather.enableGPS
                         ? Translation.tr("Used when GPS is unavailable or has not produced a valid position.")
-                        : Translation.tr("Location sent to the weather service.")
+                        : Translation.tr("Leave blank to estimate your location from your IP address.")
                     placeholder: Translation.tr("City name")
                     currentValue: Config.options.bar.weather.city
 
@@ -1043,50 +1098,6 @@ SettingsTabbedPage {
                 }
             }
 
-            SettingsCard {
-                title: Translation.tr("Advanced networking")
-                subtitle: Translation.tr("Low-level compatibility settings for services that may need a custom HTTP identity.")
-                iconName: "cell_tower"
-
-                InfoBox {
-                    iconName: "info"
-                    text: Translation.tr("The current audit found no active runtime consumer of this User-Agent setting in this build, so it is kept as an advanced compatibility option.")
-                }
-
-                ExpandButton {
-                    collapsedText: Translation.tr("Custom User-Agent")
-                    expandedText: Translation.tr("Hide custom User-Agent")
-                    expanded: root.networkingAdvancedExpanded
-
-                    onClicked: {
-                        root.networkingAdvancedExpanded =
-                            !root.networkingAdvancedExpanded
-                    }
-                }
-
-                ColumnLayout {
-                    visible: root.networkingAdvancedExpanded
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    FieldLabel {
-                        title: Translation.tr("Stored User-Agent override")
-                        subtitle: Translation.tr("Preserves the existing networking configuration value without implying that a current service actively consumes it.")
-                    }
-
-                    MaterialTextArea {
-                        Layout.fillWidth: true
-                        placeholderText: Translation.tr("User-Agent")
-                        text: Config.options.networking.userAgent
-                        wrapMode: TextEdit.Wrap
-
-                        onTextChanged: {
-                            if (text !== Config.options.networking.userAgent)
-                                Config.options.networking.userAgent = text
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -1113,8 +1124,9 @@ SettingsTabbedPage {
 
                 PathField {
                     title: Translation.tr("Screen recordings folder")
+                    directory: true
                     iconName: "videocam"
-                    subtitle: Translation.tr("Recording output is saved to this directory.")
+                    subtitle: Translation.tr("Leave blank to use your Videos folder.")
                     placeholder: Translation.tr("Recording path")
                     currentValue: Config.options.screenRecord.savePath
 
@@ -1134,9 +1146,9 @@ SettingsTabbedPage {
 
                     Repeater {
                         model: [
-                            {key: "copy", label: Translation.tr("Copy"), icon: "content_copy"},
+                            {key: "copy", label: Translation.tr("Copy only"), icon: "content_copy"},
                             {key: "save", label: Translation.tr("Save"), icon: "save"},
-                            {key: "both", label: Translation.tr("Both"), icon: "file_copy"}
+                            {key: "both", label: Translation.tr("Copy and save"), icon: "file_copy"}
                         ]
                         delegate: ChoiceChip {
                             required property var modelData
@@ -1150,8 +1162,12 @@ SettingsTabbedPage {
 
                 PathField {
                     title: Translation.tr("Screenshots folder")
+                    directory: true
+                    enabled: Utils.ScreenshotAction.outputMode !== "copy"
                     iconName: "screenshot"
-                    subtitle: Translation.tr("Saved screenshots go here. An empty path uses Pictures/Screenshots.")
+                    subtitle: enabled
+                        ? Translation.tr("Leave blank to use the Screenshots folder inside Pictures.")
+                        : Translation.tr("Select Save or Copy and save to choose a folder.")
                     placeholder: Translation.tr("Pictures/Screenshots")
                     currentValue: Config.options.screenSnip.savePath
 
@@ -1162,8 +1178,8 @@ SettingsTabbedPage {
             }
 
             SettingsCard {
-                title: Translation.tr("Media refresh")
-                subtitle: Translation.tr("Control how often playing-media progress is refreshed in the bar, vertical bar, and media controls.")
+                title: Translation.tr("Update frequency")
+                subtitle: Translation.tr("Controls how often the shell samples CPU and memory and refreshes playback progress.")
                 iconName: "speed"
 
                 Rectangle {
@@ -1194,7 +1210,7 @@ SettingsTabbedPage {
                             spacing: 1
 
                             StyledText {
-                                text: Translation.tr("Media progress refresh")
+                                text: Translation.tr("Current interval")
                                 color: Appearance.colors.colOnLayer1
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: Font.Medium
@@ -1228,21 +1244,21 @@ SettingsTabbedPage {
 
                 SliderSetting {
                     visible: root.performanceAdvancedExpanded
-                    title: Translation.tr("Media progress refresh")
-                    subtitle: Translation.tr("This timer runs while an active media player is playing.")
+                    title: Translation.tr("System and media refresh interval")
+                    subtitle: Translation.tr("Shorter intervals update more often and use more CPU.")
                     iconName: "av_timer"
                     valueLabel: root.secondsText(
                         Config.options.resources.updateInterval
                     )
                     sliderValue: Config.options.resources.updateInterval
-                    from: 100
+                    from: 250
                     to: 10000
-                    stepSize: 100
+                    stepSize: 250
                     stopIndicatorValues: [500, 1000, 3000, 5000, 10000]
 
                     onMoved: value => {
                         Config.options.resources.updateInterval =
-                            Math.round(value / 100) * 100
+                            Math.round(value)
                     }
                 }
             }
@@ -1257,7 +1273,7 @@ SettingsTabbedPage {
 
         PreferenceSwitchRow {
             title: Translation.tr("Arch Remote")
-            subtitle: Translation.tr("Open the remote access control center with Super + Y.")
+            subtitle: Translation.tr("Enable the Arch Remote panel and its shortcut. The default is Super + Y.")
             iconName: "shield"
             enabled: !OptionalServices.archRemote.saving
             switchChecked: OptionalServices.archRemote.enabled
@@ -1266,7 +1282,7 @@ SettingsTabbedPage {
 
         PreferenceSwitchRow {
             title: Translation.tr("Backup & Recovery")
-            subtitle: Translation.tr("Open the backup and recovery center with Super + U.")
+            subtitle: Translation.tr("Enable the Backup & Recovery panel and its shortcut. The default is Super + U.")
             iconName: "settings_backup_restore"
             enabled: !OptionalServices.backupRecovery.saving
             switchChecked: OptionalServices.backupRecovery.enabled

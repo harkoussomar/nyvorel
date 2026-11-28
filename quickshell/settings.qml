@@ -113,10 +113,10 @@ ApplicationWindow {
         },
         {
             name: Translation.tr("Services"),
-            description: Translation.tr("Search, weather, network and storage"),
+            description: Translation.tr("Search, weather, storage and optional tools"),
             group: Translation.tr("Everyday use"),
             icon: "cloud",
-            sections: [Translation.tr("AI & recognition"), Translation.tr("Search & web"), Translation.tr("Weather & network"), Translation.tr("Storage & performance"), Translation.tr("Optional tools")],
+            sections: [Translation.tr("AI & recognition"), Translation.tr("Search & web"), Translation.tr("Weather"), Translation.tr("Storage & performance"), Translation.tr("Optional tools")],
             component: "modules/settings/ServicesConfig.qml"
         },
         {
@@ -180,6 +180,7 @@ ApplicationWindow {
     // -------------------------------------------------------------------------
 
     property string pendingSearchLabel: ""
+    property string pendingSettingsGroup: ""
     property int searchTargetAttempts: 0
     property bool searchHighlightVisible: false
     property real searchHighlightX: 0
@@ -270,13 +271,16 @@ ApplicationWindow {
 
     function revealPendingSearchTarget() {
         const needle =
-            root.normalizedSearchText(root.pendingSearchLabel)
+            root.normalizedSearchText(Translation.tr(root.pendingSearchLabel))
 
         if (needle.length === 0 || !root.currentPageItem)
             return
 
         if (root.currentPage === 0 && !root.appearanceEditor.currentTabReady)
             return
+
+        if (root.pendingSettingsGroup.length && root.currentPageItem.revealSetting)
+            root.currentPageItem.revealSetting(root.pendingSettingsGroup)
 
         const target =
             root.findSearchTextNode(root.currentPageItem, needle)
@@ -341,10 +345,12 @@ ApplicationWindow {
         })
 
         root.pendingSearchLabel = ""
+        root.pendingSettingsGroup = ""
         root.searchTargetAttempts = 0
     }
 
     function jumpToSection(label: string): void {
+        root.pendingSettingsGroup = ""
         root.pendingSearchLabel = label
         root.searchTargetAttempts = 0
         root.revealPendingSearchTarget()
@@ -418,6 +424,7 @@ ApplicationWindow {
         if (pageIndex < 0 || pageIndex >= root.pages.length)
             return
         root.pendingAppearanceSearch = null
+        root.pendingSettingsGroup = entry.settingsGroup ?? ""
         if ((entry.path || "") !== "Page") {
             root.pendingSearchLabel = String(entry.searchLabel ?? entry.label ?? "")
             root.searchTargetAttempts = 0
@@ -1523,10 +1530,10 @@ ApplicationWindow {
                     const entry = SettingsIndex.entries.find(
                         candidate => candidate.pageIndex === pageIndex && candidate.label === label)
                     root.pendingAppearanceSearch = null
+                    root.pendingSettingsGroup = entry?.settingsGroup ?? ""
                     root.pendingSearchLabel = entry?.searchLabel ?? label
                     root.searchTargetAttempts = 0
-                    if (entry)
-                        root.prepareSearchPage(entry)
+                    root.prepareSearchPage(entry)
                     root.switchToPage(pageIndex)
                     searchTargetTimer.restart()
                 }

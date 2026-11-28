@@ -36,7 +36,11 @@ Singleton {
 
     onCityChanged: root.getData()
     onUseUSCSChanged: root.getData()
-    onGpsActiveChanged: root.getData()
+    onGpsActiveChanged: {
+        if (!root.gpsActive)
+            root.location = ({ valid: false, lat: 0, lon: 0 })
+        root.getData()
+    }
     onWeatherInUseChanged: root.getData()
 
     function fail(message) {
@@ -248,6 +252,9 @@ Singleton {
         updateInterval: root.fetchInterval
         onPositionChanged: {
             if (!position.latitudeValid || !position.longitudeValid) return
+            if (!root.gpsActive || (root.location.valid
+                && root.location.lat === position.coordinate.latitude
+                && root.location.lon === position.coordinate.longitude)) return
             root.location = ({ valid: true,
                 lat: position.coordinate.latitude,
                 lon: position.coordinate.longitude })
