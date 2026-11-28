@@ -14,7 +14,21 @@ import Quickshell.Hyprland
 
 Scope { // Scope
     id: root
-    property bool pinned: Config.options?.dock.pinnedOnStartup ?? false
+    property bool pinned: Config.options.dock.pinnedOnStartup
+
+    Connections {
+        target: Config.options.dock
+        function onPinnedOnStartupChanged() {
+            root.pinned = Config.options.dock.pinnedOnStartup
+        }
+    }
+
+    // Show where the dock lives when the user enables it over an open window.
+    Timer {
+        id: introduction
+        running: true
+        interval: 3000
+    }
 
     Variants {
         // For each monitor
@@ -27,7 +41,10 @@ Scope { // Scope
             screen: modelData
             visible: !GlobalStates.screenLocked
 
-            property bool reveal: root.pinned || (Config.options?.dock.hoverToReveal && dockMouseArea.containsMouse) || dockApps.requestDockShow || (!ToplevelManager.activeToplevel?.activated)
+            readonly property bool reveal: root.pinned || introduction.running
+                || dockMouseArea.containsMouse || dockApps.requestDockShow
+                || !ToplevelManager.activeToplevel?.activated
+            readonly property bool hoverToReveal: Config.options.dock.hoverToReveal
 
             anchors {
                 bottom: true
@@ -54,28 +71,39 @@ Scope { // Scope
             implicitHeight: (Config.options?.dock.height ?? 70) + Appearance.sizes.elevationMargin + Appearance.sizes.hyprlandGapsOut
 
             mask: Region {
-                item: dockMouseArea
+                item: dockRoot.reveal ? dockMouseArea
+                    : dockRoot.hoverToReveal ? dockEdge : null
             }
 
             MouseArea {
                 id: dockMouseArea
                 height: parent.height
+                width: implicitWidth
                 anchors {
-                    top: parent.top
-                    topMargin: dockRoot.reveal ? 0 : Config.options?.dock.hoverToReveal ? (dockRoot.implicitHeight - Config.options.dock.hoverRegionHeight) : (dockRoot.implicitHeight + 1)
+                    bottom: parent.bottom
                     horizontalCenter: parent.horizontalCenter
                 }
                 implicitWidth: dockHoverRegion.implicitWidth + Appearance.sizes.elevationMargin * 2
                 hoverEnabled: true
 
-                Behavior on anchors.topMargin {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                Item {
+                    id: dockEdge
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: Math.min(parent.height, Math.max(8, Config.options.dock.hoverRegionHeight))
                 }
 
                 Item {
                     id: dockHoverRegion
-                    anchors.fill: parent
+                    width: parent.width
+                    height: parent.height
+                    y: dockRoot.reveal ? 0 : parent.height
                     implicitWidth: dockBackground.implicitWidth
+
+                    Behavior on y {
+                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    }
 
                     Item { // Wrapper for the dock background
                         id: dockBackground
@@ -86,7 +114,7 @@ Scope { // Scope
                         }
 
                         implicitWidth: dockRow.implicitWidth + 5 * 2
-                        height: parent.height - Appearance.sizes.elevationMargin - Appearance.sizes.hyprlandGapsOut
+                        width: implicitWidth
 
                         StyledRectangularShadow {
                             visible: true
@@ -141,6 +169,7 @@ Scope { // Scope
                             DockApps {
                                 id: dockApps
                                 buttonPadding: dockRow.padding
+                                separatorInset: dockVisualBackground.margin + dockRow.padding + Appearance.rounding.normal
                             }
                             DockSeparator {}
                             DockButton {

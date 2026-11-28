@@ -25,21 +25,32 @@ Item {
     property var windowByAddress: HyprlandData.windowByAddress
     property var windowAddresses: HyprlandData.addresses
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
-    property real scale: Config.options.overview.scale
+    required property real availableWidth
+    required property real availableHeight
+    readonly property real chrome: 2 * (overviewBackground.padding + Appearance.sizes.elevationMargin)
+    readonly property real scale: Math.min(Config.options.overview.scale,
+        Math.max(1, availableWidth - chrome - (Config.options.overview.columns - 1) * workspaceSpacing)
+            / (Config.options.overview.columns * workspaceWidth),
+        Math.max(1, availableHeight - chrome - (Config.options.overview.rows - 1) * workspaceSpacing)
+            / (Config.options.overview.rows * workspaceHeight))
     property color activeBorderColor: Appearance.colors.colSecondary
 
-    property real workspaceImplicitWidth: (monitorData?.transform % 2 === 1) ? 
-        ((monitor.height - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale) :
-        ((monitor.width - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale)
-    property real workspaceImplicitHeight: (monitorData?.transform % 2 === 1) ? 
-        ((monitor.width - monitorData?.reserved[1] - monitorData?.reserved[3]) * root.scale / monitor.scale) :
-        ((monitor.height - monitorData?.reserved[1] - monitorData?.reserved[3]) * root.scale / monitor.scale)
+    readonly property bool rotated: monitorData?.transform % 2 === 1
+    readonly property var reserved: monitorData?.reserved ?? [0, 0, 0, 0]
+    readonly property real monitorWidth: (rotated ? monitor?.height : monitor?.width) ?? 0
+    readonly property real monitorHeight: (rotated ? monitor?.width : monitor?.height) ?? 0
+    readonly property real workspaceWidth: Math.max(1, (monitorWidth > 0
+        ? monitorWidth / (monitor?.scale || 1) : screen.width) - reserved[0] - reserved[2])
+    readonly property real workspaceHeight: Math.max(1, (monitorHeight > 0
+        ? monitorHeight / (monitor?.scale || 1) : screen.height) - reserved[1] - reserved[3])
+    readonly property real workspaceImplicitWidth: workspaceWidth * scale
+    readonly property real workspaceImplicitHeight: workspaceHeight * scale
     property real largeWorkspaceRadius: Appearance.rounding.large
     property real smallWorkspaceRadius: Appearance.rounding.verysmall
 
     property real workspaceNumberMargin: 80
     // OVERVIEW-UI-PRIORITY-V2.4
-    property real workspaceNumberSize: 190 * monitor.scale
+    property real workspaceNumberSize: 190 * (monitor?.scale || 1)
     property int workspaceZ: 0
     property int windowZ: 1
     property int windowDraggingZ: 99999

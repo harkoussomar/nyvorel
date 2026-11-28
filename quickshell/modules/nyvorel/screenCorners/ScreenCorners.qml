@@ -40,7 +40,12 @@ Scope {
         property var screen: QsWindow.window?.screen
         property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
         property bool fullscreen
-        visible: (Config.options.appearance.fakeScreenRounding === 1 || (Config.options.appearance.fakeScreenRounding === 2 && !fullscreen))
+        readonly property bool drawCorner: Config.options.appearance.fakeScreenRounding === 1
+            || (Config.options.appearance.fakeScreenRounding === 2 && !fullscreen)
+        readonly property bool cornerInteraction: Config.options.sidebar.cornerOpen.enable
+            && !fullscreen && !GlobalStates.screenLocked
+            && Config.options.sidebar.cornerOpen.bottom === cornerWidget.isBottom
+        visible: drawCorner || cornerInteraction
         property var corner
 
         exclusionMode: ExclusionMode.Ignore
@@ -69,6 +74,7 @@ Scope {
             id: cornerWidget
             anchors.fill: parent
             corner: cornerPanelWindow.corner
+            color: cornerPanelWindow.drawCorner ? "#000000" : "transparent"
             rightVisualMargin: (Config.options.interactions.deadPixelWorkaround.enable && cornerPanelWindow.anchors.right) * 1
             bottomVisualMargin: (Config.options.interactions.deadPixelWorkaround.enable && cornerPanelWindow.anchors.bottom) * 1
 
@@ -78,11 +84,7 @@ Scope {
 
             Loader {
                 id: sidebarCornerOpenInteractionLoader
-                active: {
-                    if (!Config.options.sidebar.cornerOpen.enable) return false;
-                    if (cornerPanelWindow.fullscreen) return false;
-                    return (Config.options.sidebar.cornerOpen.bottom == cornerWidget.isBottom);
-                }
+                active: cornerPanelWindow.cornerInteraction
                 anchors {
                     top: (cornerWidget.isTopLeft || cornerWidget.isTopRight) ? parent.top : undefined
                     bottom: (cornerWidget.isBottomLeft || cornerWidget.isBottomRight) ? parent.bottom : undefined
@@ -107,7 +109,7 @@ Scope {
                     // behave as a small hover fallback. Trigger it once per
                     // entry instead of toggling repeatedly while the pointer
                     // moves inside the 2 px edge.
-                    onPositionChanged: {
+                    function updateExactCorner(): void {
                         if (
                             Config.options.sidebar.cornerOpen.clickless
                             || !Config.options.sidebar.cornerOpen.clicklessCornerEnd
@@ -130,16 +132,9 @@ Scope {
                                 && mouseArea.mouseX <= 2
                             )
 
-                        const correctY =
-                            (
-                                cornerWidget.isTop
-                                && mouseArea.mouseY > verticalOffset
-                            )
-                            || (
-                                cornerWidget.isBottom
-                                && mouseArea.mouseY
-                                    < mouseArea.height - verticalOffset
-                            )
+                        const edgeDistance = cornerWidget.isTop
+                            ? mouseArea.mouseY : mouseArea.height - 1 - mouseArea.mouseY
+                        const correctY = edgeDistance <= verticalOffset
 
                         const inExactCorner = correctX && correctY
 
@@ -156,15 +151,18 @@ Scope {
                         }
                     }
 
+                    onPositionChanged: updateExactCorner()
+                    onExited: mouseArea.exactCornerTriggered = false
+
                     // Hover means OPEN. It must never close a sidebar simply
                     // because the pointer entered the activation region.
                     onEntered: {
-                        mouseArea.exactCornerTriggered = false
-
                         if (Config.options.sidebar.cornerOpen.clickless) {
                             screenCorners.openCorner(
                                 cornerPanelWindow.corner
                             )
+                        } else {
+                            mouseArea.updateExactCorner()
                         }
                     }
 
@@ -191,16 +189,6 @@ Scope {
                         if (!Config.options.sidebar.cornerOpen.valueScroll)
                             return
 
-                        // If the active corner is on the same edge as the bar,
-                        // BarContent owns wheel input so the two layers do not
-                        // compete for the same pointer event.
-                        if (
-                            Config.options.sidebar.cornerOpen.bottom
-                            === Config.options.bar.bottom
-                        ) {
-                            return
-                        }
-
                         if (cornerWidget.isLeft) {
                             const monitor =
                                 cornerPanelWindow.brightnessMonitor
@@ -219,32 +207,16 @@ Scope {
                         }
 
                         const audio = Audio.sink?.audio
-
                         if (!audio)
                             return
-
-                        const currentVolume = audio.volume ?? 0
-                        const step =
-                            currentVolume < 0.1
-                                ? 0.01
-                                : 0.02
-
-                        audio.volume =
-                            Math.max(0, currentVolume - step)
-
+                        const currentVolume = audio.volume
+                        audio.volume = Math.max(0, currentVolume - (currentVolume < 0.1 ? 0.01 : 0.02))
                         GlobalStates.osdVolumeOpen = true
                     }
 
                     onScrollUp: {
                         if (!Config.options.sidebar.cornerOpen.valueScroll)
                             return
-
-                        if (
-                            Config.options.sidebar.cornerOpen.bottom
-                            === Config.options.bar.bottom
-                        ) {
-                            return
-                        }
 
                         if (cornerWidget.isLeft) {
                             const monitor =
@@ -264,19 +236,10 @@ Scope {
                         }
 
                         const audio = Audio.sink?.audio
-
                         if (!audio)
                             return
-
-                        const currentVolume = audio.volume ?? 0
-                        const step =
-                            currentVolume < 0.1
-                                ? 0.01
-                                : 0.02
-
-                        audio.volume =
-                            Math.min(1, currentVolume + step)
-
+                        const currentVolume = audio.volume
+                        audio.volume = Math.min(1, currentVolume + (currentVolume < 0.1 ? 0.01 : 0.02))
                         GlobalStates.osdVolumeOpen = true
                     }
 

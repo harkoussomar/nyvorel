@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -34,39 +33,25 @@ SettingsTabbedPage {
     property bool fontsExpanded: false
 
     readonly property var superKeySymbols: [
-        "󰖳", "", "󰨡", "", "󰌽", "󰣇", "", "", "",
+        "Super", "󰖳", "", "󰨡", "", "󰌽", "󰣇", "", "", "",
         "", "", "󱄛", "", "", "", "⌘", "󰀲", "󰟍", ""
     ]
 
     // -------------------------------------------------------------------------
-    // Semantic window-radius bridge
-    // -------------------------------------------------------------------------
-
-    property int pendingWindowRadius: Appearance.radius.window
-
-    function queueWindowRadius(value: real): void {
-        pendingWindowRadius = Math.max(0, Math.min(40, Math.round(value)))
-        windowRadiusApplyTimer.restart()
-    }
-
-    Timer {
-        id: windowRadiusApplyTimer
-        interval: 90
-        repeat: false
-
-        onTriggered: {
-            Quickshell.execDetached([
-                Quickshell.shellPath("scripts/system/nyvorel-appearance-studio"),
-                "__semantic-radius",
-                "window",
-                String(root.pendingWindowRadius)
-            ])
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Reusable page-local primitives
     // -------------------------------------------------------------------------
+
+    function revealSetting(group: string): void {
+        switch (group) {
+        case "shortcutTypography": root.shortcutTypographyExpanded = true; break
+        case "lockSecurity": root.lockSecurityExpanded = true; break
+        case "lockAppearance": root.lockAppearanceExpanded = true; break
+        case "regionStyles": root.regionStylesExpanded = true; break
+        case "sidebarCornerAdvanced": root.sidebarCornerAdvancedExpanded = true; break
+        case "overviewOrdering": root.overviewOrderingExpanded = true; break
+        case "fonts": root.fontsExpanded = true; break
+        }
+    }
 
     component SettingsCard: Rectangle {
         id: card
@@ -378,261 +363,6 @@ SettingsTabbedPage {
         }
     }
 
-    component RadiusRoleEditor: Rectangle {
-        id: editor
-
-        required property string role
-        required property string title
-        required property string iconName
-        required property int resetValue
-
-        property bool resetFollowsGlobal: false
-
-        readonly property bool followsGlobal:
-            Appearance.semanticRadiusFollowsGlobal(role)
-
-        readonly property int storedValue:
-            Appearance.semanticRadiusStoredValue(role)
-
-        readonly property int resolvedValue:
-            Appearance.semanticRadiusResolvedValue(role)
-
-        Layout.fillWidth: true
-        Layout.alignment: Qt.AlignTop
-        implicitHeight: editorColumn.implicitHeight + 20
-
-        radius: Appearance.radius.control
-        color: Appearance.colors.colLayer1
-        clip: true
-
-        ColumnLayout {
-            id: editorColumn
-
-            anchors {
-                fill: parent
-                margins: 10
-            }
-
-            spacing: 8
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                MaterialSymbol {
-                    text: editor.iconName
-                    iconSize: 18
-                    color: Appearance.colors.colPrimary
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 1
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: editor.title
-                        color: Appearance.colors.colOnLayer1
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Medium
-                        wrapMode: Text.Wrap
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: editor.followsGlobal
-                            ? Translation.tr("Using Global")
-                            : Translation.tr("Custom value")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
-                    }
-                }
-
-                StyledText {
-                    text: editor.resolvedValue + " px"
-                    color: Appearance.colors.colSubtext
-                    font.family: Appearance.font.family.numbers
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: inheritRow.implicitHeight + 16
-                radius: Appearance.radius.control
-                color: Appearance.colors.colLayer2
-
-                RowLayout {
-                    id: inheritRow
-
-                    anchors {
-                        fill: parent
-                        margins: 8
-                    }
-
-                    spacing: 8
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Follow Global radius")
-                        color: Appearance.colors.colOnLayer2
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
-                    }
-
-                    StyledSwitch {
-                        checked: editor.followsGlobal
-
-                        onToggled: {
-                            Appearance.setSemanticRadiusFollowGlobal(editor.role, checked)
-
-                            if (editor.role === "window")
-                                root.queueWindowRadius(Appearance.radius.window)
-                        }
-                    }
-                }
-            }
-
-            ColumnLayout {
-                visible: !editor.followsGlobal
-                Layout.fillWidth: true
-                spacing: 8
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    StyledSlider {
-                        id: roleSlider
-
-                        Layout.fillWidth: true
-                        configuration: StyledSlider.Configuration.XS
-                        from: 0
-                        to: 40
-                        value: editor.storedValue
-                        stopIndicatorValues: [0, 8, 12, 17, 23, 30, 40]
-                        usePercentTooltip: false
-
-                        onMoved: {
-                            Appearance.setSemanticRadiusValue(editor.role, value)
-
-                            if (editor.role === "window")
-                                root.queueWindowRadius(Appearance.radius.window)
-                        }
-                    }
-
-                    StyledText {
-                        text: editor.storedValue + " px"
-                        color: Appearance.colors.colSubtext
-                        font.family: Appearance.font.family.numbers
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                    }
-                }
-
-                RippleButtonWithIcon {
-                    Layout.fillWidth: true
-                    implicitHeight: root.compactControlHeight
-                    buttonRadius: Appearance.radius.control
-                    materialIcon: "restart_alt"
-                    mainText: Translation.tr("Reset")
-
-                    colBackground: Appearance.colors.colLayer2
-                    colBackgroundHover: Appearance.colors.colLayer2Hover
-                    colRipple: Appearance.colors.colLayer2Active
-
-                    onClicked: {
-                        Appearance.setSemanticRadiusValue(
-                            editor.role,
-                            editor.resetValue
-                        )
-                        Appearance.setSemanticRadiusFollowGlobal(
-                            editor.role,
-                            editor.resetFollowsGlobal
-                        )
-
-                        if (editor.role === "window")
-                            root.queueWindowRadius(Appearance.radius.window)
-                    }
-                }
-            }
-        }
-    }
-
-    component GeometryPreview: Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 160
-
-        radius: Appearance.radius.card
-        color: Appearance.colors.colLayer1
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-
-        Rectangle {
-            id: previewWindow
-
-            anchors {
-                fill: parent
-                margins: 18
-            }
-
-            radius: Appearance.radius.window
-            color: Appearance.colors.colLayer2
-            border.width: 1
-            border.color: Appearance.colors.colOutlineVariant
-
-            Rectangle {
-                anchors {
-                    top: parent.top
-                    left: parent.left
-                    right: parent.right
-                }
-
-                height: 28
-                radius: Appearance.radius.bar
-                color: Appearance.colors.colPrimaryContainer
-
-                StyledText {
-                    anchors.centerIn: parent
-                    text: Translation.tr("Window")
-                    color: Appearance.colors.colOnPrimaryContainer
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                }
-            }
-
-            Rectangle {
-                width: Math.min(220, parent.width * 0.48)
-                height: 74
-                anchors.centerIn: parent
-
-                radius: Appearance.radius.modal
-                color: Appearance.colors.colLayer1
-                border.width: 1
-                border.color: Appearance.colors.colOutlineVariant
-
-                Rectangle {
-                    width: parent.width - 28
-                    height: 28
-                    anchors {
-                        horizontalCenter: parent.horizontalCenter
-                        bottom: parent.bottom
-                        bottomMargin: 12
-                    }
-
-                    radius: Appearance.radius.control
-                    color: Appearance.colors.colPrimaryContainer
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: Translation.tr("Control")
-                        color: Appearance.colors.colOnPrimaryContainer
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                    }
-                }
-            }
-        }
-    }
-
     component SuperSymbolChoice: RippleButton {
         id: symbolChoice
 
@@ -642,7 +372,7 @@ SettingsTabbedPage {
             Config.options.cheatsheet.superKey === symbol
 
         toggled: selected
-        implicitWidth: 46
+        implicitWidth: Math.max(46, symbolText.implicitWidth + 16)
         implicitHeight: 42
 
         buttonRadius: Appearance.radius.control
@@ -658,6 +388,7 @@ SettingsTabbedPage {
         onClicked: Config.options.cheatsheet.superKey = symbol
 
         contentItem: StyledText {
+            id: symbolText
             anchors.centerIn: parent
             text: symbolChoice.symbol
             horizontalAlignment: Text.AlignHCenter
@@ -687,15 +418,18 @@ SettingsTabbedPage {
             subtitle: fontField.subtitle
         }
 
-        MaterialTextArea {
+        MaterialTextField {
             Layout.fillWidth: true
+            Layout.minimumWidth: 0
             placeholderText: Translation.tr("Font family name")
             text: fontField.value
-            wrapMode: TextEdit.NoWrap
+            Accessible.name: fontField.title
 
-            onTextChanged: {
-                if (text !== fontField.value)
-                    fontField.edited(text)
+            onEditingFinished: {
+                const family = text.trim()
+                if (family.length && family !== fontField.value)
+                    fontField.edited(family)
+                text = Qt.binding(() => fontField.value)
             }
         }
     }
@@ -793,14 +527,12 @@ SettingsTabbedPage {
 
             SettingsCard {
                 title: Translation.tr("Dock")
-                subtitle: Translation.tr("Control whether the dock is loaded and how it reveals itself.")
+                subtitle: Translation.tr("Show pinned and running apps at the bottom of the screen.")
                 iconName: "call_to_action"
 
                 PreferenceSwitchRow {
                     title: Translation.tr("Show dock")
-                    subtitle: Config.options.dock.enable
-                        ? Translation.tr("The dock panel is loaded on each monitor.")
-                        : Translation.tr("The dock panel is disabled.")
+                    subtitle: Translation.tr("The dock appears briefly when you turn it on.")
                     iconName: "call_to_action"
                     switchChecked: Config.options.dock.enable
 
@@ -811,8 +543,8 @@ SettingsTabbedPage {
 
                 PreferenceSwitchRow {
                     enabled: Config.options.dock.enable
-                    title: Translation.tr("Reveal on pointer hover")
-                    subtitle: Translation.tr("When off, the dock reveals only on an empty workspace.")
+                    title: Translation.tr("Reveal at the bottom edge")
+                    subtitle: Translation.tr("Move the pointer to the bottom center. The dock also appears on empty workspaces.")
                     iconName: "highlight_mouse_cursor"
                     switchChecked: Config.options.dock.hoverToReveal
 
@@ -823,8 +555,8 @@ SettingsTabbedPage {
 
                 PreferenceSwitchRow {
                     enabled: Config.options.dock.enable
-                    title: Translation.tr("Pinned on startup")
-                    subtitle: Translation.tr("Start with the dock in its pinned state.")
+                    title: Translation.tr("Keep dock visible")
+                    subtitle: Translation.tr("Pin the dock now and start future sessions with it pinned.")
                     iconName: "keep"
                     switchChecked: Config.options.dock.pinnedOnStartup
 
@@ -848,7 +580,7 @@ SettingsTabbedPage {
 
             SettingsCard {
                 title: Translation.tr("Shortcut labels")
-                subtitle: Translation.tr("Customize how the keyboard cheat sheet represents Super, modifiers, function keys, and mouse actions.")
+                subtitle: Translation.tr("Choose how keys and shortcuts appear in the shortcut guide.")
                 iconName: "keyboard"
 
                 Rectangle {
@@ -898,7 +630,7 @@ SettingsTabbedPage {
                             StyledText {
                                 Layout.fillWidth: true
                                 Layout.minimumWidth: 0
-                                text: Translation.tr("Used wherever the cheat sheet renders the Super key.")
+                                text: Translation.tr("Replace the Super label in the shortcut guide.")
                                 color: Appearance.colors.colSubtext
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 wrapMode: Text.Wrap
@@ -947,7 +679,7 @@ SettingsTabbedPage {
 
                 PreferenceSwitchRow {
                     title: Translation.tr("macOS-style modifier symbols")
-                    subtitle: Translation.tr("Render modifier names such as Ctrl, Alt, and Shift using symbolic glyphs.")
+                    subtitle: Translation.tr("Show Ctrl, Alt, and Shift as ⌃, ⌥, and ⇧.")
                     iconName: "keyboard_command_key"
                     switchChecked: Config.options.cheatsheet.useMacSymbol
 
@@ -969,7 +701,7 @@ SettingsTabbedPage {
 
                 PreferenceSwitchRow {
                     title: Translation.tr("Symbolic mouse actions")
-                    subtitle: Translation.tr("Use mouse and scroll glyphs in shortcut descriptions.")
+                    subtitle: Translation.tr("Show mouse and scroll symbols in shortcut key labels.")
                     iconName: "mouse"
                     switchChecked: Config.options.cheatsheet.useMouseSymbol
 
@@ -990,8 +722,8 @@ SettingsTabbedPage {
                 }
 
                 ExpandButton {
-                    collapsedText: Translation.tr("Cheat-sheet typography")
-                    expandedText: Translation.tr("Hide cheat-sheet typography")
+                    collapsedText: Translation.tr("Shortcut guide text size")
+                    expandedText: Translation.tr("Hide shortcut guide text size")
                     expanded: root.shortcutTypographyExpanded
 
                     onClicked: {
@@ -1010,7 +742,7 @@ SettingsTabbedPage {
                     ConfigSpinBox {
                         Layout.fillWidth: true
                         icon: "keyboard"
-                        text: Translation.tr("Key label size")
+                        text: Translation.tr("Key label size (px)")
                         value: Config.options.cheatsheet.fontSize.key
                         from: 8
                         to: 30
@@ -1024,7 +756,7 @@ SettingsTabbedPage {
                     ConfigSpinBox {
                         Layout.fillWidth: true
                         icon: "notes"
-                        text: Translation.tr("Description size")
+                        text: Translation.tr("Shortcut description size (px)")
                         value: Config.options.cheatsheet.fontSize.comment
                         from: 8
                         to: 30
@@ -1122,8 +854,11 @@ SettingsTabbedPage {
                 spacing: 8
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Center clock")
-                    subtitle: Translation.tr("Place the lock-screen clock in the centered layout.")
+                    enabled: Config.options.background.widgets.clock.enable
+                    title: Translation.tr("Center lock-screen clock")
+                    subtitle: enabled
+                        ? Translation.tr("Center the clock while the screen is locked.")
+                        : Translation.tr("Turn on the clock widget in Desktop first.")
                     iconName: "center_focus_weak"
                     switchChecked: Config.options.lock.centerClock
 
@@ -1133,8 +868,11 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
+                    enabled: Config.options.background.widgets.clock.enable
                     title: Translation.tr("Show “Locked” label")
-                    subtitle: Translation.tr("Display the lock-state text on the built-in lock screen.")
+                    subtitle: enabled
+                        ? Translation.tr("Show the label below the lock-screen clock.")
+                        : Translation.tr("Turn on the clock widget in Desktop first.")
                     iconName: "info"
                     switchChecked: Config.options.lock.showLockedText
 
@@ -1144,7 +882,7 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Shape password characters")
+                    title: Translation.tr("Use shapes for password dots")
                     subtitle: Translation.tr("Use varying Material-style shapes instead of ordinary password dots.")
                     iconName: "shapes"
                     switchChecked: Config.options.lock.materialShapeChars
@@ -1156,7 +894,7 @@ SettingsTabbedPage {
 
                 PreferenceSwitchRow {
                     title: Translation.tr("Blur wallpaper while locked")
-                    subtitle: Translation.tr("Enable the additional Gaussian blur layer used by the built-in lock transition.")
+                    subtitle: Translation.tr("Soften the background behind the lock screen.")
                     iconName: "blur_on"
                     switchChecked: Config.options.lock.blur.enable
 
@@ -1172,9 +910,9 @@ SettingsTabbedPage {
                     icon: "loupe"
                     text: Translation.tr("Blur wallpaper zoom (%)")
                     value: Config.options.lock.blur.extraZoom * 100
-                    from: 1
+                    from: 100
                     to: 150
-                    stepSize: 2
+                    stepSize: 1
 
                     onValueChanged: {
                         Config.options.lock.blur.extraZoom = value / 100
@@ -1191,8 +929,8 @@ SettingsTabbedPage {
         }
 
         SettingsCard {
-            title: Translation.tr("Transient feedback")
-            subtitle: Translation.tr("Choose how long notification popups and the on-screen display remain visible.")
+            title: Translation.tr("Popup duration")
+            subtitle: Translation.tr("Set how long notifications and indicators such as volume stay on screen. Apps can set their own notification duration.")
             iconName: "notifications"
 
             GridLayout {
@@ -1204,7 +942,7 @@ SettingsTabbedPage {
                 ConfigSpinBox {
                     Layout.fillWidth: true
                     icon: "notifications"
-                    text: Translation.tr("Notification timeout (s)")
+                    text: Translation.tr("Default notification duration (s)")
                     value: Math.round(Config.options.notifications.timeout / 1000)
                     from: 1
                     to: 60
@@ -1218,7 +956,7 @@ SettingsTabbedPage {
                 ConfigSpinBox {
                     Layout.fillWidth: true
                     icon: "voting_chip"
-                    text: Translation.tr("OSD timeout (ms)")
+                    text: Translation.tr("On-screen indicator duration (ms)")
                     value: Config.options.osd.timeout
                     from: 100
                     to: 3000
@@ -1259,8 +997,8 @@ SettingsTabbedPage {
                 rowSpacing: 8
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Windows")
-                    subtitle: Translation.tr("Suggest visible application windows.")
+                    title: Translation.tr("Application windows")
+                    subtitle: Translation.tr("Suggest visible app windows as regions to capture.")
                     iconName: "select_window"
                     switchChecked:
                         Config.options.regionSelector.targetRegions.windows
@@ -1272,8 +1010,8 @@ SettingsTabbedPage {
                 }
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Layer surfaces")
-                    subtitle: Translation.tr("Suggest compositor surfaces such as the navbar, dock, and other non-window layers.")
+                    title: Translation.tr("Bar, dock, and panels")
+                    subtitle: Translation.tr("Suggest shell panels as regions to capture.")
                     iconName: "right_panel_open"
                     switchChecked:
                         Config.options.regionSelector.targetRegions.layers
@@ -1314,7 +1052,7 @@ SettingsTabbedPage {
                 spacing: 8
 
                 PreferenceSwitchRow {
-                    title: Translation.tr("Rectangle aim lines")
+                    title: Translation.tr("Show selection crosshair")
                     subtitle: Translation.tr("Show guide lines while making a rectangular selection.")
                     iconName: "point_scan"
                     switchChecked:
@@ -1351,20 +1089,9 @@ SettingsTabbedPage {
                 subtitle: Translation.tr("Choose what appears in the sidebars and how quick controls are arranged.")
                 iconName: "side_navigation"
 
-                PreferenceSwitchRow {
-                    title: Translation.tr("Preload right sidebar")
-                    subtitle: Translation.tr("Keep right-sidebar content loaded while closed for faster reopening. Uses extra RAM.")
-                    iconName: "memory"
-                    switchChecked: Config.options.sidebar.keepRightSidebarLoaded
-
-                    onUserToggled: checked => {
-                        Config.options.sidebar.keepRightSidebarLoaded = checked
-                    }
-                }
-
                 FieldLabel {
                     title: Translation.tr("Quick-toggle layout")
-                    subtitle: Translation.tr("Choose between the compact classic layout and the Android-style grid.")
+                    subtitle: Translation.tr("Choose between compact controls and a tile grid.")
                 }
 
                 Flow {
@@ -1385,7 +1112,7 @@ SettingsTabbedPage {
                     }
 
                     ChoiceChip {
-                        label: Translation.tr("Android")
+                        label: Translation.tr("Tile grid")
                         iconName: "action_key"
                         selected:
                             Config.options.sidebar.quickToggles.style
@@ -1465,7 +1192,7 @@ SettingsTabbedPage {
                     }
 
                     PreferenceSwitchRow {
-                        title: Translation.tr("Brightness / volume scrolling")
+                        title: Translation.tr("Scroll corners to adjust brightness and volume")
                         subtitle: Translation.tr("Scroll the left corner region for brightness and the right corner region for volume.")
                         iconName: "unfold_more_double"
                         switchChecked:
@@ -1497,8 +1224,8 @@ SettingsTabbedPage {
                             visible:
                                 !Config.options.sidebar.cornerOpen.clickless
 
-                            title: Translation.tr("Hover exact corner as fallback")
-                            subtitle: Translation.tr("In click mode, hovering the absolute screen corner can still open the sidebar.")
+                            title: Translation.tr("Open on hover at the exact corner")
+                            subtitle: Translation.tr("Inside the wider hit area, a click is still required.")
                             iconName: "ads_click"
                             switchChecked:
                                 Config.options.sidebar.cornerOpen.clicklessCornerEnd
@@ -1516,7 +1243,7 @@ SettingsTabbedPage {
 
                             Layout.fillWidth: true
                             icon: "arrow_cool_down"
-                            text: Translation.tr("Exact-corner edge offset")
+                            text: Translation.tr("Hover distance from edge (px)")
                             value:
                                 Config.options.sidebar.cornerOpen.clicklessCornerVerticalOffset
                             from: 0
@@ -1530,7 +1257,7 @@ SettingsTabbedPage {
                         }
 
                         PreferenceSwitchRow {
-                            title: Translation.tr("Visualize interaction region")
+                            title: Translation.tr("Show corner hit area")
                             subtitle: Translation.tr("Show the otherwise invisible corner hit area for tuning.")
                             iconName: "visibility"
                             switchChecked:
@@ -1551,7 +1278,7 @@ SettingsTabbedPage {
                             ConfigSpinBox {
                                 Layout.fillWidth: true
                                 icon: "arrow_range"
-                                text: Translation.tr("Region width")
+                                text: Translation.tr("Hit area width (px)")
                                 value:
                                     Config.options.sidebar.cornerOpen.cornerRegionWidth
                                 from: 1
@@ -1567,7 +1294,7 @@ SettingsTabbedPage {
                             ConfigSpinBox {
                                 Layout.fillWidth: true
                                 icon: "height"
-                                text: Translation.tr("Region height")
+                                text: Translation.tr("Hit area height (px)")
                                 value:
                                     Config.options.sidebar.cornerOpen.cornerRegionHeight
                                 from: 1
@@ -1591,8 +1318,8 @@ SettingsTabbedPage {
             iconName: "overview_key"
 
             PreferenceSwitchRow {
-                title: Translation.tr("Enable overview")
-                subtitle: Translation.tr("Allow the shell's workspace/window overview interface.")
+                title: Translation.tr("Show workspace grid")
+                subtitle: Translation.tr("Show workspace previews when pressing Super + Tab. Search stays available.")
                 iconName: "check"
                 switchChecked: Config.options.overview.enable
 
@@ -1602,6 +1329,7 @@ SettingsTabbedPage {
             }
 
             GridLayout {
+                id: overviewLayout
                 visible: Config.options.overview.enable
                 Layout.fillWidth: true
                 columns: width >= root.wideBreakpoint ? 2 : 1
@@ -1631,7 +1359,7 @@ SettingsTabbedPage {
                     ConfigSpinBox {
                         Layout.fillWidth: true
                         icon: "loupe"
-                        text: Translation.tr("Window scale (%)")
+                        text: Translation.tr("Preview scale (%)")
                         value: Config.options.overview.scale * 100
                         from: 1
                         to: 100
@@ -1679,7 +1407,7 @@ SettingsTabbedPage {
                 }
 
                 ExpandButton {
-                    Layout.columnSpan: width >= root.wideBreakpoint ? 2 : 1
+                    Layout.columnSpan: overviewLayout.columns
                     collapsedText: Translation.tr("Overview ordering")
                     expandedText: Translation.tr("Hide overview ordering")
                     expanded: root.overviewOrderingExpanded
@@ -1692,9 +1420,9 @@ SettingsTabbedPage {
 
                 GridLayout {
                     visible: root.overviewOrderingExpanded
-                    Layout.columnSpan: width >= root.wideBreakpoint ? 2 : 1
+                    Layout.columnSpan: overviewLayout.columns
                     Layout.fillWidth: true
-                    columns: width >= root.wideBreakpoint ? 2 : 1
+                    columns: overviewLayout.columns
                     columnSpacing: 12
                     rowSpacing: 8
 
@@ -1782,7 +1510,7 @@ SettingsTabbedPage {
 
         SettingsCard {
             title: Translation.tr("Interface fonts")
-            subtitle: Translation.tr("Use semantic font roles so general UI, numbers, code, reading, and expressive text can be tuned independently.")
+            subtitle: Translation.tr("Use an installed font family name. Press Enter or leave the field to apply it.")
             iconName: "text_format"
 
             FontField {

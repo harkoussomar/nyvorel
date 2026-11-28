@@ -39,8 +39,8 @@ DockButton {
         active: isSeparator
         anchors {
             fill: parent
-            topMargin: dockVisualBackground.margin + dockRow.padding + Appearance.rounding.normal
-            bottomMargin: dockVisualBackground.margin + dockRow.padding + Appearance.rounding.normal
+            topMargin: root.appListRoot.separatorInset
+            bottomMargin: root.appListRoot.separatorInset
         }
         sourceComponent: DockSeparator {}
     }

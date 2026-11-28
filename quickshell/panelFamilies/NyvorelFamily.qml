@@ -26,7 +26,7 @@ Scope {
     id: root
     BarHost {}
     PanelLoader { component: Background {} }
-PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
+    PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
     PanelLoader { component: Lock {} }
     PanelLoader { component: MediaControls {} }
     PanelLoader { component: NotificationPopup {} }

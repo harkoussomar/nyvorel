@@ -10,6 +10,7 @@ Item {
     id: root
     property string category: "All"
     property string query: ""
+    readonly property var labelPreferences: Config.options.cheatsheet
     readonly property var categories: ["All", "Shell", "Windows", "Workspaces", "Capture", "Media", "System"]
     readonly property var allEntries: collectEntries(HyprlandKeybinds.bindings)
     readonly property var filteredEntries: allEntries.filter(entry => {
@@ -59,6 +60,23 @@ Item {
         return "Shell"
     }
 
+    function presentedKey(label) {
+        if (label === "Super")
+            return root.labelPreferences.superKey.trim() || label
+        if (root.labelPreferences.useMacSymbol) {
+            const modifiers = { Ctrl: "⌃", Alt: "⌥", Shift: "⇧", "Caps Lock": "⇪" }
+            if (label in modifiers)
+                return modifiers[label]
+        }
+        if (root.labelPreferences.useMouseSymbol) {
+            const mouse = { "Left click": "󰍽 L", "Right click": "󰍽 R", "Middle click": "󰍽 M",
+                "Scroll up": "󰍽 ↑", "Scroll down": "󰍽 ↓" }
+            if (label in mouse)
+                return mouse[label]
+        }
+        return root.labelPreferences.useFnSymbol && /^F\d+$/.test(label) ? "ƒ" + label.slice(1) : label
+    }
+
     function collectEntries(bindings) {
         const modifiers = [[64, "Super"], [4, "Ctrl"], [8, "Alt"], [1, "Shift"], [2, "Caps Lock"],
             [16, "Mod2"], [32, "Mod3"], [128, "Mod5"]]
@@ -74,12 +92,13 @@ Item {
             const mask = Number(bind.modmask)
             const parts = modifiers.filter(([bit, label]) => (mask & bit) && label !== key)
                 .map(([, label]) => label)
-            const chord = [...parts, key].join(" + ")
+            const keys = [...parts, key]
+            const chord = keys.join(" + ")
             const identity = (bind.editor?.id ?? chord.toLowerCase()) + "\n" + title.toLowerCase()
             if (seen.has(identity))
                 continue
             seen.add(identity)
-            result.push({ title, chord, mask, keyLabel: key, editor: bind.editor,
+            result.push({ title, chord, keys, mask, keyLabel: key, editor: bind.editor,
                 key: bind.keycode ? `code:${bind.keycode}` : String(bind.key ?? ""),
                 category: root.categoryFor(bind.editor?.defaultLabel ?? title) })
         }
@@ -249,7 +268,7 @@ Item {
                                 id: entry
                                 required property var modelData
                                 width: rows.width < 660 ? rows.width : (rows.width - rows.spacing) / 2
-                                height: 54
+                                height: Math.max(54, chord.implicitHeight + 10, entryTitle.implicitHeight + 10)
                                 enabled: !HyprlandKeybinds.saving
                                 activeFocusOnTab: true
                                 colBackground: "transparent"
@@ -267,6 +286,7 @@ Item {
                                     color: Appearance.colors.colLayer0Border
                                 }
                                   StyledText {
+                                    id: entryTitle
                                     anchors.left: parent.left
                                     anchors.leftMargin: 6
                                     anchors.right: chord.left
@@ -274,27 +294,44 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: entry.modelData.title
                                     color: Appearance.colors.colOnLayer0
-                                    font.pixelSize: 12
+                                    font.pixelSize: root.labelPreferences.fontSize.comment
                                     elide: Text.ElideRight
                                 }
-                                  Rectangle {
+                                  RowLayout {
                                     id: chord
                                     anchors.right: editIcon.left
                                     anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: chordText.implicitWidth + 14
-                                    height: 25
-                                    radius: Appearance.rounding.small
-                                    color: Appearance.colors.colLayer1
-                                    border.width: 1
-                                    border.color: Appearance.colors.colLayer0Border
-                                    StyledText {
-                                        id: chordText
-                                        anchors.centerIn: parent
-                                        text: entry.modelData.chord
-                                        color: Appearance.colors.colOnLayer1
-                                        font.family: Appearance.font.family.monospace
-                                        font.pixelSize: 10
+                                    spacing: 3
+                                    width: Math.min(implicitWidth, Math.max(0, parent.width * 0.65 - 24))
+
+                                    Repeater {
+                                        model: root.labelPreferences.splitButtons
+                                            ? entry.modelData.keys.map(key => root.presentedKey(key))
+                                            : [entry.modelData.keys.map(key => root.presentedKey(key)).join(" + ")]
+                                        delegate: Rectangle {
+                                            required property string modelData
+                                            Layout.fillWidth: true
+                                            Layout.minimumWidth: 0
+                                            implicitWidth: keyText.implicitWidth + 12
+                                            implicitHeight: Math.max(25, keyText.implicitHeight + 6)
+                                            radius: Appearance.radius.control
+                                            color: Appearance.colors.colLayer1
+                                            border.width: 1
+                                            border.color: Appearance.colors.colLayer0Border
+                                            StyledText {
+                                                id: keyText
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 4
+                                                anchors.rightMargin: 4
+                                                horizontalAlignment: Text.AlignHCenter
+                                                text: parent.modelData
+                                                elide: Text.ElideRight
+                                                color: Appearance.colors.colOnLayer1
+                                                font.family: Appearance.font.family.iconNerd
+                                                font.pixelSize: root.labelPreferences.fontSize.key
+                                            }
+                                        }
                                     }
                                   }
                                   MaterialSymbol {

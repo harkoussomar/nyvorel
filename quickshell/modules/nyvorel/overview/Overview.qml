@@ -235,6 +235,10 @@ Scope {
             enabled: !GlobalStates.regionSelectorOpen
             sourceComponent: OverviewWidget {
                 screen: panelWindow.screen
+                availableWidth: panelWindow.width - Math.abs(overviewLoader.sideOffset) - 2 * overviewLoader.gap
+                availableHeight: (panelWindow.joinedAtBottom
+                    ? presentation.y
+                    : panelWindow.height - presentation.y - presentation.height) - 2 * overviewLoader.gap
             }
         }
     }

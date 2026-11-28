@@ -16,6 +16,7 @@ Item {
     property real maxWindowPreviewWidth: 300
     property real windowControlsHeight: 30
     property real buttonPadding: 5
+    property real separatorInset: 0
 
     property Item lastHoveredButton
     property bool buttonHovered: false
@@ -23,33 +24,31 @@ Item {
 
     Layout.fillHeight: true
     Layout.topMargin: Appearance.sizes.hyprlandGapsOut // why does this work
-    implicitWidth: listView.implicitWidth
+    implicitWidth: appRow.implicitWidth
     
-    StyledListView {
-        id: listView
+    Row {
+        id: appRow
         spacing: 2
-        orientation: ListView.Horizontal
         anchors {
+            left: parent.left
             top: parent.top
             bottom: parent.bottom
         }
-        implicitWidth: contentWidth
 
-        Behavior on implicitWidth {
-            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-        }
+        Repeater {
+            model: ScriptModel {
+                objectProp: "appId"
+                values: TaskbarApps.apps
+            }
+            delegate: DockAppButton {
+                required property var modelData
+                appToplevel: modelData
+                appListRoot: root
+                height: appRow.height
 
-        model: ScriptModel {
-            objectProp: "appId"
-            values: TaskbarApps.apps
-        }
-        delegate: DockAppButton {
-            required property var modelData
-            appToplevel: modelData
-            appListRoot: root
-
-            topInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
-            bottomInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
+                topInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
+                bottomInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
+            }
         }
     }
 
@@ -113,7 +112,11 @@ Item {
             implicitHeight: root.maxWindowPreviewHeight + root.windowControlsHeight + Appearance.sizes.elevationMargin * 2
             hoverEnabled: true
             x: {
-                const itemCenter = root.QsWindow?.mapFromItem(root.lastHoveredButton, root.lastHoveredButton?.width / 2, 0);
+                const button = root.lastHoveredButton
+                const window = root.QsWindow.window
+                if (!button || !window || button.QsWindow.window !== window)
+                    return 0
+                const itemCenter = button.mapToItem(null, button.width / 2, 0)
                 return itemCenter.x - width / 2
             }
             StyledRectangularShadow {
